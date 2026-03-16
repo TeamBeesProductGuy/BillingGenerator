@@ -1,0 +1,151 @@
+<div class="p-4 sm:p-8 space-y-6 fade-in">
+
+  <!-- Tabs -->
+  <div>
+    <div class="flex gap-1 border-b border-outline-variant/10 mb-6" id="attendanceTabs">
+      <button class="att-tab active px-5 py-3 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2"
+              data-tab="tab-manual" onclick="switchAttTab('tab-manual')">
+        <span class="material-symbols-outlined text-lg">keyboard</span>Manual Entry
+      </button>
+      <button class="att-tab px-5 py-3 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2"
+              data-tab="tab-upload-att" onclick="switchAttTab('tab-upload-att')">
+        <span class="material-symbols-outlined text-lg">upload</span>Upload Excel
+      </button>
+      <button class="att-tab px-5 py-3 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2"
+              data-tab="tab-summary" onclick="switchAttTab('tab-summary')">
+        <span class="material-symbols-outlined text-lg">summarize</span>Summary
+      </button>
+    </div>
+
+    <!-- Manual Entry -->
+    <div class="att-tab-pane" id="tab-manual">
+      <div class="bg-surface-container rounded-2xl border border-outline-variant/10 p-6">
+        <form id="attManualForm">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Emp Code *</label>
+              <input type="text" id="attEmpCode" required>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Emp Name</label>
+              <input type="text" id="attEmpName">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Reporting Manager</label>
+              <input type="text" id="attManager">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Billing Month *</label>
+              <input type="month" id="attMonth" required>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Number of Leaves</label>
+              <input type="number" id="attLeaveCount" min="0" placeholder="e.g. 3">
+              <p class="text-xs text-on-surface-variant mt-1">OR specify specific leave days below</p>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Leave Day Numbers</label>
+              <input type="text" id="attLeaveDays" placeholder="e.g. 5,12,23">
+              <p class="text-xs text-on-surface-variant mt-1">Comma-separated day numbers</p>
+            </div>
+            <div class="flex items-end">
+              <button type="submit" class="btn-primary w-full flex items-center justify-center gap-2" style="height: 48px;">
+                <span class="material-symbols-outlined">save</span>Submit Attendance
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Upload Excel -->
+    <div class="att-tab-pane hidden" id="tab-upload-att">
+      <div class="bg-surface-container rounded-2xl border border-outline-variant/10 p-6 space-y-4">
+        <!-- Sample download hint -->
+        <div class="bg-surface-container-high rounded-xl border border-outline-variant/10 p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <span class="material-symbols-outlined text-primary">info</span>
+          </div>
+          <div class="flex-1">
+            <h6 class="text-sm font-bold text-on-surface mb-0.5">Need the attendance template?</h6>
+            <p class="text-xs text-on-surface-variant">Download the sample attendance Excel to see the required format.</p>
+          </div>
+          <a href="/api/samples/attendance" class="btn-secondary btn-sm inline-flex items-center gap-1.5 no-underline flex-shrink-0" download>
+            <span class="material-symbols-outlined text-base">table_view</span>Sample Attendance
+          </a>
+        </div>
+
+        <form id="attUploadForm">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Attendance Excel File *</label>
+              <input type="file" id="attFile" accept=".xlsx,.xls" required>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Billing Month *</label>
+              <input type="month" id="attUploadMonth" required>
+            </div>
+            <div class="flex items-end">
+              <button type="submit" class="btn-primary w-full flex items-center justify-center gap-2" style="height: 48px;">
+                <span class="material-symbols-outlined">upload</span>Upload
+              </button>
+            </div>
+          </div>
+        </form>
+        <div id="attUploadResult" class="hidden"></div>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="att-tab-pane hidden" id="tab-summary">
+      <div class="bg-surface-container rounded-2xl border border-outline-variant/10 p-6 space-y-4">
+        <div class="flex flex-col sm:flex-row items-start sm:items-end gap-4">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Billing Month</label>
+            <input type="month" id="summaryMonth">
+          </div>
+          <button class="btn-primary flex items-center gap-2" id="btnLoadSummary" style="height: 48px;">
+            <span class="material-symbols-outlined">search</span>Load Summary
+          </button>
+          <div class="flex items-center gap-3 sm:ml-auto w-full sm:w-auto max-w-sm">
+            <span class="material-symbols-outlined text-on-surface-variant">search</span>
+            <input type="text" id="attSummarySearch" placeholder="Search attendance..." class="flex-1">
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="stitch-table" id="summaryTable">
+            <thead>
+              <tr>
+                <th class="sortable" data-sort-key="0">Emp Code</th>
+                <th class="sortable" data-sort-key="1">Emp Name</th>
+                <th class="sortable text-center" data-sort-key="2" data-sort-type="number">Days Present</th>
+                <th class="sortable text-center" data-sort-key="3" data-sort-type="number">Leaves Taken</th>
+                <th class="sortable text-center" data-sort-key="4" data-sort-type="number">Total Days</th>
+              </tr>
+            </thead>
+            <tbody id="summaryBody">
+              <tr><td colspan="5" class="text-center text-on-surface-variant py-6">Select a month and click Load</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .att-tab {
+    color: #c7c4d8;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+  }
+  .att-tab:hover { color: #dae2fd; }
+  .att-tab.active {
+    color: #c3c0ff;
+    border-bottom-color: #c3c0ff;
+    background: rgba(79, 70, 229, 0.05);
+  }
+</style>

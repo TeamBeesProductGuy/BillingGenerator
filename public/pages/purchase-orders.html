@@ -1,0 +1,219 @@
+<div class="p-4 sm:p-8 space-y-6 fade-in">
+
+  <!-- Header with Add button -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div><!-- Title handled by shell --></div>
+    <button class="btn-primary inline-flex items-center gap-2" onclick="window.poEdit=null;openPOModal()">
+      <span class="material-symbols-outlined text-lg">add</span>Create PO
+    </button>
+  </div>
+
+  <!-- Alerts -->
+  <div id="poAlertsSection" class="hidden">
+    <div class="bg-surface-container rounded-2xl border border-yellow-500/20 overflow-hidden">
+      <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center gap-2 bg-yellow-500/5">
+        <span class="material-symbols-outlined text-yellow-400">warning</span>
+        <h6 class="text-sm font-bold uppercase tracking-[0.2em] text-yellow-400">PO Alerts</h6>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="stitch-table">
+          <thead><tr><th>PO#</th><th>Client</th><th>Consumed</th><th>End Date</th><th>Alert</th></tr></thead>
+          <tbody id="poAlertsBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters & Search -->
+  <div class="bg-surface-container rounded-2xl border border-outline-variant/10 p-4">
+    <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+      <div class="flex items-center gap-2">
+        <span class="material-symbols-outlined text-on-surface-variant text-lg">filter_list</span>
+        <label class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Client:</label>
+        <select id="poFilterClient" class="w-auto"><option value="">All</option></select>
+      </div>
+      <div class="flex items-center gap-2">
+        <label class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Status:</label>
+        <select id="poFilterStatus" class="w-auto">
+          <option value="">All</option><option>Active</option><option>Expired</option><option>Exhausted</option><option>Renewed</option><option>Cancelled</option>
+        </select>
+      </div>
+      <div class="flex items-center gap-3 sm:ml-auto w-full sm:w-auto max-w-sm">
+        <span class="material-symbols-outlined text-on-surface-variant">search</span>
+        <input type="text" id="poSearch" placeholder="Search purchase orders..." class="flex-1">
+      </div>
+    </div>
+  </div>
+
+  <!-- PO Table -->
+  <div class="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="stitch-table" id="poTable">
+        <thead>
+          <tr>
+            <th class="sortable" data-sort-key="0">PO#</th>
+            <th class="sortable" data-sort-key="1">Client</th>
+            <th class="sortable" data-sort-key="2" data-sort-type="date">Start</th>
+            <th class="sortable" data-sort-key="3" data-sort-type="date">End</th>
+            <th class="sortable text-right" data-sort-key="4" data-sort-type="currency">PO Value</th>
+            <th class="sortable text-right" data-sort-key="5" data-sort-type="currency">Consumed</th>
+            <th style="width:150px">Progress</th>
+            <th class="sortable" data-sort-key="7">Status</th>
+            <th class="text-center">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="poBody">
+          <tr><td colspan="9"><div class="loading-spinner"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- PO Detail Modal -->
+<div id="poDetailModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-3xl mx-4 border border-outline-variant/20 shadow-2xl max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/10 sticky top-0 bg-surface-container-high z-10">
+      <h5 class="font-headline font-bold text-lg text-on-surface">PO Details</h5>
+      <button type="button" onclick="closePODetailModal()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="p-6" id="poDetailBody"></div>
+  </div>
+</div>
+
+<!-- Create/Edit PO Modal -->
+<div id="poModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-lg mx-4 border border-outline-variant/20 shadow-2xl">
+    <form id="poForm">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/10">
+        <h5 class="font-headline font-bold text-lg text-on-surface" id="poModalTitle">Create Purchase Order</h5>
+        <button type="button" onclick="closePOModal()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="p-6 space-y-4">
+        <input type="hidden" id="poId">
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">PO Number *</label>
+          <input type="text" id="poNumber" required>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Client *</label>
+          <select id="poClient" required><option value="">Select</option></select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">PO Date *</label>
+          <input type="date" id="poDate" required>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Start Date *</label>
+            <input type="date" id="poStartDate" required>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">End Date *</label>
+            <input type="date" id="poEndDate" required>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">PO Value *</label>
+            <input type="number" id="poValue" step="0.01" min="0.01" required>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Alert Threshold %</label>
+            <input type="number" id="poThreshold" value="80" min="1" max="100">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Notes</label>
+          <textarea id="poNotes" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/10">
+        <button type="button" class="btn-secondary" onclick="closePOModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Consume Modal -->
+<div id="consumeModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-sm mx-4 border border-outline-variant/20 shadow-2xl">
+    <form id="consumeForm">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/10">
+        <h5 class="font-headline font-bold text-lg text-on-surface">Record Consumption</h5>
+        <button type="button" onclick="closeConsumeModal()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="p-6 space-y-4">
+        <input type="hidden" id="consumePoId">
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Amount *</label>
+          <input type="number" id="consumeAmount" step="0.01" min="0.01" required>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Description</label>
+          <input type="text" id="consumeDesc">
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/10">
+        <button type="button" class="btn-secondary" onclick="closeConsumeModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Record</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Renew Modal -->
+<div id="renewModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-lg mx-4 border border-outline-variant/20 shadow-2xl">
+    <form id="renewForm">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/10">
+        <h5 class="font-headline font-bold text-lg text-on-surface">Renew Purchase Order</h5>
+        <button type="button" onclick="closeRenewModal()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="p-6 space-y-4">
+        <input type="hidden" id="renewPoId">
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">New PO Number *</label>
+          <input type="text" id="renewPoNumber" required>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">PO Date *</label>
+          <input type="date" id="renewPoDate" required>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Start Date *</label>
+            <input type="date" id="renewStartDate" required>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">End Date *</label>
+            <input type="date" id="renewEndDate" required>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">PO Value *</label>
+            <input type="number" id="renewPoValue" step="0.01" min="0.01" required>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Alert %</label>
+            <input type="number" id="renewThreshold" value="80">
+          </div>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/10">
+        <button type="button" class="btn-secondary" onclick="closeRenewModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Renew</button>
+      </div>
+    </form>
+  </div>
+</div>

@@ -1,0 +1,158 @@
+<div class="p-4 sm:p-8 space-y-6 fade-in">
+
+  <!-- Header with Add button -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div><!-- Title handled by shell --></div>
+    <button class="btn-primary inline-flex items-center gap-2" onclick="window.quoteEdit=null;openQuoteModal()">
+      <span class="material-symbols-outlined text-lg">add</span>Create Quote
+    </button>
+  </div>
+
+  <!-- Filters & Search -->
+  <div class="bg-surface-container rounded-2xl border border-outline-variant/10 p-4">
+    <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+      <div class="flex items-center gap-2">
+        <span class="material-symbols-outlined text-on-surface-variant text-lg">filter_list</span>
+        <label class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Client:</label>
+        <select id="quoteFilterClient" class="w-auto"><option value="">All</option></select>
+      </div>
+      <div class="flex items-center gap-2">
+        <label class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Status:</label>
+        <select id="quoteFilterStatus" class="w-auto">
+          <option value="">All</option><option>Draft</option><option>Sent</option><option>Accepted</option><option>Rejected</option><option>Expired</option>
+        </select>
+      </div>
+      <div class="flex items-center gap-3 sm:ml-auto w-full sm:w-auto max-w-sm">
+        <span class="material-symbols-outlined text-on-surface-variant">search</span>
+        <input type="text" id="quotesSearch" placeholder="Search quotes..." class="flex-1">
+      </div>
+    </div>
+  </div>
+
+  <!-- Quotes Table -->
+  <div class="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="stitch-table" id="quotesTable">
+        <thead>
+          <tr>
+            <th class="sortable" data-sort-key="0">Quote #</th>
+            <th class="sortable" data-sort-key="1">Client</th>
+            <th class="sortable" data-sort-key="2" data-sort-type="date">Date</th>
+            <th class="sortable" data-sort-key="3" data-sort-type="date">Valid Until</th>
+            <th class="sortable" data-sort-key="4">Status</th>
+            <th class="sortable text-right" data-sort-key="5" data-sort-type="currency">Subtotal</th>
+            <th class="sortable text-right" data-sort-key="6" data-sort-type="currency">Tax</th>
+            <th class="sortable text-right" data-sort-key="7" data-sort-type="currency">Total</th>
+            <th class="text-center">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="quotesBody">
+          <tr><td colspan="9"><div class="loading-spinner"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Quote Modal -->
+<div id="quoteModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-3xl mx-4 border border-outline-variant/20 shadow-2xl max-h-[90vh] overflow-y-auto">
+    <form id="quoteForm">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/10 sticky top-0 bg-surface-container-high z-10">
+        <h5 class="font-headline font-bold text-lg text-on-surface" id="quoteModalTitle">Create Quote</h5>
+        <button type="button" onclick="closeQuoteModal()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="p-6 space-y-4">
+        <input type="hidden" id="quoteId">
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Client *</label>
+            <select id="quoteClient" required><option value="">Select</option></select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Quote Date *</label>
+            <input type="date" id="quoteDate" required>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Valid Until *</label>
+            <input type="date" id="quoteValidUntil" required>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Tax %</label>
+            <input type="number" id="quoteTax" value="18" step="0.01">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Notes</label>
+          <textarea id="quoteNotes" rows="2"></textarea>
+        </div>
+
+        <h6 class="text-sm font-bold uppercase tracking-[0.2em] text-on-surface-variant pt-2">Line Items</h6>
+        <div class="overflow-x-auto">
+          <table class="stitch-table" id="quoteItemsTable">
+            <thead><tr><th>Description</th><th style="width:80px">Qty</th><th style="width:120px">Unit Rate</th><th style="width:120px">Amount</th><th style="width:40px"></th></tr></thead>
+            <tbody id="quoteItemsBody"></tbody>
+          </table>
+        </div>
+        <button type="button" class="btn-secondary btn-sm inline-flex items-center gap-1.5" id="btnAddQuoteItem">
+          <span class="material-symbols-outlined text-base">add</span>Add Item
+        </button>
+
+        <div class="flex justify-end">
+          <div class="w-full max-w-xs">
+            <table class="w-full text-sm">
+              <tr><td class="py-1 text-on-surface-variant">Subtotal:</td><td class="py-1 text-right text-on-surface font-medium" id="quoteSubtotal">&#8377;0.00</td></tr>
+              <tr><td class="py-1 text-on-surface-variant">Tax:</td><td class="py-1 text-right text-on-surface font-medium" id="quoteTaxAmt">&#8377;0.00</td></tr>
+              <tr class="border-t border-outline-variant/10"><td class="py-2 text-on-surface font-bold">Total:</td><td class="py-2 text-right text-on-surface font-bold text-lg" id="quoteTotal">&#8377;0.00</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/10">
+        <button type="button" class="btn-secondary" onclick="closeQuoteModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Convert to PO Modal -->
+<div id="convertPoModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-md mx-4 border border-outline-variant/20 shadow-2xl">
+    <form id="convertPoForm">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/10">
+        <h5 class="font-headline font-bold text-lg text-on-surface">Convert to Purchase Order</h5>
+        <button type="button" onclick="closeConvertPoModal()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="p-6 space-y-4">
+        <input type="hidden" id="convertQuoteId">
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">PO Number *</label>
+          <input type="text" id="convertPoNumber" required>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">PO Date *</label>
+          <input type="date" id="convertPoDate" required>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Start Date *</label>
+            <input type="date" id="convertStartDate" required>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">End Date *</label>
+            <input type="date" id="convertEndDate" required>
+          </div>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/10">
+        <button type="button" class="btn-secondary" onclick="closeConvertPoModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Create PO</button>
+      </div>
+    </form>
+  </div>
+</div>

@@ -1,0 +1,219 @@
+<div class="p-4 sm:p-8 space-y-6 fade-in">
+
+  <!-- Sample Download Banner -->
+  <div class="bg-surface-container rounded-2xl border border-outline-variant/10 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+    <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+      <span class="material-symbols-outlined text-primary">download</span>
+    </div>
+    <div class="flex-1">
+      <h6 class="text-sm font-bold text-on-surface mb-0.5">Need sample Excel templates?</h6>
+      <p class="text-xs text-on-surface-variant">Download sample Rate Card and Attendance files to understand the required format.</p>
+    </div>
+    <div class="flex gap-2 flex-shrink-0">
+      <a href="/api/samples/rate-card" class="btn-secondary btn-sm inline-flex items-center gap-1.5 no-underline" download>
+        <span class="material-symbols-outlined text-base">table_view</span>Rate Card
+      </a>
+      <a href="/api/samples/attendance" class="btn-secondary btn-sm inline-flex items-center gap-1.5 no-underline" download>
+        <span class="material-symbols-outlined text-base">table_view</span>Attendance
+      </a>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div>
+    <div class="flex gap-1 border-b border-outline-variant/10 mb-6" id="billingTabs">
+      <button class="billing-tab active px-5 py-3 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2"
+              data-tab="tab-files" onclick="switchBillingTab('tab-files')">
+        <span class="material-symbols-outlined text-lg">upload_file</span>Generate from Files
+      </button>
+      <button class="billing-tab px-5 py-3 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2"
+              data-tab="tab-db" onclick="switchBillingTab('tab-db')">
+        <span class="material-symbols-outlined text-lg">database</span>Generate from Database
+      </button>
+    </div>
+
+    <!-- Tab 1: From Files -->
+    <div class="billing-tab-pane" id="tab-files">
+      <div class="bg-surface-container rounded-2xl border border-outline-variant/10 p-6">
+        <form id="billingFileForm">
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-2">Rate Card Excel File</label>
+              <div class="upload-zone cursor-pointer relative" id="rateCardZone">
+                <span class="material-symbols-outlined text-3xl text-on-surface-variant/50 mb-2">cloud_upload</span>
+                <div class="text-sm text-on-surface-variant">Drop Rate Card file here or click to browse</div>
+                <div class="text-xs text-outline mt-1">.xlsx or .xls files only</div>
+                <div class="text-xs text-primary font-semibold mt-2" id="rateCardFileName"></div>
+                <input type="file" id="rateCardFile" name="rateCardFile" accept=".xlsx,.xls" required class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-2">Attendance Excel File</label>
+              <div class="upload-zone cursor-pointer relative" id="attendanceZone">
+                <span class="material-symbols-outlined text-3xl text-on-surface-variant/50 mb-2">cloud_upload</span>
+                <div class="text-sm text-on-surface-variant">Drop Attendance file here or click to browse</div>
+                <div class="text-xs text-outline mt-1">.xlsx or .xls files only</div>
+                <div class="text-xs text-primary font-semibold mt-2" id="attendanceFileName"></div>
+                <input type="file" id="attendanceFile" name="attendanceFile" accept=".xlsx,.xls" required class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-2">Billing Month</label>
+              <input type="month" id="billingMonth" required>
+            </div>
+            <div class="flex items-end">
+              <button type="submit" class="btn-primary w-full flex items-center justify-center gap-2" id="btnGenerate" style="height: 48px;">
+                <span class="material-symbols-outlined">settings</span> Generate
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Tab 2: From Database -->
+    <div class="billing-tab-pane hidden" id="tab-db">
+      <div class="bg-surface-container rounded-2xl border border-outline-variant/10 p-6">
+        <form id="billingDbForm">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-2">Client</label>
+              <select id="dbClientId">
+                <option value="">All Clients</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-2">Billing Month</label>
+              <input type="month" id="dbBillingMonth" required>
+            </div>
+            <div class="flex items-end">
+              <button type="submit" class="btn-primary w-full flex items-center justify-center gap-2" id="btnGenerateDb" style="height: 48px;">
+                <span class="material-symbols-outlined">database</span> Generate from DB
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results Section (hidden initially) -->
+  <div id="billingResults" class="hidden space-y-6">
+    <h3 class="text-sm font-bold uppercase tracking-[0.2em] text-on-surface-variant">Results</h3>
+
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-surface-container rounded-2xl border border-outline-variant/10 p-5">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <span class="material-symbols-outlined text-primary">group</span>
+          </div>
+          <span class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Total Employees</span>
+        </div>
+        <div class="text-2xl font-headline font-bold text-on-surface" id="resTotalEmp">0</div>
+      </div>
+      <div class="bg-surface-container rounded-2xl border border-outline-variant/10 p-5">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center">
+            <span class="material-symbols-outlined text-green-400">currency_rupee</span>
+          </div>
+          <span class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Total Amount</span>
+        </div>
+        <div class="text-2xl font-headline font-bold text-on-surface" id="resTotalAmount">&#8377;0</div>
+      </div>
+      <div class="bg-surface-container rounded-2xl border border-outline-variant/10 p-5">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center">
+            <span class="material-symbols-outlined text-red-400">error</span>
+          </div>
+          <span class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Errors</span>
+        </div>
+        <div class="text-2xl font-headline font-bold text-on-surface" id="resErrors">0</div>
+      </div>
+      <div class="bg-surface-container rounded-2xl border border-outline-variant/10 p-5">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+            <span class="material-symbols-outlined text-blue-400">calendar_month</span>
+          </div>
+          <span class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Days in Month</span>
+        </div>
+        <div class="text-2xl font-headline font-bold text-on-surface" id="resDays">0</div>
+      </div>
+    </div>
+
+    <!-- Download Button -->
+    <div>
+      <a id="downloadLink" class="btn-primary inline-flex items-center gap-2 no-underline text-on-primary-fixed" href="#" target="_blank">
+        <span class="material-symbols-outlined">download</span>Download Billing Excel
+      </a>
+    </div>
+
+    <!-- Billing Items Table -->
+    <div class="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden">
+      <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center gap-2">
+        <span class="material-symbols-outlined text-on-surface-variant">table_chart</span>
+        <h5 class="text-sm font-bold uppercase tracking-[0.2em] text-on-surface-variant">Billing Items</h5>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="stitch-table">
+          <thead>
+            <tr>
+              <th>Client</th><th>Emp Code</th><th>Emp Name</th><th>Manager</th>
+              <th class="text-right">Monthly Rate</th><th class="text-center">Allowed</th>
+              <th class="text-center">Taken</th><th class="text-center">Chargeable</th>
+              <th class="text-right">Invoice Amount</th>
+            </tr>
+          </thead>
+          <tbody id="billingItemsBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Errors Table -->
+    <div class="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden hidden" id="errorsCard">
+      <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center gap-2">
+        <span class="material-symbols-outlined text-error">warning</span>
+        <h5 class="text-sm font-bold uppercase tracking-[0.2em] text-error">Errors</h5>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="stitch-table">
+          <thead><tr><th>Emp Code</th><th>Error Message</th></tr></thead>
+          <tbody id="errorsBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Billing History -->
+  <div class="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden">
+    <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center gap-2">
+      <span class="material-symbols-outlined text-on-surface-variant">history</span>
+      <h5 class="text-sm font-bold uppercase tracking-[0.2em] text-on-surface-variant">Billing History</h5>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="stitch-table">
+        <thead>
+          <tr><th>Month</th><th class="text-center">Employees</th><th class="text-right">Amount</th><th class="text-center">Errors</th><th>Date</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="billingHistoryBody">
+          <tr><td colspan="6"><div class="loading-spinner"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<style>
+  .billing-tab {
+    color: #c7c4d8;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+  }
+  .billing-tab:hover { color: #dae2fd; }
+  .billing-tab.active {
+    color: #c3c0ff;
+    border-bottom-color: #c3c0ff;
+    background: rgba(79, 70, 229, 0.05);
+  }
+</style>

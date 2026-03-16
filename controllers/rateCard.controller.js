@@ -1,0 +1,109 @@
+const fs = require('fs');
+const ExcelJS = require('exceljs');
+const RateCardModel = require('../models/rateCard.model');
+const ClientModel = require('../models/client.model');
+const { parseRateCard } = require('../services/excelParser.service');
+const { AppError } = require('../middleware/errorHandler');
+const catchAsync = require('../middleware/catchAsync');
+
+const rateCardController = {
+  list: catchAsync(async (req, res) => {
+    const clientId = req.query.clientId ? parseInt(req.query.clientId, 10) : null;
+    const cards = RateCardModel.findAll(clientId);
+    res.json({ success: true, data: cards });
+  }),
+
+  getById: catchAsync(async (req, res) => {
+    const card = RateCardModel.findById(parseInt(req.params.id, 10));
+    if (!card) throw new AppError(404, 'Rate card not found');
+    res.json({ success: true, data: card });
+  }),
+
+  create: catchAsync(async (req, res) => {
+    const { client_id, emp_code, emp_name, doj, reporting_manager, monthly_rate, leaves_allowed } = req.body;
+    try {
+      const id = RateCardModel.create({ client_id, emp_code, emp_name, doj, reporting_manager, monthly_rate, leaves_allowed });
+      res.status(201).json({ success: true, data: { id } });
+    } catch (err) {
+      if (err.message && err.message.includes('UNIQUE')) {
+        throw new AppError(409, 'Employee code already exists for this client');
+      }
+      throw err;
+    }
+  }),
+
+  update: catchAsync(async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    const existing = RateCardModel.findById(id);
+    if (!existing) throw new AppError(404, 'Rate card not found');
+    RateCardModel.update(id, req.body);
+    res.json({ success: true, data: { id } });
+  }),
+
+  remove: catchAsync(async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    const existing = RateCardModel.findById(id);
+    if (!existing) throw new AppError(404, 'Rate card not found');
+    RateCardModel.softDelete(id);
+    res.json({ success: true, data: { message: 'Rate card deleted' } });
+  }),
+
+  uploadExcel: catchAsync(async (req, res) => {
+    if (!req.file) throw new AppError(400, 'Excel file is required');
+    const clientId = parseInt(req.body.clientId, 10);
+    if (!clientId) throw new AppError(400, 'clientId is required');
+
+    const client = ClientModel.findById(clientId);
+    if (!client) throw new AppError(404, 'Client not found');
+
+    try {
+      const { records, errors } = await parseRateCard(req.file.path);
+
+      if (records.length > 0) {
+        const dbRecords = records.map((r) => ({ ...r, client_id: clientId }));
+        RateCardModel.bulkCreate(dbRecords);
+      }
+
+      res.json({
+        success: true,
+        data: {
+          imported: records.length,
+          errors: errors.length,
+          errorDetails: errors,
+        },
+      });
+    } finally {
+      try { fs.unlinkSync(req.file.path); } catch (e) { /* ignore */ }
+    }
+  }),
+
+  exportExcel: catchAsync(async (req, res) => {
+    const clientId = req.query.clientId ? parseInt(req.query.clientId, 10) : null;
+    const cards = RateCardModel.findAll(clientId);
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Rate Cards');
+    sheet.columns = [
+      { header: 'Client Name', key: 'client_name', width: 20 },
+      { header: 'Emp Code', key: 'emp_code', width: 15 },
+      { header: 'Emp Name', key: 'emp_name', width: 20 },
+      { header: 'DOJ', key: 'doj', width: 12 },
+      { header: 'Reporting Manager', key: 'reporting_manager', width: 20 },
+      { header: 'Monthly Rate', key: 'monthly_rate', width: 15 },
+      { header: 'Leaves Allowed', key: 'leaves_allowed', width: 15 },
+    ];
+
+    const headerRow = sheet.getRow(1);
+    headerRow.font = { bold: true };
+
+    for (const card of cards) {
+      sheet.addRow(card);
+    }
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename=RateCards_Export.xlsx');
+    await workbook.xlsx.write(res);
+  }),
+};
+
+module.exports = rateCardController;

@@ -1,0 +1,79 @@
+<div class="p-4 sm:p-8 space-y-6 fade-in">
+
+  <!-- Header with Add button -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div><!-- Title handled by shell --></div>
+    <button class="btn-primary inline-flex items-center gap-2" onclick="window.clientEdit=null;openClientModal()">
+      <span class="material-symbols-outlined text-lg">add</span>Add Client
+    </button>
+  </div>
+
+  <!-- Search Bar -->
+  <div class="bg-surface-container rounded-2xl border border-outline-variant/10 p-4">
+    <div class="flex items-center gap-3 max-w-md">
+      <span class="material-symbols-outlined text-on-surface-variant">search</span>
+      <input type="text" id="clientsSearch" placeholder="Search clients..." class="flex-1">
+    </div>
+  </div>
+
+  <!-- Clients Table -->
+  <div class="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="stitch-table" id="clientsTable">
+        <thead>
+          <tr>
+            <th class="sortable" data-sort-key="0">Name</th>
+            <th class="sortable" data-sort-key="1">Contact Person</th>
+            <th class="sortable" data-sort-key="2">Email</th>
+            <th class="sortable" data-sort-key="3">Phone</th>
+            <th class="text-center">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="clientsBody">
+          <tr><td colspan="5"><div class="loading-spinner"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Client Modal -->
+<div id="clientModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-lg mx-4 border border-outline-variant/20 shadow-2xl">
+    <form id="clientForm">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/10">
+        <h5 class="font-headline font-bold text-lg text-on-surface" id="clientModalTitle">Add Client</h5>
+        <button type="button" onclick="closeClientModal()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="p-6 space-y-4">
+        <input type="hidden" id="clientId">
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Client Name *</label>
+          <input type="text" id="clientName" required>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Contact Person</label>
+          <input type="text" id="contactPerson">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Email</label>
+          <input type="email" id="clientEmail">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Phone</label>
+          <input type="text" id="clientPhone">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Address</label>
+          <textarea id="clientAddress" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/10">
+        <button type="button" class="btn-secondary" onclick="closeClientModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>

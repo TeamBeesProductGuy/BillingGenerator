@@ -1,0 +1,150 @@
+<div class="p-8 space-y-8 max-w-7xl mx-auto w-full">
+
+    <!-- Statistics Bento Grid -->
+    <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+        <!-- Total Clients -->
+        <div class="bg-surface-container p-6 rounded-xl relative overflow-hidden border border-outline-variant/5">
+            <div class="absolute -top-4 -right-4 w-24 h-24 bg-primary/5 blur-2xl rounded-full"></div>
+            <p class="text-xs uppercase tracking-widest text-on-surface-variant mb-4">Total Clients</p>
+            <div class="flex items-end justify-between">
+                <h3 id="statTotalClients" class="text-3xl font-headline font-bold text-on-surface">--</h3>
+                <span class="material-symbols-outlined text-primary mb-1">group</span>
+            </div>
+        </div>
+        <!-- Active Employees -->
+        <div class="bg-surface-container p-6 rounded-xl relative overflow-hidden border border-outline-variant/5">
+            <div class="absolute -top-4 -right-4 w-24 h-24 bg-primary/5 blur-2xl rounded-full"></div>
+            <p class="text-xs uppercase tracking-widest text-on-surface-variant mb-4">Active Employees</p>
+            <div class="flex items-end justify-between">
+                <h3 id="statActiveEmployees" class="text-3xl font-headline font-bold text-on-surface">--</h3>
+                <span class="material-symbols-outlined text-primary mb-1">badge</span>
+            </div>
+        </div>
+        <!-- Active POs -->
+        <div class="bg-surface-container p-6 rounded-xl relative overflow-hidden border border-outline-variant/5">
+            <div class="absolute -top-4 -right-4 w-24 h-24 bg-primary/5 blur-2xl rounded-full"></div>
+            <p class="text-xs uppercase tracking-widest text-on-surface-variant mb-4">Active POs</p>
+            <div class="flex items-end justify-between">
+                <h3 id="statActivePOs" class="text-3xl font-headline font-bold text-on-surface">--</h3>
+                <span class="material-symbols-outlined text-primary mb-1">shopping_cart</span>
+            </div>
+        </div>
+        <!-- Billing Runs -->
+        <div class="bg-surface-container p-6 rounded-xl relative overflow-hidden border border-outline-variant/5">
+            <div class="absolute -top-4 -right-4 w-24 h-24 bg-primary/5 blur-2xl rounded-full"></div>
+            <p class="text-xs uppercase tracking-widest text-on-surface-variant mb-4">Billing Runs</p>
+            <div class="flex items-end justify-between">
+                <h3 id="statBillingRuns" class="text-3xl font-headline font-bold text-on-surface">--</h3>
+                <span class="material-symbols-outlined text-primary mb-1">sync</span>
+            </div>
+        </div>
+        <!-- Pending Quotes -->
+        <div class="bg-surface-container p-6 rounded-xl relative overflow-hidden border border-outline-variant/5">
+            <div class="absolute -top-4 -right-4 w-24 h-24 bg-tertiary/10 blur-2xl rounded-full"></div>
+            <p class="text-xs uppercase tracking-widest text-on-surface-variant mb-4">Pending Quotes</p>
+            <div class="flex items-end justify-between">
+                <h3 id="statPendingQuotes" class="text-3xl font-headline font-bold text-tertiary">--</h3>
+                <span class="material-symbols-outlined text-tertiary mb-1">pending_actions</span>
+            </div>
+        </div>
+        <!-- Total Revenue -->
+        <div class="bg-surface-container p-6 rounded-xl relative overflow-hidden border border-outline-variant/5">
+            <div class="absolute -top-4 -right-4 w-24 h-24 bg-primary-container/10 blur-2xl rounded-full"></div>
+            <p class="text-xs uppercase tracking-widest text-on-surface-variant mb-4">Total Revenue</p>
+            <div class="flex items-end justify-between">
+                <h3 id="statTotalRevenue" class="text-3xl font-headline font-bold text-on-surface">--</h3>
+                <span class="material-symbols-outlined text-primary mb-1">payments</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Middle Section: Actions & Recent Runs -->
+    <section class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <!-- Quick Actions + Upload -->
+        <div class="lg:col-span-8 space-y-6">
+            <h4 class="text-sm font-bold uppercase tracking-[0.2em] text-on-surface-variant">Intelligent Actions</h4>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <a href="#billing" class="group cursor-pointer bg-surface-container hover:bg-primary-container/20 transition-all p-6 rounded-2xl border border-outline-variant/10 flex flex-col items-center justify-center text-center space-y-3 no-underline">
+                    <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                        <span class="material-symbols-outlined text-3xl">receipt_long</span>
+                    </div>
+                    <span class="font-headline font-semibold text-sm text-on-surface">Generate Billing</span>
+                </a>
+                <a href="#rate-cards" class="group cursor-pointer bg-surface-container hover:bg-primary-container/20 transition-all p-6 rounded-2xl border border-outline-variant/10 flex flex-col items-center justify-center text-center space-y-3 no-underline">
+                    <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                        <span class="material-symbols-outlined text-3xl">credit_card</span>
+                    </div>
+                    <span class="font-headline font-semibold text-sm text-on-surface">Upload Rate Card</span>
+                </a>
+                <a href="#attendance" class="group cursor-pointer bg-surface-container hover:bg-primary-container/20 transition-all p-6 rounded-2xl border border-outline-variant/10 flex flex-col items-center justify-center text-center space-y-3 no-underline">
+                    <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                        <span class="material-symbols-outlined text-3xl">fact_check</span>
+                    </div>
+                    <span class="font-headline font-semibold text-sm text-on-surface">Upload Attendance</span>
+                </a>
+            </div>
+
+            <!-- Revenue Chart -->
+            <div class="bg-surface-container rounded-2xl p-6 border border-outline-variant/10">
+                <h4 class="text-sm font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-4">Revenue Trend</h4>
+                <div style="height: 220px;">
+                    <canvas id="revenueChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Runs Sidebar -->
+        <div class="lg:col-span-4 bg-surface-container rounded-2xl p-6 border border-outline-variant/10 overflow-hidden flex flex-col">
+            <div class="flex items-center justify-between mb-6">
+                <h4 class="text-sm font-bold uppercase tracking-[0.2em] text-on-surface-variant">Recent Runs</h4>
+                <a href="#billing" class="text-xs text-primary font-semibold hover:underline no-underline">View All</a>
+            </div>
+            <div id="recentRunsList" class="space-y-3 flex-1 overflow-y-auto">
+                <div class="loading-spinner"></div>
+            </div>
+
+            <!-- PO Alerts -->
+            <div class="mt-6 pt-6 border-t border-outline-variant/10">
+                <h4 class="text-sm font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-4">PO Alerts</h4>
+                <div id="poAlertsList" class="space-y-3 max-h-48 overflow-y-auto">
+                    <div class="text-on-surface-variant text-sm text-center py-2">Loading...</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Bottom: Billing History Table -->
+    <section class="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden shadow-2xl">
+        <div class="p-6 border-b border-outline-variant/10 flex items-center justify-between bg-surface-container-high/50">
+            <h4 class="text-lg font-headline font-bold">Comprehensive Billing History</h4>
+            <div class="flex gap-2 items-center">
+                <div class="relative">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-on-surface-variant text-lg">search</span>
+                    <input id="billingHistorySearch" class="bg-surface-container-high border-none rounded-lg pl-9 pr-3 py-2 text-xs w-48 focus:ring-1 focus:ring-primary placeholder:text-outline text-on-surface" placeholder="Search runs..." type="text">
+                </div>
+                <button id="btnRefreshDashboard" class="px-4 py-2 bg-surface-container-high text-xs font-semibold rounded-lg hover:bg-surface-container-highest transition-all flex items-center gap-2">
+                    <span class="material-symbols-outlined text-sm">refresh</span> Refresh
+                </button>
+            </div>
+        </div>
+        <div class="overflow-x-auto">
+            <table id="billingHistoryTable" class="stitch-table">
+                <thead>
+                    <tr>
+                        <th class="sortable" data-sort-key="0">Billing Month</th>
+                        <th class="sortable text-center" data-sort-key="1" data-sort-type="number">Employees</th>
+                        <th class="sortable text-right" data-sort-key="2" data-sort-type="currency">Amount</th>
+                        <th class="sortable text-right" data-sort-key="3" data-sort-type="currency">GST</th>
+                        <th class="sortable text-center" data-sort-key="4" data-sort-type="number">Errors</th>
+                        <th class="sortable" data-sort-key="5" data-sort-type="date">Date</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="billingHistoryBody">
+                    <tr><td colspan="7" class="text-center text-on-surface-variant py-8">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+</div>
