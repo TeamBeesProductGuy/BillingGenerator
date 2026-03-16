@@ -6,6 +6,25 @@
 (function () {
     "use strict";
 
+    // -----------------------------------------------------------
+    //  Supabase Auth Config
+    // -----------------------------------------------------------
+    var SUPABASE_URL = "https://rupzjxvjvedbdanuqwhj.supabase.co";
+    var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1cHpqeHZqdmVkYmRhbnVxd2hqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2NDUyODcsImV4cCI6MjA4OTIyMTI4N30.ZzKidn48g_cu0zWdfmL8LX8stiYVHavcSthBOL1bJ9g";
+
+    var supabaseClient = null;
+    var currentSession = null;
+
+    function initSupabase() {
+        if (window.supabase && window.supabase.createClient) {
+            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            window._supabaseClient = supabaseClient;
+        }
+    }
+
+    // -----------------------------------------------------------
+    //  Routes & State
+    // -----------------------------------------------------------
     var ROUTES = ["dashboard", "billing", "rate-cards", "attendance", "quotes", "purchase-orders", "clients"];
     var DEFAULT_ROUTE = "dashboard";
     var currentPage = null;
@@ -22,9 +41,99 @@
     };
 
     // -----------------------------------------------------------
+    //  Auth Flow
+    // -----------------------------------------------------------
+    function showApp() {
+        var sidebar = document.getElementById("sidebar");
+        var mainContent = document.querySelector("main");
+        if (sidebar) sidebar.style.display = "";
+        if (mainContent) mainContent.style.display = "";
+    }
+
+    function hideApp() {
+        var sidebar = document.getElementById("sidebar");
+        var mainContent = document.querySelector("main");
+        if (sidebar) sidebar.style.display = "none";
+        if (mainContent) mainContent.style.display = "none";
+    }
+
+    async function showLoginPage() {
+        hideApp();
+        var appContent = document.getElementById("app-content");
+        // Use a full-page login container outside the normal layout
+        var loginContainer = document.getElementById("login-container");
+        if (!loginContainer) {
+            loginContainer = document.createElement("div");
+            loginContainer.id = "login-container";
+            loginContainer.className = "min-h-screen bg-background";
+            document.body.insertBefore(loginContainer, document.body.firstChild);
+        }
+        loginContainer.style.display = "";
+
+        try {
+            if (!pageCache["login"]) {
+                var resp = await fetch("/pages/login.html");
+                if (!resp.ok) throw new Error("Login page not found");
+                pageCache["login"] = await resp.text();
+            }
+            loginContainer.innerHTML = pageCache["login"];
+            // Load login script
+            var prev = document.getElementById("page-script");
+            if (prev) prev.remove();
+            var script = document.createElement("script");
+            script.id = "page-script";
+            script.src = "/js/login.js?_=" + Date.now();
+            document.body.appendChild(script);
+        } catch (err) {
+            loginContainer.innerHTML = '<div class="p-8 text-error">Failed to load login page: ' + err.message + '</div>';
+        }
+    }
+
+    function hideLoginPage() {
+        var loginContainer = document.getElementById("login-container");
+        if (loginContainer) loginContainer.style.display = "none";
+    }
+
+    function updateUserDisplay() {
+        var emailEl = document.getElementById("userEmail");
+        if (emailEl && currentSession && currentSession.user) {
+            emailEl.textContent = currentSession.user.email;
+        }
+    }
+
+    window.onAuthSuccess = function (session) {
+        currentSession = session;
+        hideLoginPage();
+        showApp();
+        updateUserDisplay();
+        navigate();
+    };
+
+    window.handleLogout = async function () {
+        if (supabaseClient) {
+            await supabaseClient.auth.signOut();
+        }
+        currentSession = null;
+        currentPage = null;
+        showLoginPage();
+    };
+
+    async function checkAuth() {
+        if (!supabaseClient) return null;
+        var result = await supabaseClient.auth.getSession();
+        if (result.data && result.data.session) {
+            currentSession = result.data.session;
+            return result.data.session;
+        }
+        return null;
+    }
+
+    // -----------------------------------------------------------
     //  Router
     // -----------------------------------------------------------
     async function navigate() {
+        if (!currentSession) return;
+
         var hash = (location.hash || "").replace(/^#\/?/, "").toLowerCase();
         if (!hash || !ROUTES.includes(hash)) {
             hash = DEFAULT_ROUTE;
@@ -116,10 +225,16 @@
     };
 
     // -----------------------------------------------------------
-    //  API Call
+    //  API Call (with auth token)
     // -----------------------------------------------------------
     window.apiCall = async function apiCall(method, url, data) {
         var options = { method: method.toUpperCase(), headers: {} };
+
+        // Attach auth token
+        if (currentSession && currentSession.access_token) {
+            options.headers["Authorization"] = "Bearer " + currentSession.access_token;
+        }
+
         if (data !== undefined && data !== null) {
             if (data instanceof FormData) {
                 options.body = data;
@@ -129,6 +244,15 @@
             }
         }
         var response = await fetch(url, options);
+
+        // Handle 401 - redirect to login
+        if (response.status === 401) {
+            currentSession = null;
+            currentPage = null;
+            showLoginPage();
+            throw new Error("Session expired. Please log in again.");
+        }
+
         var contentType = response.headers.get("content-type") || "";
         var parsed;
         if (contentType.includes("application/json")) {
@@ -411,8 +535,9 @@
     // -----------------------------------------------------------
     //  Initialization
     // -----------------------------------------------------------
-    document.addEventListener("DOMContentLoaded", function () {
+    document.addEventListener("DOMContentLoaded", async function () {
         initDarkMode();
+        initSupabase();
 
         var toggle = document.getElementById("sidebar-toggle");
         if (toggle) toggle.addEventListener("click", window.toggleMobileSidebar);
@@ -420,7 +545,27 @@
         var overlay = document.getElementById("sidebar-overlay");
         if (overlay) overlay.addEventListener("click", window.closeMobileSidebar);
 
-        navigate();
+        // Check existing auth session
+        var session = await checkAuth();
+        if (session) {
+            updateUserDisplay();
+            navigate();
+        } else {
+            showLoginPage();
+        }
+
+        // Listen for auth state changes (e.g. token refresh)
+        if (supabaseClient) {
+            supabaseClient.auth.onAuthStateChange(function (event, session) {
+                if (event === "SIGNED_OUT" || !session) {
+                    currentSession = null;
+                    currentPage = null;
+                    showLoginPage();
+                } else if (event === "TOKEN_REFRESHED" || event === "SIGNED_IN") {
+                    currentSession = session;
+                }
+            });
+        }
     });
 
     window.addEventListener("hashchange", navigate);

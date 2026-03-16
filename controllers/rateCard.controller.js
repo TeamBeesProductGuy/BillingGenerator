@@ -9,12 +9,12 @@ const catchAsync = require('../middleware/catchAsync');
 const rateCardController = {
   list: catchAsync(async (req, res) => {
     const clientId = req.query.clientId ? parseInt(req.query.clientId, 10) : null;
-    const cards = RateCardModel.findAll(clientId);
+    const cards = await RateCardModel.findAll(clientId);
     res.json({ success: true, data: cards });
   }),
 
   getById: catchAsync(async (req, res) => {
-    const card = RateCardModel.findById(parseInt(req.params.id, 10));
+    const card = await RateCardModel.findById(parseInt(req.params.id, 10));
     if (!card) throw new AppError(404, 'Rate card not found');
     res.json({ success: true, data: card });
   }),
@@ -22,10 +22,10 @@ const rateCardController = {
   create: catchAsync(async (req, res) => {
     const { client_id, emp_code, emp_name, doj, reporting_manager, monthly_rate, leaves_allowed } = req.body;
     try {
-      const id = RateCardModel.create({ client_id, emp_code, emp_name, doj, reporting_manager, monthly_rate, leaves_allowed });
+      const id = await RateCardModel.create({ client_id, emp_code, emp_name, doj, reporting_manager, monthly_rate, leaves_allowed });
       res.status(201).json({ success: true, data: { id } });
     } catch (err) {
-      if (err.message && err.message.includes('UNIQUE')) {
+      if (err.message && (err.message.includes('UNIQUE') || err.message.includes('duplicate key'))) {
         throw new AppError(409, 'Employee code already exists for this client');
       }
       throw err;
@@ -34,17 +34,17 @@ const rateCardController = {
 
   update: catchAsync(async (req, res) => {
     const id = parseInt(req.params.id, 10);
-    const existing = RateCardModel.findById(id);
+    const existing = await RateCardModel.findById(id);
     if (!existing) throw new AppError(404, 'Rate card not found');
-    RateCardModel.update(id, req.body);
+    await RateCardModel.update(id, req.body);
     res.json({ success: true, data: { id } });
   }),
 
   remove: catchAsync(async (req, res) => {
     const id = parseInt(req.params.id, 10);
-    const existing = RateCardModel.findById(id);
+    const existing = await RateCardModel.findById(id);
     if (!existing) throw new AppError(404, 'Rate card not found');
-    RateCardModel.softDelete(id);
+    await RateCardModel.softDelete(id);
     res.json({ success: true, data: { message: 'Rate card deleted' } });
   }),
 
@@ -53,7 +53,7 @@ const rateCardController = {
     const clientId = parseInt(req.body.clientId, 10);
     if (!clientId) throw new AppError(400, 'clientId is required');
 
-    const client = ClientModel.findById(clientId);
+    const client = await ClientModel.findById(clientId);
     if (!client) throw new AppError(404, 'Client not found');
 
     try {
@@ -61,7 +61,7 @@ const rateCardController = {
 
       if (records.length > 0) {
         const dbRecords = records.map((r) => ({ ...r, client_id: clientId }));
-        RateCardModel.bulkCreate(dbRecords);
+        await RateCardModel.bulkCreate(dbRecords);
       }
 
       res.json({
@@ -79,7 +79,7 @@ const rateCardController = {
 
   exportExcel: catchAsync(async (req, res) => {
     const clientId = req.query.clientId ? parseInt(req.query.clientId, 10) : null;
-    const cards = RateCardModel.findAll(clientId);
+    const cards = await RateCardModel.findAll(clientId);
 
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Rate Cards');

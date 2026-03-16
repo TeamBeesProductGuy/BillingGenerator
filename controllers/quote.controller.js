@@ -7,52 +7,52 @@ const catchAsync = require('../middleware/catchAsync');
 const quoteController = {
   list: catchAsync(async (req, res) => {
     const { clientId, status } = req.query;
-    const quotes = QuoteModel.findAll(clientId ? parseInt(clientId, 10) : null, status);
+    const quotes = await QuoteModel.findAll(clientId ? parseInt(clientId, 10) : null, status);
     res.json({ success: true, data: quotes });
   }),
 
   getById: catchAsync(async (req, res) => {
-    const quote = QuoteModel.findById(parseInt(req.params.id, 10));
+    const quote = await QuoteModel.findById(parseInt(req.params.id, 10));
     if (!quote) throw new AppError(404, 'Quote not found');
     res.json({ success: true, data: quote });
   }),
 
   create: catchAsync(async (req, res) => {
     const { client_id, quote_date, valid_until, tax_percent, notes, items } = req.body;
-    const result = QuoteModel.create({ client_id, quote_date, valid_until, tax_percent, notes }, items);
+    const result = await QuoteModel.create({ client_id, quote_date, valid_until, tax_percent, notes }, items);
     res.status(201).json({ success: true, data: result });
   }),
 
   update: catchAsync(async (req, res) => {
     const id = parseInt(req.params.id, 10);
-    const existing = QuoteModel.findById(id);
+    const existing = await QuoteModel.findById(id);
     if (!existing) throw new AppError(404, 'Quote not found');
     if (existing.status !== 'Draft') throw new AppError(400, 'Only draft quotes can be edited');
     const { client_id, quote_date, valid_until, tax_percent, notes, items } = req.body;
-    QuoteModel.update(id, { client_id, quote_date, valid_until, tax_percent, notes }, items || []);
+    await QuoteModel.update(id, { client_id, quote_date, valid_until, tax_percent, notes }, items || []);
     res.json({ success: true, data: { id } });
   }),
 
   updateStatus: catchAsync(async (req, res) => {
     const id = parseInt(req.params.id, 10);
     const { status } = req.body;
-    const existing = QuoteModel.findById(id);
+    const existing = await QuoteModel.findById(id);
     if (!existing) throw new AppError(404, 'Quote not found');
-    QuoteModel.updateStatus(id, status);
+    await QuoteModel.updateStatus(id, status);
     res.json({ success: true, data: { id, status } });
   }),
 
   remove: catchAsync(async (req, res) => {
     const id = parseInt(req.params.id, 10);
-    const existing = QuoteModel.findById(id);
+    const existing = await QuoteModel.findById(id);
     if (!existing) throw new AppError(404, 'Quote not found');
     if (existing.status !== 'Draft') throw new AppError(400, 'Only draft quotes can be deleted');
-    QuoteModel.delete(id);
+    await QuoteModel.delete(id);
     res.json({ success: true, data: { message: 'Quote deleted' } });
   }),
 
   download: catchAsync(async (req, res) => {
-    const quote = QuoteModel.findById(parseInt(req.params.id, 10));
+    const quote = await QuoteModel.findById(parseInt(req.params.id, 10));
     if (!quote) throw new AppError(404, 'Quote not found');
 
     const workbook = new ExcelJS.Workbook();
@@ -105,13 +105,13 @@ const quoteController = {
 
   convertToPO: catchAsync(async (req, res) => {
     const quoteId = parseInt(req.params.id, 10);
-    const quote = QuoteModel.findById(quoteId);
+    const quote = await QuoteModel.findById(quoteId);
     if (!quote) throw new AppError(404, 'Quote not found');
     if (quote.status !== 'Accepted') throw new AppError(400, 'Only accepted quotes can be converted to PO');
 
     const { po_number, po_date, start_date, end_date, alert_threshold } = req.body;
 
-    const poId = POModel.create({
+    const poId = await POModel.create({
       po_number,
       client_id: quote.client_id,
       quote_id: quoteId,

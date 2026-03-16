@@ -1,95 +1,138 @@
-const db = require('../config/database');
+const { supabase } = require('../config/database');
 
 const QuoteModel = {
-  findAll(clientId, status) {
-    let sql = `SELECT q.*, c.client_name FROM quotes q JOIN clients c ON q.client_id = c.id WHERE 1=1`;
-    const params = [];
-    if (clientId) { sql += ' AND q.client_id = ?'; params.push(clientId); }
-    if (status) { sql += ' AND q.status = ?'; params.push(status); }
-    sql += ' ORDER BY q.created_at DESC';
-    return db.all(sql, params);
+  async findAll(clientId, status) {
+    let query = supabase.from('quotes_view').select('*');
+    if (clientId) query = query.eq('client_id', clientId);
+    if (status) query = query.eq('status', status);
+    query = query.order('created_at', { ascending: false });
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return data;
   },
 
-  findById(id) {
-    const quote = db.get(
-      'SELECT q.*, c.client_name FROM quotes q JOIN clients c ON q.client_id = c.id WHERE q.id = ?',
-      [id]
-    );
+  async findById(id) {
+    const { data: quote, error: qErr } = await supabase
+      .from('quotes_view')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (qErr) throw new Error(qErr.message);
     if (!quote) return null;
-    const items = db.all('SELECT * FROM quote_items WHERE quote_id = ? ORDER BY id', [id]);
+
+    const { data: items, error: iErr } = await supabase
+      .from('quote_items')
+      .select('*')
+      .eq('quote_id', id)
+      .order('id');
+    if (iErr) throw new Error(iErr.message);
+
     return { ...quote, items };
   },
 
-  generateQuoteNumber() {
+  async generateQuoteNumber() {
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    const count = db.get(
-      "SELECT COUNT(*) as cnt FROM quotes WHERE quote_number LIKE ?",
-      [`Q-${today}-%`]
-    );
-    const seq = String((count ? count.cnt : 0) + 1).padStart(3, '0');
+    const pattern = `Q-${today}-%`;
+    const { count, error } = await supabase
+      .from('quotes')
+      .select('*', { count: 'exact', head: true })
+      .like('quote_number', pattern);
+    if (error) throw new Error(error.message);
+    const seq = String((count || 0) + 1).padStart(3, '0');
     return `Q-${today}-${seq}`;
   },
 
-  create(quote, items) {
-    const createFn = db.transaction(() => {
-      const quoteNumber = QuoteModel.generateQuoteNumber();
-      const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
-      const taxAmount = Math.round(subtotal * (quote.tax_percent || 18) / 100 * 100) / 100;
-      const totalAmount = Math.round((subtotal + taxAmount) * 100) / 100;
+  async create(quote, items) {
+    const quoteNumber = await QuoteModel.generateQuoteNumber();
+    const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
+    const taxAmount = Math.round(subtotal * (quote.tax_percent || 18) / 100 * 100) / 100;
+    const totalAmount = Math.round((subtotal + taxAmount) * 100) / 100;
 
-      const result = db.run(
-        `INSERT INTO quotes (quote_number, client_id, quote_date, valid_until, status, subtotal, tax_percent, tax_amount, total_amount, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [quoteNumber, quote.client_id, quote.quote_date, quote.valid_until, 'Draft',
-         subtotal, quote.tax_percent || 18, taxAmount, totalAmount, quote.notes || null]
-      );
+    const { data: row, error: qErr } = await supabase
+      .from('quotes')
+      .insert({
+        quote_number: quoteNumber,
+        client_id: quote.client_id,
+        quote_date: quote.quote_date,
+        valid_until: quote.valid_until,
+        status: 'Draft',
+        subtotal,
+        tax_percent: quote.tax_percent || 18,
+        tax_amount: taxAmount,
+        total_amount: totalAmount,
+        notes: quote.notes || null,
+      })
+      .select('id')
+      .single();
+    if (qErr) throw new Error(qErr.message);
 
-      const quoteId = result.lastInsertRowid;
-      for (const item of items) {
-        db.run(
-          `INSERT INTO quote_items (quote_id, description, quantity, unit_rate, amount, emp_code)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [quoteId, item.description, item.quantity, item.unit_rate, item.amount, item.emp_code || null]
-        );
-      }
+    const quoteId = row.id;
+    if (items.length > 0) {
+      const itemRows = items.map((item) => ({
+        quote_id: quoteId,
+        description: item.description,
+        quantity: item.quantity,
+        unit_rate: item.unit_rate,
+        amount: item.amount,
+        emp_code: item.emp_code || null,
+      }));
+      const { error: iErr } = await supabase.from('quote_items').insert(itemRows);
+      if (iErr) throw new Error(iErr.message);
+    }
 
-      return { id: quoteId, quote_number: quoteNumber };
-    });
-    return createFn();
+    return { id: quoteId, quote_number: quoteNumber };
   },
 
-  update(id, quote, items) {
-    const updateFn = db.transaction(() => {
-      const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
-      const taxAmount = Math.round(subtotal * (quote.tax_percent || 18) / 100 * 100) / 100;
-      const totalAmount = Math.round((subtotal + taxAmount) * 100) / 100;
+  async update(id, quote, items) {
+    const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
+    const taxAmount = Math.round(subtotal * (quote.tax_percent || 18) / 100 * 100) / 100;
+    const totalAmount = Math.round((subtotal + taxAmount) * 100) / 100;
 
-      db.run(
-        `UPDATE quotes SET client_id = ?, quote_date = ?, valid_until = ?, subtotal = ?,
-         tax_percent = ?, tax_amount = ?, total_amount = ?, notes = ?, updated_at = datetime('now')
-         WHERE id = ?`,
-        [quote.client_id, quote.quote_date, quote.valid_until, subtotal,
-         quote.tax_percent || 18, taxAmount, totalAmount, quote.notes || null, id]
-      );
+    const { error: qErr } = await supabase
+      .from('quotes')
+      .update({
+        client_id: quote.client_id,
+        quote_date: quote.quote_date,
+        valid_until: quote.valid_until,
+        subtotal,
+        tax_percent: quote.tax_percent || 18,
+        tax_amount: taxAmount,
+        total_amount: totalAmount,
+        notes: quote.notes || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+    if (qErr) throw new Error(qErr.message);
 
-      db.run('DELETE FROM quote_items WHERE quote_id = ?', [id]);
-      for (const item of items) {
-        db.run(
-          `INSERT INTO quote_items (quote_id, description, quantity, unit_rate, amount, emp_code)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [id, item.description, item.quantity, item.unit_rate, item.amount, item.emp_code || null]
-        );
-      }
-    });
-    updateFn();
+    // Delete old items and insert new ones
+    const { error: dErr } = await supabase.from('quote_items').delete().eq('quote_id', id);
+    if (dErr) throw new Error(dErr.message);
+
+    if (items.length > 0) {
+      const itemRows = items.map((item) => ({
+        quote_id: id,
+        description: item.description,
+        quantity: item.quantity,
+        unit_rate: item.unit_rate,
+        amount: item.amount,
+        emp_code: item.emp_code || null,
+      }));
+      const { error: iErr } = await supabase.from('quote_items').insert(itemRows);
+      if (iErr) throw new Error(iErr.message);
+    }
   },
 
-  updateStatus(id, status) {
-    db.run("UPDATE quotes SET status = ?, updated_at = datetime('now') WHERE id = ?", [status, id]);
+  async updateStatus(id, status) {
+    const { error } = await supabase
+      .from('quotes')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw new Error(error.message);
   },
 
-  delete(id) {
-    db.run('DELETE FROM quotes WHERE id = ?', [id]);
+  async delete(id) {
+    const { error } = await supabase.from('quotes').delete().eq('id', id);
+    if (error) throw new Error(error.message);
   },
 };
 

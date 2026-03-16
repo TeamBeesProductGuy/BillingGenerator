@@ -1,102 +1,103 @@
-const db = require('../config/database');
+const { supabase } = require('../config/database');
 
 const POModel = {
-  findAll(clientId, status) {
-    let sql = `SELECT po.*, c.client_name,
-      CASE WHEN po.po_value > 0 THEN ROUND((po.consumed_value / po.po_value) * 100, 2) ELSE 0 END as consumption_pct,
-      ROUND(po.po_value - po.consumed_value, 2) as remaining_value
-      FROM purchase_orders po JOIN clients c ON po.client_id = c.id WHERE 1=1`;
-    const params = [];
-    if (clientId) { sql += ' AND po.client_id = ?'; params.push(clientId); }
-    if (status) { sql += ' AND po.status = ?'; params.push(status); }
-    sql += ' ORDER BY po.created_at DESC';
-    return db.all(sql, params);
+  async findAll(clientId, status) {
+    let query = supabase.from('purchase_orders_view').select('*');
+    if (clientId) query = query.eq('client_id', clientId);
+    if (status) query = query.eq('status', status);
+    query = query.order('created_at', { ascending: false });
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return data;
   },
 
-  findById(id) {
-    const po = db.get(
-      `SELECT po.*, c.client_name,
-       CASE WHEN po.po_value > 0 THEN ROUND((po.consumed_value / po.po_value) * 100, 2) ELSE 0 END as consumption_pct,
-       ROUND(po.po_value - po.consumed_value, 2) as remaining_value
-       FROM purchase_orders po JOIN clients c ON po.client_id = c.id WHERE po.id = ?`,
-      [id]
-    );
+  async findById(id) {
+    const { data: po, error: poErr } = await supabase
+      .from('purchase_orders_view')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (poErr) throw new Error(poErr.message);
     if (!po) return null;
-    const consumptionLog = db.all(
-      'SELECT * FROM po_consumption_log WHERE po_id = ? ORDER BY consumed_at DESC',
-      [id]
-    );
+
+    const { data: consumptionLog, error: logErr } = await supabase
+      .from('po_consumption_log')
+      .select('*')
+      .eq('po_id', id)
+      .order('consumed_at', { ascending: false });
+    if (logErr) throw new Error(logErr.message);
+
     return { ...po, consumptionLog };
   },
 
-  create(data) {
-    const result = db.run(
-      `INSERT INTO purchase_orders (po_number, client_id, quote_id, po_date, start_date, end_date, po_value, alert_threshold, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [data.po_number, data.client_id, data.quote_id || null, data.po_date,
-       data.start_date, data.end_date, data.po_value, data.alert_threshold || 80, data.notes || null]
-    );
-    return result.lastInsertRowid;
+  async create(data) {
+    const { data: row, error } = await supabase
+      .from('purchase_orders')
+      .insert({
+        po_number: data.po_number,
+        client_id: data.client_id,
+        quote_id: data.quote_id || null,
+        po_date: data.po_date,
+        start_date: data.start_date,
+        end_date: data.end_date,
+        po_value: data.po_value,
+        alert_threshold: data.alert_threshold || 80,
+        notes: data.notes || null,
+      })
+      .select('id')
+      .single();
+    if (error) throw new Error(error.message);
+    return row.id;
   },
 
-  update(id, data) {
-    db.run(
-      `UPDATE purchase_orders SET po_number = ?, client_id = ?, po_date = ?, start_date = ?, end_date = ?,
-       po_value = ?, alert_threshold = ?, notes = ?, updated_at = datetime('now') WHERE id = ?`,
-      [data.po_number, data.client_id, data.po_date, data.start_date, data.end_date,
-       data.po_value, data.alert_threshold || 80, data.notes || null, id]
-    );
+  async update(id, data) {
+    const { error } = await supabase
+      .from('purchase_orders')
+      .update({
+        po_number: data.po_number,
+        client_id: data.client_id,
+        po_date: data.po_date,
+        start_date: data.start_date,
+        end_date: data.end_date,
+        po_value: data.po_value,
+        alert_threshold: data.alert_threshold || 80,
+        notes: data.notes || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+    if (error) throw new Error(error.message);
   },
 
-  addConsumption(poId, amount, description, billingRunId) {
-    const consumeFn = db.transaction(() => {
-      db.run(
-        `INSERT INTO po_consumption_log (po_id, billing_run_id, amount, description)
-         VALUES (?, ?, ?, ?)`,
-        [poId, billingRunId || null, amount, description || null]
-      );
-      db.run(
-        `UPDATE purchase_orders SET consumed_value = consumed_value + ?, updated_at = datetime('now') WHERE id = ?`,
-        [amount, poId]
-      );
-
-      // Check if PO is now exhausted
-      const po = db.get('SELECT po_value, consumed_value FROM purchase_orders WHERE id = ?', [poId]);
-      if (po && po.consumed_value >= po.po_value) {
-        db.run("UPDATE purchase_orders SET status = 'Exhausted', updated_at = datetime('now') WHERE id = ?", [poId]);
-      }
+  async addConsumption(poId, amount, description, billingRunId) {
+    const { error } = await supabase.rpc('consume_po', {
+      p_po_id: poId,
+      p_amount: amount,
+      p_description: description || null,
+      p_billing_run_id: billingRunId || null,
     });
-    consumeFn();
+    if (error) throw new Error(error.message);
   },
 
-  getAlerts() {
-    return db.all(
-      `SELECT po.*, c.client_name,
-       CASE WHEN po.po_value > 0 THEN ROUND((po.consumed_value / po.po_value) * 100, 2) ELSE 0 END as consumption_pct,
-       ROUND(po.po_value - po.consumed_value, 2) as remaining_value
-       FROM purchase_orders po JOIN clients c ON po.client_id = c.id
-       WHERE po.status = 'Active'
-       AND (
-         (CASE WHEN po.po_value > 0 THEN (po.consumed_value / po.po_value) * 100 ELSE 0 END) >= po.alert_threshold
-         OR date(po.end_date) <= date('now', '+30 days')
-       )
-       ORDER BY po.end_date`
-    );
+  async getAlerts() {
+    const { data, error } = await supabase.rpc('get_po_alerts');
+    if (error) throw new Error(error.message);
+    return data;
   },
 
-  renew(id, newPoData) {
-    const renewFn = db.transaction(() => {
-      db.run("UPDATE purchase_orders SET status = 'Renewed', updated_at = datetime('now') WHERE id = ?", [id]);
-      const result = db.run(
-        `INSERT INTO purchase_orders (po_number, client_id, po_date, start_date, end_date, po_value, alert_threshold, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [newPoData.po_number, newPoData.client_id, newPoData.po_date,
-         newPoData.start_date, newPoData.end_date, newPoData.po_value,
-         newPoData.alert_threshold || 80, newPoData.notes || null]
-      );
-      return result.lastInsertRowid;
+  async renew(id, newPoData) {
+    const { data, error } = await supabase.rpc('renew_po', {
+      p_old_id: id,
+      p_po_number: newPoData.po_number,
+      p_client_id: newPoData.client_id,
+      p_po_date: newPoData.po_date,
+      p_start_date: newPoData.start_date,
+      p_end_date: newPoData.end_date,
+      p_po_value: newPoData.po_value,
+      p_alert_threshold: newPoData.alert_threshold || 80,
+      p_notes: newPoData.notes || null,
     });
-    return renewFn();
+    if (error) throw new Error(error.message);
+    return data;
   },
 };
 

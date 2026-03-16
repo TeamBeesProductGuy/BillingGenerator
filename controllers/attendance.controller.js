@@ -9,7 +9,7 @@ const attendanceController = {
   list: catchAsync(async (req, res) => {
     const { empCode, billingMonth } = req.query;
     if (!empCode || !billingMonth) throw new AppError(400, 'empCode and billingMonth are required');
-    const records = AttendanceModel.findByMonth(empCode, billingMonth);
+    const records = await AttendanceModel.findByMonth(empCode, billingMonth);
     res.json({ success: true, data: records });
   }),
 
@@ -18,13 +18,13 @@ const attendanceController = {
     if (!billingMonth) throw new AppError(400, 'billingMonth is required');
     const monthError = validateBillingMonth(billingMonth);
     if (monthError) throw new AppError(400, monthError);
-    const summary = AttendanceModel.getSummary(billingMonth);
+    const summary = await AttendanceModel.getSummary(billingMonth);
     res.json({ success: true, data: summary });
   }),
 
   submitSingle: catchAsync(async (req, res) => {
     const { emp_code, emp_name, reporting_manager, billing_month, day_number, status } = req.body;
-    AttendanceModel.bulkUpsert([{ emp_code, emp_name, reporting_manager, billing_month, day_number, status: status.toUpperCase() }]);
+    await AttendanceModel.bulkUpsert([{ emp_code, emp_name, reporting_manager, billing_month, day_number, status: status.toUpperCase() }]);
     res.json({ success: true, data: { message: 'Attendance recorded' } });
   }),
 
@@ -56,7 +56,7 @@ const attendanceController = {
       });
     }
 
-    AttendanceModel.bulkUpsert(records);
+    await AttendanceModel.bulkUpsert(records);
     res.json({
       success: true,
       data: { message: `Attendance recorded for ${daysInMonth} days, ${leaveDays.size} leaves` },
@@ -88,7 +88,7 @@ const attendanceController = {
       }
 
       if (dbRecords.length > 0) {
-        AttendanceModel.bulkUpsert(dbRecords);
+        await AttendanceModel.bulkUpsert(dbRecords);
       }
 
       res.json({
@@ -107,15 +107,14 @@ const attendanceController = {
   remove: catchAsync(async (req, res) => {
     const { empCode, billingMonth } = req.body;
     if (!empCode || !billingMonth) throw new AppError(400, 'empCode and billingMonth are required');
-    AttendanceModel.deleteByEmpMonth(empCode, billingMonth);
+    await AttendanceModel.deleteByEmpMonth(empCode, billingMonth);
     res.json({ success: true, data: { message: 'Attendance deleted' } });
   }),
 
   deleteByMonth: catchAsync(async (req, res) => {
     const { billingMonth } = req.body;
     if (!billingMonth) throw new AppError(400, 'billingMonth is required');
-    const db = require('../config/database');
-    db.run('DELETE FROM attendance WHERE billing_month = ?', [billingMonth]);
+    await AttendanceModel.deleteByMonth(billingMonth);
     res.json({ success: true, data: { message: `All attendance for ${billingMonth} deleted` } });
   }),
 };

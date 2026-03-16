@@ -1,62 +1,84 @@
-const db = require('../config/database');
+const { supabase } = require('../config/database');
 
 const BillingModel = {
-  createRun(data) {
-    const result = db.run(
-      `INSERT INTO billing_runs (billing_month, client_id, total_employees, total_amount, gst_percent, gst_amount, total_with_gst, error_count, output_file)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [data.billing_month, data.client_id || null, data.total_employees, data.total_amount,
-       data.gst_percent || 0, data.gst_amount || 0, data.total_with_gst || 0,
-       data.error_count, data.output_file]
-    );
-    return result.lastInsertRowid;
+  async createRun(data) {
+    const { data: row, error } = await supabase
+      .from('billing_runs')
+      .insert({
+        billing_month: data.billing_month,
+        client_id: data.client_id || null,
+        total_employees: data.total_employees,
+        total_amount: data.total_amount,
+        gst_percent: data.gst_percent || 0,
+        gst_amount: data.gst_amount || 0,
+        total_with_gst: data.total_with_gst || 0,
+        error_count: data.error_count,
+        output_file: data.output_file,
+      })
+      .select('id')
+      .single();
+    if (error) throw new Error(error.message);
+    return row.id;
   },
 
-  addItems(runId, items) {
-    const insert = db.transaction((items) => {
-      for (const item of items) {
-        db.run(
-          `INSERT INTO billing_items (billing_run_id, client_name, emp_code, emp_name, reporting_manager,
-           monthly_rate, leaves_allowed, leaves_taken, days_in_month, chargeable_days, invoice_amount,
-           gst_percent, gst_amount, total_with_gst)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [runId, item.client_name, item.emp_code, item.emp_name, item.reporting_manager,
-           item.monthly_rate, item.allowed_leaves, item.leaves_taken, item.days_in_month,
-           item.chargeable_days, item.invoice_amount,
-           item.gst_percent || 0, item.gst_amount || 0, item.total_with_gst || 0]
-        );
-      }
-    });
-    insert(items);
+  async addItems(runId, items) {
+    const rows = items.map((item) => ({
+      billing_run_id: runId,
+      client_name: item.client_name,
+      emp_code: item.emp_code,
+      emp_name: item.emp_name,
+      reporting_manager: item.reporting_manager,
+      monthly_rate: item.monthly_rate,
+      leaves_allowed: item.allowed_leaves,
+      leaves_taken: item.leaves_taken,
+      days_in_month: item.days_in_month,
+      chargeable_days: item.chargeable_days,
+      invoice_amount: item.invoice_amount,
+      gst_percent: item.gst_percent || 0,
+      gst_amount: item.gst_amount || 0,
+      total_with_gst: item.total_with_gst || 0,
+    }));
+    const { error } = await supabase.from('billing_items').insert(rows);
+    if (error) throw new Error(error.message);
   },
 
-  addErrors(runId, errors) {
-    const insert = db.transaction((errors) => {
-      for (const err of errors) {
-        db.run(
-          `INSERT INTO billing_errors (billing_run_id, emp_code, error_message)
-           VALUES (?, ?, ?)`,
-          [runId, err.emp_code || null, err.error_message]
-        );
-      }
-    });
-    insert(errors);
+  async addErrors(runId, errors) {
+    const rows = errors.map((err) => ({
+      billing_run_id: runId,
+      emp_code: err.emp_code || null,
+      error_message: err.error_message,
+    }));
+    const { error } = await supabase.from('billing_errors').insert(rows);
+    if (error) throw new Error(error.message);
   },
 
-  findRuns(limit = 20, offset = 0) {
-    return db.all(
-      `SELECT id, billing_month, total_employees, total_amount, gst_amount, total_with_gst, error_count, output_file, created_at
-       FROM billing_runs ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-      [limit, offset]
-    );
+  async findRuns(limit = 20, offset = 0) {
+    const { data, error } = await supabase
+      .from('billing_runs')
+      .select('id, billing_month, total_employees, total_amount, gst_amount, total_with_gst, error_count, output_file, created_at')
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (error) throw new Error(error.message);
+    return data;
   },
 
-  findRunById(id) {
-    const run = db.get('SELECT * FROM billing_runs WHERE id = ?', [id]);
+  async findRunById(id) {
+    const { data: run, error: runErr } = await supabase
+      .from('billing_runs')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (runErr) throw new Error(runErr.message);
     if (!run) return null;
-    const items = db.all('SELECT * FROM billing_items WHERE billing_run_id = ?', [id]);
-    const errors = db.all('SELECT * FROM billing_errors WHERE billing_run_id = ?', [id]);
-    return { ...run, items, errors };
+
+    const [itemsResult, errorsResult] = await Promise.all([
+      supabase.from('billing_items').select('*').eq('billing_run_id', id),
+      supabase.from('billing_errors').select('*').eq('billing_run_id', id),
+    ]);
+    if (itemsResult.error) throw new Error(itemsResult.error.message);
+    if (errorsResult.error) throw new Error(errorsResult.error.message);
+
+    return { ...run, items: itemsResult.data, errors: errorsResult.data };
   },
 };
 

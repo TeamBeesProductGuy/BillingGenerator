@@ -1,33 +1,63 @@
-const db = require('../config/database');
+const { supabase } = require('../config/database');
 
 const ClientModel = {
-  findAll() {
-    return db.all('SELECT * FROM clients WHERE is_active = 1 ORDER BY client_name');
+  async findAll() {
+    const { data, error } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('is_active', true)
+      .order('client_name');
+    if (error) throw new Error(error.message);
+    return data;
   },
 
-  findById(id) {
-    return db.get('SELECT * FROM clients WHERE id = ?', [id]);
+  async findById(id) {
+    const { data, error } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error && error.code !== 'PGRST116') throw new Error(error.message);
+    return data;
   },
 
-  create(data) {
-    const result = db.run(
-      `INSERT INTO clients (client_name, contact_person, email, phone, address)
-       VALUES (?, ?, ?, ?, ?)`,
-      [data.client_name, data.contact_person || null, data.email || null, data.phone || null, data.address || null]
-    );
-    return result.lastInsertRowid;
+  async create(data) {
+    const { data: row, error } = await supabase
+      .from('clients')
+      .insert({
+        client_name: data.client_name,
+        contact_person: data.contact_person || null,
+        email: data.email || null,
+        phone: data.phone || null,
+        address: data.address || null,
+      })
+      .select('id')
+      .single();
+    if (error) throw new Error(error.message);
+    return row.id;
   },
 
-  update(id, data) {
-    db.run(
-      `UPDATE clients SET client_name = ?, contact_person = ?, email = ?, phone = ?, address = ?,
-       updated_at = datetime('now') WHERE id = ?`,
-      [data.client_name, data.contact_person || null, data.email || null, data.phone || null, data.address || null, id]
-    );
+  async update(id, data) {
+    const { error } = await supabase
+      .from('clients')
+      .update({
+        client_name: data.client_name,
+        contact_person: data.contact_person || null,
+        email: data.email || null,
+        phone: data.phone || null,
+        address: data.address || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+    if (error) throw new Error(error.message);
   },
 
-  softDelete(id) {
-    db.run("UPDATE clients SET is_active = 0, updated_at = datetime('now') WHERE id = ?", [id]);
+  async softDelete(id) {
+    const { error } = await supabase
+      .from('clients')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw new Error(error.message);
   },
 };
 

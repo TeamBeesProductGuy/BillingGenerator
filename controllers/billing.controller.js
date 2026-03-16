@@ -5,6 +5,8 @@ const { validateBillingMonth, crossValidate } = require('../services/validation.
 const { calculateBilling } = require('../services/billing.service');
 const { generateBillingExcel } = require('../services/excelWriter.service');
 const BillingModel = require('../models/billing.model');
+const RateCardModel = require('../models/rateCard.model');
+const AttendanceModel = require('../models/attendance.model');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
 
@@ -37,7 +39,7 @@ const billingController = {
 
       const { filePath, filename } = await generateBillingExcel(result.billingItems, allErrors, billingMonth);
 
-      const runId = BillingModel.createRun({
+      const runId = await BillingModel.createRun({
         billing_month: billingMonth,
         total_employees: result.summary.totalEmployees,
         total_amount: result.summary.totalAmount,
@@ -48,8 +50,8 @@ const billingController = {
         output_file: filePath,
       });
 
-      if (result.billingItems.length > 0) BillingModel.addItems(runId, result.billingItems);
-      if (allErrors.length > 0) BillingModel.addErrors(runId, allErrors);
+      if (result.billingItems.length > 0) await BillingModel.addItems(runId, result.billingItems);
+      if (allErrors.length > 0) await BillingModel.addErrors(runId, allErrors);
 
       res.json({
         success: true,
@@ -73,41 +75,19 @@ const billingController = {
     const monthError = validateBillingMonth(billingMonth);
     if (monthError) throw new AppError(400, monthError);
 
-    const db = require('../config/database');
-
-    let rateCards;
-    if (clientId) {
-      rateCards = db.all(
-        `SELECT rc.*, c.client_name FROM rate_cards rc
-         JOIN clients c ON rc.client_id = c.id
-         WHERE rc.client_id = ? AND rc.is_active = 1`,
-        [clientId]
-      );
-    } else {
-      rateCards = db.all(
-        `SELECT rc.*, c.client_name FROM rate_cards rc
-         JOIN clients c ON rc.client_id = c.id
-         WHERE rc.is_active = 1`
-      );
-    }
+    const rateCards = await RateCardModel.findAll(clientId || null);
 
     if (rateCards.length === 0) {
       throw new AppError(400, 'No active rate cards found');
     }
 
-    const attendanceSummary = db.all(
-      `SELECT emp_code, emp_name, reporting_manager,
-       SUM(CASE WHEN status = 'L' THEN 1 ELSE 0 END) as leaves_taken
-       FROM attendance WHERE billing_month = ?
-       GROUP BY emp_code`,
-      [billingMonth]
-    );
+    const attendanceSummary = await AttendanceModel.getSummary(billingMonth);
 
     const attendanceRecords = attendanceSummary.map((a) => ({
       emp_code: a.emp_code,
       emp_name: a.emp_name,
       reporting_manager: a.reporting_manager,
-      leaves_taken: a.leaves_taken,
+      leaves_taken: Number(a.leaves_taken),
       days: {},
     }));
 
@@ -120,7 +100,7 @@ const billingController = {
 
     const { filePath, filename } = await generateBillingExcel(result.billingItems, allErrors, billingMonth);
 
-    const runId = BillingModel.createRun({
+    const runId = await BillingModel.createRun({
       billing_month: billingMonth,
       client_id: clientId || null,
       total_employees: result.summary.totalEmployees,
@@ -132,8 +112,8 @@ const billingController = {
       output_file: filePath,
     });
 
-    if (result.billingItems.length > 0) BillingModel.addItems(runId, result.billingItems);
-    if (allErrors.length > 0) BillingModel.addErrors(runId, allErrors);
+    if (result.billingItems.length > 0) await BillingModel.addItems(runId, result.billingItems);
+    if (allErrors.length > 0) await BillingModel.addErrors(runId, allErrors);
 
     res.json({
       success: true,
@@ -151,18 +131,18 @@ const billingController = {
   listRuns: catchAsync(async (req, res) => {
     const limit = parseInt(req.query.limit, 10) || 20;
     const offset = parseInt(req.query.offset, 10) || 0;
-    const runs = BillingModel.findRuns(limit, offset);
+    const runs = await BillingModel.findRuns(limit, offset);
     res.json({ success: true, data: runs });
   }),
 
   getRunDetails: catchAsync(async (req, res) => {
-    const run = BillingModel.findRunById(parseInt(req.params.id, 10));
+    const run = await BillingModel.findRunById(parseInt(req.params.id, 10));
     if (!run) throw new AppError(404, 'Billing run not found');
     res.json({ success: true, data: run });
   }),
 
   downloadFile: catchAsync(async (req, res) => {
-    const run = BillingModel.findRunById(parseInt(req.params.id, 10));
+    const run = await BillingModel.findRunById(parseInt(req.params.id, 10));
     if (!run) throw new AppError(404, 'Billing run not found');
     if (!run.output_file || !fs.existsSync(run.output_file)) {
       throw new AppError(404, 'Output file not found');

@@ -1,9 +1,9 @@
 const env = require('./config/env');
 const db = require('./config/database');
 
-function start() {
-  db.init();
-  console.log('Database initialized');
+async function start() {
+  await db.init();
+  console.log('Supabase connection verified');
 
   const app = require('./app');
   const server = app.listen(env.port, () => {
@@ -16,12 +16,9 @@ function start() {
     console.log(`\n${signal} received. Shutting down gracefully...`);
     server.close(() => {
       console.log('HTTP server closed');
-      db.close();
-      console.log('Database connection closed');
       process.exit(0);
     });
 
-    // Force shutdown after 10 seconds
     setTimeout(() => {
       console.error('Forced shutdown after timeout');
       process.exit(1);
@@ -32,9 +29,7 @@ function start() {
   process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
-try {
-  start();
-} catch (err) {
+start().catch((err) => {
   console.error('Failed to start server:', err);
   process.exit(1);
-}
+});

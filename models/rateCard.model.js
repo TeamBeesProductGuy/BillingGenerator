@@ -1,78 +1,99 @@
-const db = require('../config/database');
+const { supabase } = require('../config/database');
 
 const RateCardModel = {
-  findAll(clientId) {
-    if (clientId) {
-      return db.all(
-        `SELECT rc.*, c.client_name FROM rate_cards rc
-         JOIN clients c ON rc.client_id = c.id
-         WHERE rc.is_active = 1 AND rc.client_id = ?
-         ORDER BY rc.emp_code`,
-        [clientId]
-      );
-    }
-    return db.all(
-      `SELECT rc.*, c.client_name FROM rate_cards rc
-       JOIN clients c ON rc.client_id = c.id
-       WHERE rc.is_active = 1
-       ORDER BY c.client_name, rc.emp_code`
-    );
+  async findAll(clientId) {
+    let query = supabase
+      .from('rate_cards_view')
+      .select('*')
+      .eq('is_active', true);
+    if (clientId) query = query.eq('client_id', clientId);
+    query = query.order('client_name').order('emp_code');
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return data;
   },
 
-  findById(id) {
-    return db.get(
-      `SELECT rc.*, c.client_name FROM rate_cards rc
-       JOIN clients c ON rc.client_id = c.id
-       WHERE rc.id = ?`,
-      [id]
-    );
+  async findById(id) {
+    const { data, error } = await supabase
+      .from('rate_cards_view')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error && error.code !== 'PGRST116') throw new Error(error.message);
+    return data;
   },
 
-  findByEmpCode(empCode, clientId) {
-    return db.get(
-      'SELECT * FROM rate_cards WHERE emp_code = ? AND client_id = ? AND is_active = 1',
-      [empCode, clientId]
-    );
+  async findByEmpCode(empCode, clientId) {
+    const { data, error } = await supabase
+      .from('rate_cards')
+      .select('*')
+      .eq('emp_code', empCode)
+      .eq('client_id', clientId)
+      .eq('is_active', true)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
   },
 
-  create(data) {
-    const result = db.run(
-      `INSERT INTO rate_cards (client_id, emp_code, emp_name, doj, reporting_manager, monthly_rate, leaves_allowed)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [data.client_id, data.emp_code, data.emp_name, data.doj || null,
-       data.reporting_manager || null, data.monthly_rate, data.leaves_allowed || 0]
-    );
-    return result.lastInsertRowid;
+  async create(data) {
+    const { data: row, error } = await supabase
+      .from('rate_cards')
+      .insert({
+        client_id: data.client_id,
+        emp_code: data.emp_code,
+        emp_name: data.emp_name,
+        doj: data.doj || null,
+        reporting_manager: data.reporting_manager || null,
+        monthly_rate: data.monthly_rate,
+        leaves_allowed: data.leaves_allowed || 0,
+      })
+      .select('id')
+      .single();
+    if (error) throw new Error(error.message);
+    return row.id;
   },
 
-  bulkCreate(records) {
-    const insert = db.transaction((records) => {
-      const ids = [];
-      for (const data of records) {
-        const result = db.run(
-          `INSERT OR REPLACE INTO rate_cards (client_id, emp_code, emp_name, doj, reporting_manager, monthly_rate, leaves_allowed, is_active, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))`,
-          [data.client_id, data.emp_code, data.emp_name, data.doj || null,
-           data.reporting_manager || null, data.monthly_rate, data.leaves_allowed || 0]
-        );
-        ids.push(result.lastInsertRowid);
-      }
-      return ids;
-    });
-    return insert(records);
+  async bulkCreate(records) {
+    const rows = records.map((data) => ({
+      client_id: data.client_id,
+      emp_code: data.emp_code,
+      emp_name: data.emp_name,
+      doj: data.doj || null,
+      reporting_manager: data.reporting_manager || null,
+      monthly_rate: data.monthly_rate,
+      leaves_allowed: data.leaves_allowed || 0,
+      is_active: true,
+      updated_at: new Date().toISOString(),
+    }));
+    const { data, error } = await supabase
+      .from('rate_cards')
+      .upsert(rows, { onConflict: 'client_id,emp_code' })
+      .select('id');
+    if (error) throw new Error(error.message);
+    return data.map((r) => r.id);
   },
 
-  update(id, data) {
-    db.run(
-      `UPDATE rate_cards SET emp_name = ?, doj = ?, reporting_manager = ?,
-       monthly_rate = ?, leaves_allowed = ?, updated_at = datetime('now') WHERE id = ?`,
-      [data.emp_name, data.doj || null, data.reporting_manager || null,
-       data.monthly_rate, data.leaves_allowed || 0, id]
-    );
+  async update(id, data) {
+    const { error } = await supabase
+      .from('rate_cards')
+      .update({
+        emp_name: data.emp_name,
+        doj: data.doj || null,
+        reporting_manager: data.reporting_manager || null,
+        monthly_rate: data.monthly_rate,
+        leaves_allowed: data.leaves_allowed || 0,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+    if (error) throw new Error(error.message);
   },
 
-  softDelete(id) {
-    db.run("UPDATE rate_cards SET is_active = 0, updated_at = datetime('now') WHERE id = ?", [id]);
+  async softDelete(id) {
+    const { error } = await supabase
+      .from('rate_cards')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw new Error(error.message);
   },
 };
 

@@ -7,14 +7,14 @@ const path = require('path');
 const env = require('./config/env');
 const routes = require('./routes');
 const { errorHandler } = require('./middleware/errorHandler');
-const db = require('./config/database');
+const { supabase } = require('./config/database');
 const pkg = require('./package.json');
 
 const app = express();
 
 // Security headers
 app.use(helmet({
-  contentSecurityPolicy: false, // Allow inline scripts for SPA
+  contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
 }));
 
@@ -35,7 +35,7 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Rate limiting for API routes
 const apiLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
+  windowMs: 60 * 1000,
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
@@ -49,12 +49,12 @@ app.use(express.static(path.join(__dirname, 'public')));
 // API routes
 app.use('/api', routes);
 
-// Health check with DB connectivity
-app.get('/health', (req, res) => {
+// Health check
+app.get('/health', async (req, res) => {
   let dbStatus = 'unknown';
   try {
-    const row = db.get('SELECT 1 as ok');
-    dbStatus = row && row.ok === 1 ? 'connected' : 'error';
+    const { error } = await supabase.from('clients').select('id', { count: 'exact', head: true });
+    dbStatus = error ? 'error' : 'connected';
   } catch {
     dbStatus = 'disconnected';
   }
