@@ -2,15 +2,7 @@
   // Store loaded data for search/sort
   var clientsData = [];
 
-  // Modal helpers
-  function openModal(id) {
-    var el = document.getElementById(id);
-    if (el) { el.classList.remove('hidden'); el.classList.add('flex'); }
-  }
-  function closeModal(id) {
-    var el = document.getElementById(id);
-    if (el) { el.classList.add('hidden'); el.classList.remove('flex'); }
-  }
+  // openModal / closeModal provided by app.js (with scroll lock + Escape + backdrop)
 
   window.openClientModal = function () {
     document.getElementById('clientForm').reset();

@@ -10,23 +10,23 @@
       <p class="text-xs text-on-surface-variant">Download sample Rate Card and Attendance files to understand the required format.</p>
     </div>
     <div class="flex gap-2 flex-shrink-0">
-      <a href="/api/samples/rate-card" class="btn-secondary btn-sm inline-flex items-center gap-1.5 no-underline" download>
+      <button onclick="downloadFile('/api/samples/rate-card', 'SampleRateCard.xlsx')" class="btn-secondary btn-sm inline-flex items-center gap-1.5">
         <span class="material-symbols-outlined text-base">table_view</span>Rate Card
-      </a>
-      <a href="/api/samples/attendance" class="btn-secondary btn-sm inline-flex items-center gap-1.5 no-underline" download>
+      </button>
+      <button onclick="downloadFile('/api/samples/attendance', 'SampleAttendance.xlsx')" class="btn-secondary btn-sm inline-flex items-center gap-1.5">
         <span class="material-symbols-outlined text-base">table_view</span>Attendance
-      </a>
+      </button>
     </div>
   </div>
 
   <!-- Tabs -->
   <div>
     <div class="flex gap-1 border-b border-outline-variant/10 mb-6" id="billingTabs">
-      <button class="billing-tab active px-5 py-3 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2"
+      <button class="tab-btn billing-tab active px-5 py-3 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2"
               data-tab="tab-files" onclick="switchBillingTab('tab-files')">
         <span class="material-symbols-outlined text-lg">upload_file</span>Generate from Files
       </button>
-      <button class="billing-tab px-5 py-3 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2"
+      <button class="tab-btn billing-tab px-5 py-3 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2"
               data-tab="tab-db" onclick="switchBillingTab('tab-db')">
         <span class="material-symbols-outlined text-lg">database</span>Generate from Database
       </button>
@@ -143,9 +143,9 @@
 
     <!-- Download Button -->
     <div>
-      <a id="downloadLink" class="btn-primary inline-flex items-center gap-2 no-underline text-on-primary-fixed" href="#" target="_blank">
+      <button id="downloadLink" class="btn-primary inline-flex items-center gap-2" onclick="downloadFile(this.getAttribute('data-url'))">
         <span class="material-symbols-outlined">download</span>Download Billing Excel
-      </a>
+      </button>
     </div>
 
     <!-- Billing Items Table -->
@@ -203,17 +203,4 @@
   </div>
 </div>
 
-<style>
-  .billing-tab {
-    color: #c7c4d8;
-    background: transparent;
-    border: none;
-    border-bottom: 2px solid transparent;
-  }
-  .billing-tab:hover { color: #dae2fd; }
-  .billing-tab.active {
-    color: #c3c0ff;
-    border-bottom-color: #c3c0ff;
-    background: rgba(79, 70, 229, 0.05);
-  }
-</style>
+<!-- Tab styles in /css/styles.css (.tab-btn) -->

@@ -10,7 +10,10 @@
             var script = document.createElement("script");
             script.src = "https://cdn.jsdelivr.net/npm/chart.js";
             script.onload = resolve;
-            script.onerror = function () { console.warn("Failed to load Chart.js"); resolve(); };
+            script.onerror = function () {
+                showToast("Failed to load Chart.js — revenue chart unavailable", "warning");
+                resolve();
+            };
             document.head.appendChild(script);
         });
     }
@@ -174,8 +177,8 @@
                         '</td>' +
                         '<td class="px-6 py-5 text-sm">' + formatDate(r.created_at) + '</td>' +
                         '<td class="px-6 py-5 text-center">' +
-                        '<a href="/api/billing/runs/' + r.id + '/download" class="inline-flex items-center justify-center w-8 h-8 rounded-lg hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-colors" title="Download">' +
-                        '<span class="material-symbols-outlined text-lg">download</span></a></td></tr>';
+                        '<button onclick="downloadFile(\'/api/billing/runs/' + r.id + '/download\')" class="inline-flex items-center justify-center w-8 h-8 rounded-lg hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-colors" title="Download">' +
+                        '<span class="material-symbols-outlined text-lg">download</span></button></td></tr>';
                 }).join("");
             }
 

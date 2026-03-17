@@ -5,6 +5,7 @@ const { createPO, updatePO, recordConsumption, renewPO } = require('../validator
 
 router.get('/alerts', poController.getAlerts);
 router.get('/', poController.list);
+router.get('/:id/employees', poController.getLinkedEmployees);
 router.get('/:id', poController.getById);
 router.post('/', validate(createPO), poController.create);
 router.put('/:id', validate(updatePO), poController.update);

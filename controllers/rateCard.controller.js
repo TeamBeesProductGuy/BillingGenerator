@@ -20,9 +20,9 @@ const rateCardController = {
   }),
 
   create: catchAsync(async (req, res) => {
-    const { client_id, emp_code, emp_name, doj, reporting_manager, monthly_rate, leaves_allowed } = req.body;
+    const { client_id, emp_code, emp_name, doj, reporting_manager, monthly_rate, leaves_allowed, po_id } = req.body;
     try {
-      const id = await RateCardModel.create({ client_id, emp_code, emp_name, doj, reporting_manager, monthly_rate, leaves_allowed });
+      const id = await RateCardModel.create({ client_id, emp_code, emp_name, doj, reporting_manager, monthly_rate, leaves_allowed, po_id });
       res.status(201).json({ success: true, data: { id } });
     } catch (err) {
       if (err.message && (err.message.includes('UNIQUE') || err.message.includes('duplicate key'))) {
@@ -59,6 +59,23 @@ const rateCardController = {
     try {
       const { records, errors } = await parseRateCard(req.file.path);
 
+      // Resolve po_number to po_id if present
+      if (records.some((r) => r.po_number)) {
+        const POModel = require('../models/purchaseOrder.model');
+        const poList = await POModel.findAll(clientId, 'Active');
+        const poMap = new Map(poList.map((po) => [po.po_number, po.id]));
+        for (const r of records) {
+          if (r.po_number) {
+            const poId = poMap.get(r.po_number);
+            if (poId) {
+              r.po_id = poId;
+            } else {
+              errors.push({ emp_code: r.emp_code, error_message: `PO number "${r.po_number}" not found or not Active for this client` });
+            }
+          }
+        }
+      }
+
       if (records.length > 0) {
         const dbRecords = records.map((r) => ({ ...r, client_id: clientId }));
         await RateCardModel.bulkCreate(dbRecords);
@@ -91,6 +108,7 @@ const rateCardController = {
       { header: 'Reporting Manager', key: 'reporting_manager', width: 20 },
       { header: 'Monthly Rate', key: 'monthly_rate', width: 15 },
       { header: 'Leaves Allowed', key: 'leaves_allowed', width: 15 },
+      { header: 'PO Number', key: 'po_number', width: 18 },
     ];
 
     const headerRow = sheet.getRow(1);

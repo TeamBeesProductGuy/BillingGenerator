@@ -4,9 +4,9 @@
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
     <div><!-- Title handled by shell --></div>
     <div class="flex flex-wrap gap-2">
-      <a href="/api/rate-cards/export" class="btn-secondary inline-flex items-center gap-1.5 no-underline">
+      <button onclick="downloadFile('/api/rate-cards/export', 'RateCards_Export.xlsx')" class="btn-secondary inline-flex items-center gap-1.5">
         <span class="material-symbols-outlined text-base">download</span>Export
-      </a>
+      </button>
       <button class="btn-secondary inline-flex items-center gap-1.5" onclick="openUploadRCModal()">
         <span class="material-symbols-outlined text-base">upload</span>Upload Excel
       </button>
@@ -46,11 +46,12 @@
             <th class="sortable" data-sort-key="4">Manager</th>
             <th class="sortable text-right" data-sort-key="5" data-sort-type="currency">Monthly Rate</th>
             <th class="sortable text-center" data-sort-key="6" data-sort-type="number">Leaves</th>
+            <th class="sortable" data-sort-key="7">PO#</th>
             <th class="text-center">Actions</th>
           </tr>
         </thead>
         <tbody id="rcBody">
-          <tr><td colspan="8"><div class="loading-spinner"></div></td></tr>
+          <tr><td colspan="9"><div class="loading-spinner"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -102,6 +103,10 @@
             <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Leaves Allowed</label>
             <input type="number" id="rcLeaves" value="0" min="0">
           </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Purchase Order</label>
+          <select id="rcPO"><option value="">None (Unassigned)</option></select>
         </div>
       </div>
       <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/10">

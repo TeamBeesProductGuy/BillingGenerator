@@ -46,6 +46,7 @@ const RateCardModel = {
         reporting_manager: data.reporting_manager || null,
         monthly_rate: data.monthly_rate,
         leaves_allowed: data.leaves_allowed || 0,
+        po_id: data.po_id || null,
       })
       .select('id')
       .single();
@@ -62,6 +63,7 @@ const RateCardModel = {
       reporting_manager: data.reporting_manager || null,
       monthly_rate: data.monthly_rate,
       leaves_allowed: data.leaves_allowed || 0,
+      po_id: data.po_id || null,
       is_active: true,
       updated_at: new Date().toISOString(),
     }));
@@ -82,10 +84,22 @@ const RateCardModel = {
         reporting_manager: data.reporting_manager || null,
         monthly_rate: data.monthly_rate,
         leaves_allowed: data.leaves_allowed || 0,
+        po_id: data.po_id !== undefined ? (data.po_id || null) : undefined,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id);
     if (error) throw new Error(error.message);
+  },
+
+  async findByPoId(poId) {
+    const { data, error } = await supabase
+      .from('rate_cards_view')
+      .select('*')
+      .eq('po_id', poId)
+      .eq('is_active', true)
+      .order('emp_code');
+    if (error) throw new Error(error.message);
+    return data;
   },
 
   async softDelete(id) {

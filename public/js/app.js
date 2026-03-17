@@ -59,8 +59,6 @@
 
     async function showLoginPage() {
         hideApp();
-        var appContent = document.getElementById("app-content");
-        // Use a full-page login container outside the normal layout
         var loginContainer = document.getElementById("login-container");
         if (!loginContainer) {
             loginContainer = document.createElement("div");
@@ -77,7 +75,6 @@
                 pageCache["login"] = await resp.text();
             }
             loginContainer.innerHTML = pageCache["login"];
-            // Load login script
             var prev = document.getElementById("page-script");
             if (prev) prev.remove();
             var script = document.createElement("script");
@@ -225,6 +222,67 @@
     };
 
     // -----------------------------------------------------------
+    //  Modal Helpers (centralized open/close with scroll lock + escape + backdrop)
+    // -----------------------------------------------------------
+    function openModalCount() {
+        return document.querySelectorAll(".fixed.z-\\[200\\].flex:not(.hidden)").length;
+    }
+
+    window.openModal = function (id) {
+        var el = document.getElementById(id);
+        if (el) {
+            el.classList.remove("hidden");
+            el.classList.add("flex");
+            document.body.classList.add("modal-open");
+        }
+    };
+
+    window.closeModal = function (id) {
+        var el = document.getElementById(id);
+        if (el) {
+            el.classList.add("hidden");
+            el.classList.remove("flex");
+            // Only remove scroll lock if no other modals are open
+            if (openModalCount() === 0) {
+                document.body.classList.remove("modal-open");
+            }
+        }
+    };
+
+    // Close topmost modal on Escape key
+    document.addEventListener("keydown", function (e) {
+        if (e.key !== "Escape") return;
+        // Find all visible modals (z-[200])
+        var modals = document.querySelectorAll(".fixed.z-\\[200\\].flex:not(.hidden)");
+        if (modals.length === 0) return;
+        var topModal = modals[modals.length - 1];
+        // Try to find a close button within the modal
+        var closeBtn = topModal.querySelector("[onclick*='close']");
+        if (closeBtn) {
+            closeBtn.click();
+        } else {
+            closeModal(topModal.id);
+        }
+    });
+
+    // Close modal on backdrop (overlay) click
+    document.addEventListener("click", function (e) {
+        var target = e.target;
+        // Only if clicking directly on the overlay element (not its children)
+        if (target.classList.contains("fixed") &&
+            target.classList.contains("z-[200]") &&
+            target.classList.contains("flex") &&
+            !target.classList.contains("hidden")) {
+            var closeBtn = target.querySelector("[onclick*='close']");
+            if (closeBtn) {
+                closeBtn.click();
+            } else {
+                closeModal(target.id);
+            }
+        }
+    });
+
+    // -----------------------------------------------------------
     //  API Call (with auth token)
     // -----------------------------------------------------------
     window.apiCall = async function apiCall(method, url, data) {
@@ -268,20 +326,74 @@
     };
 
     // -----------------------------------------------------------
-    //  Toast Notifications
+    //  Authenticated File Download
     // -----------------------------------------------------------
+    window.downloadFile = async function (url, filename) {
+        try {
+            var options = { method: "GET", headers: {} };
+            if (currentSession && currentSession.access_token) {
+                options.headers["Authorization"] = "Bearer " + currentSession.access_token;
+            }
+            var response = await fetch(url, options);
+
+            if (response.status === 401) {
+                currentSession = null;
+                currentPage = null;
+                showLoginPage();
+                showToast("Session expired. Please log in again.", "danger");
+                return;
+            }
+            if (!response.ok) {
+                var errText = await response.text();
+                try { errText = JSON.parse(errText).error || errText; } catch (e) { /* use raw */ }
+                throw new Error(errText || "Download failed");
+            }
+
+            // Derive filename from Content-Disposition header or URL
+            if (!filename) {
+                var cd = response.headers.get("Content-Disposition") || "";
+                var match = cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                if (match) {
+                    filename = match[1].replace(/['"]/g, "");
+                } else {
+                    filename = url.split("/").pop().split("?")[0] || "download";
+                }
+            }
+
+            var blob = await response.blob();
+            var a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 100);
+        } catch (err) {
+            showToast("Download failed: " + err.message, "danger");
+        }
+    };
+
+    // -----------------------------------------------------------
+    //  Toast Notifications (capped at 5)
+    // -----------------------------------------------------------
+    var MAX_TOASTS = 5;
+
     window.showToast = function showToast(message, type) {
         if (type === "error") type = "danger";
         type = type || "info";
         var container = document.getElementById("toast-container");
         if (!container) return;
 
+        // Cap toasts — remove oldest if at limit
+        while (container.children.length >= MAX_TOASTS) {
+            dismissToast(container.firstElementChild);
+        }
+
         var iconMap = { success: "check_circle", danger: "error", warning: "warning", info: "info" };
         var el = document.createElement("div");
         el.className = "toast-notification toast-" + type;
         el.innerHTML =
             '<span class="material-symbols-outlined toast-icon">' + (iconMap[type] || "info") + '</span>' +
-            '<div class="toast-body">' + message + '</div>' +
+            '<div class="toast-body">' + escapeHtml(message) + '</div>' +
             '<button class="toast-close" aria-label="Close"><span class="material-symbols-outlined" style="font-size:16px">close</span></button>' +
             '<div class="toast-progress"></div>';
 
@@ -299,7 +411,7 @@
     window.showAlert = function (message, type) { window.showToast(message, type); };
 
     // -----------------------------------------------------------
-    //  Confirm Dialog
+    //  Confirm Dialog (with Escape support)
     // -----------------------------------------------------------
     window.confirmAction = function confirmAction(titleOrMessage, message) {
         var title, body;
@@ -312,22 +424,29 @@
             document.getElementById("confirmBody").textContent = body;
             modal.classList.remove("hidden");
             modal.classList.add("flex");
+            document.body.classList.add("modal-open");
 
             var resolved = false;
             function cleanup() {
                 modal.classList.add("hidden");
                 modal.classList.remove("flex");
+                if (openModalCount() === 0) {
+                    document.body.classList.remove("modal-open");
+                }
                 okBtn.removeEventListener("click", onOk);
                 cancelBtn.removeEventListener("click", onCancel);
+                document.removeEventListener("keydown", onEscape);
                 resolve(resolved);
             }
             function onOk() { resolved = true; cleanup(); }
             function onCancel() { cleanup(); }
+            function onEscape(e) { if (e.key === "Escape") cleanup(); }
 
             var okBtn = document.getElementById("confirmOkBtn");
             var cancelBtn = document.getElementById("confirmCancelBtn");
             okBtn.addEventListener("click", onOk);
             cancelBtn.addEventListener("click", onCancel);
+            document.addEventListener("keydown", onEscape);
         });
     };
 
@@ -360,7 +479,7 @@
     window.getDefaultBillingMonth = function () {
         var now = new Date();
         var year = now.getFullYear();
-        var month = now.getMonth();
+        var month = now.getMonth(); // 0-indexed, so Jan=0, which means "previous month" = Dec of last year
         if (month === 0) { month = 12; year--; }
         return String(year) + String(month).padStart(2, "0");
     };
@@ -466,19 +585,24 @@
     };
 
     // -----------------------------------------------------------
-    //  Table Search & Sort
+    //  Table Search (with debounce) & Sort
     // -----------------------------------------------------------
     window.initTableSearch = function (searchInputId, tbodyId) {
         var input = document.getElementById(searchInputId);
         if (!input) return;
+        var debounceTimer = null;
         input.addEventListener("input", function () {
-            var query = this.value.toLowerCase().trim();
-            var tbody = document.getElementById(tbodyId);
-            if (!tbody) return;
-            tbody.querySelectorAll("tr").forEach(function (row) {
-                if (row.querySelector("td[colspan]")) { row.style.display = ""; return; }
-                row.style.display = row.textContent.toLowerCase().indexOf(query) !== -1 ? "" : "none";
-            });
+            var self = this;
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(function () {
+                var query = self.value.toLowerCase().trim();
+                var tbody = document.getElementById(tbodyId);
+                if (!tbody) return;
+                tbody.querySelectorAll("tr").forEach(function (row) {
+                    if (row.querySelector("td[colspan]")) { row.style.display = ""; return; }
+                    row.style.display = row.textContent.toLowerCase().indexOf(query) !== -1 ? "" : "none";
+                });
+            }, 200);
         });
     };
 

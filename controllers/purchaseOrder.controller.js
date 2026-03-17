@@ -1,4 +1,5 @@
 const POModel = require('../models/purchaseOrder.model');
+const RateCardModel = require('../models/rateCard.model');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
 
@@ -12,7 +13,16 @@ const poController = {
   getById: catchAsync(async (req, res) => {
     const po = await POModel.findById(parseInt(req.params.id, 10));
     if (!po) throw new AppError(404, 'Purchase order not found');
+    po.linkedEmployees = await RateCardModel.findByPoId(po.id);
     res.json({ success: true, data: po });
+  }),
+
+  getLinkedEmployees: catchAsync(async (req, res) => {
+    const poId = parseInt(req.params.id, 10);
+    const po = await POModel.findById(poId);
+    if (!po) throw new AppError(404, 'Purchase order not found');
+    const employees = await RateCardModel.findByPoId(poId);
+    res.json({ success: true, data: employees });
   }),
 
   create: catchAsync(async (req, res) => {

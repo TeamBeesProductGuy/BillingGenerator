@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS rate_cards (
     reporting_manager TEXT,
     monthly_rate      NUMERIC(15,2) NOT NULL CHECK(monthly_rate > 0),
     leaves_allowed    INTEGER NOT NULL DEFAULT 0 CHECK(leaves_allowed >= 0),
+    po_id             INTEGER REFERENCES purchase_orders(id),
     is_active         BOOLEAN NOT NULL DEFAULT TRUE,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -36,6 +37,7 @@ CREATE TABLE IF NOT EXISTS rate_cards (
 
 CREATE INDEX IF NOT EXISTS idx_rate_cards_client ON rate_cards(client_id);
 CREATE INDEX IF NOT EXISTS idx_rate_cards_emp_code ON rate_cards(emp_code);
+CREATE INDEX IF NOT EXISTS idx_rate_cards_po ON rate_cards(po_id);
 
 CREATE TABLE IF NOT EXISTS attendance (
     id                SERIAL PRIMARY KEY,
@@ -174,9 +176,10 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(user_action);
 -- ============================================================
 
 CREATE OR REPLACE VIEW rate_cards_view AS
-SELECT rc.*, c.client_name
+SELECT rc.*, c.client_name, po.po_number
 FROM rate_cards rc
-JOIN clients c ON rc.client_id = c.id;
+JOIN clients c ON rc.client_id = c.id
+LEFT JOIN purchase_orders po ON rc.po_id = po.id;
 
 CREATE OR REPLACE VIEW quotes_view AS
 SELECT q.*, c.client_name
@@ -186,7 +189,8 @@ JOIN clients c ON q.client_id = c.id;
 CREATE OR REPLACE VIEW purchase_orders_view AS
 SELECT po.*, c.client_name,
   CASE WHEN po.po_value > 0 THEN ROUND((po.consumed_value / po.po_value) * 100, 2) ELSE 0 END AS consumption_pct,
-  ROUND(po.po_value - po.consumed_value, 2) AS remaining_value
+  ROUND(po.po_value - po.consumed_value, 2) AS remaining_value,
+  (SELECT COUNT(*) FROM rate_cards rc WHERE rc.po_id = po.id AND rc.is_active = TRUE) AS linked_employees
 FROM purchase_orders po
 JOIN clients c ON po.client_id = c.id;
 
@@ -265,6 +269,10 @@ BEGIN
   INSERT INTO purchase_orders (po_number, client_id, po_date, start_date, end_date, po_value, alert_threshold, notes)
   VALUES (p_po_number, p_client_id, p_po_date, p_start_date, p_end_date, p_po_value, p_alert_threshold, p_notes)
   RETURNING id INTO v_new_id;
+
+  -- Migrate employees from old PO to new PO
+  UPDATE rate_cards SET po_id = v_new_id, updated_at = NOW()
+  WHERE po_id = p_old_id AND is_active = TRUE;
 
   RETURN v_new_id;
 END;
@@ -362,3 +370,30 @@ BEGIN
   RETURN v_result;
 END;
 $$;
+
+-- ============================================================
+-- TRIGGERS
+-- ============================================================
+
+-- Ensure rate_card po_id references a PO belonging to the same client
+CREATE OR REPLACE FUNCTION check_rate_card_po_client()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+    v_po_client_id INTEGER;
+BEGIN
+    IF NEW.po_id IS NOT NULL THEN
+        SELECT client_id INTO v_po_client_id FROM purchase_orders WHERE id = NEW.po_id;
+        IF v_po_client_id IS NULL THEN
+            RAISE EXCEPTION 'Purchase order % not found', NEW.po_id;
+        END IF;
+        IF v_po_client_id != NEW.client_id THEN
+            RAISE EXCEPTION 'Purchase order belongs to a different client';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_rate_card_po_client
+BEFORE INSERT OR UPDATE ON rate_cards
+FOR EACH ROW EXECUTE FUNCTION check_rate_card_po_client();

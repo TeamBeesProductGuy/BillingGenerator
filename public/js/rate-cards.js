@@ -1,18 +1,11 @@
 (function () {
-  // Modal helpers
-  function openModal(id) {
-    var el = document.getElementById(id);
-    if (el) { el.classList.remove('hidden'); el.classList.add('flex'); }
-  }
-  function closeModal(id) {
-    var el = document.getElementById(id);
-    if (el) { el.classList.add('hidden'); el.classList.remove('flex'); }
-  }
+  // openModal / closeModal provided by app.js (with scroll lock + Escape + backdrop)
 
   window.openRCModal = function () {
     document.getElementById('rcForm').reset();
     document.getElementById('rcId').value = '';
     document.getElementById('rcModalTitle').textContent = 'Add Rate Card';
+    document.getElementById('rcPO').innerHTML = '<option value="">None (Unassigned)</option>';
     window.rcEdit = null;
     openModal('rcModal');
   };
@@ -21,6 +14,7 @@
     document.getElementById('rcForm').reset();
     document.getElementById('rcId').value = '';
     document.getElementById('rcModalTitle').textContent = 'Add Rate Card';
+    document.getElementById('rcPO').innerHTML = '<option value="">None (Unassigned)</option>';
     window.rcEdit = null;
   };
   window.openUploadRCModal = function () {
@@ -46,6 +40,19 @@
     } catch (e) { /* ignore */ }
   }
 
+  async function loadPOsForClient(clientId) {
+    var sel = document.getElementById('rcPO');
+    sel.innerHTML = '<option value="">None (Unassigned)</option>';
+    if (!clientId) return;
+    try {
+      var res = await apiCall('GET', '/api/purchase-orders?clientId=' + clientId + '&status=Active');
+      res.data.forEach(function (po) {
+        sel.innerHTML += '<option value="' + po.id + '">' + escapeHtml(po.po_number) +
+          ' (' + formatCurrency(po.remaining_value) + ' remaining)</option>';
+      });
+    } catch (e) { /* ignore */ }
+  }
+
   async function loadRateCards() {
     var tbody = document.getElementById('rcBody');
     showLoading(tbody);
@@ -54,7 +61,7 @@
       var url = clientId ? '/api/rate-cards?clientId=' + clientId : '/api/rate-cards';
       var res = await apiCall('GET', url);
       if (res.data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-on-surface-variant py-8">No rate cards found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-on-surface-variant py-8">No rate cards found</td></tr>';
       } else {
         tbody.innerHTML = res.data.map(function (r) {
           return '<tr>' +
@@ -65,6 +72,7 @@
             '<td>' + escapeHtml(r.reporting_manager || '') + '</td>' +
             '<td class="text-right">' + formatCurrency(r.monthly_rate) + '</td>' +
             '<td class="text-center">' + r.leaves_allowed + '</td>' +
+            '<td>' + escapeHtml(r.po_number || '---') + '</td>' +
             '<td class="text-center">' +
               '<div class="inline-flex items-center gap-1">' +
               '<button class="btn-secondary btn-sm inline-flex items-center" onclick="editRC(' + r.id + ')" title="Edit"><span class="material-symbols-outlined text-base">edit</span></button>' +
@@ -84,6 +92,8 @@
       var r = res.data;
       document.getElementById('rcId').value = r.id;
       document.getElementById('rcClient').value = r.client_id;
+      await loadPOsForClient(r.client_id);
+      document.getElementById('rcPO').value = r.po_id || '';
       document.getElementById('rcEmpCode').value = r.emp_code;
       document.getElementById('rcEmpName').value = r.emp_name;
       document.getElementById('rcDoj').value = r.doj || '';
@@ -108,6 +118,7 @@
 
   document.getElementById('rcForm').addEventListener('submit', async function (e) {
     e.preventDefault();
+    var poVal = document.getElementById('rcPO').value;
     var data = {
       client_id: parseInt(document.getElementById('rcClient').value, 10),
       emp_code: document.getElementById('rcEmpCode').value.trim(),
@@ -116,6 +127,7 @@
       reporting_manager: document.getElementById('rcManager').value.trim(),
       monthly_rate: parseFloat(document.getElementById('rcRate').value),
       leaves_allowed: parseInt(document.getElementById('rcLeaves').value, 10) || 0,
+      po_id: poVal ? parseInt(poVal, 10) : null,
     };
     try {
       if (window.rcEdit) {
@@ -144,6 +156,11 @@
   });
 
   document.getElementById('rcFilterClient').addEventListener('change', loadRateCards);
+
+  // Load POs when client changes in the form
+  document.getElementById('rcClient').addEventListener('change', function () {
+    loadPOsForClient(this.value);
+  });
 
   // Initialize search
   initTableSearch('rcSearch', 'rcBody');

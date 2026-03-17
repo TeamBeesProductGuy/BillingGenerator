@@ -1,13 +1,5 @@
 (function () {
-  // Modal helpers
-  function openModal(id) {
-    var el = document.getElementById(id);
-    if (el) { el.classList.remove('hidden'); el.classList.add('flex'); }
-  }
-  function closeModal(id) {
-    var el = document.getElementById(id);
-    if (el) { el.classList.add('hidden'); el.classList.remove('flex'); }
-  }
+  // openModal / closeModal provided by app.js (with scroll lock + Escape + backdrop)
 
   window.openQuoteModal = function () {
     document.getElementById('quoteForm').reset();
@@ -59,7 +51,7 @@
           if (q.status === 'Draft') {
             actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="editQuote(' + q.id + ')" title="Edit"><span class="material-symbols-outlined text-base">edit</span></button>';
           }
-          actionsHtml += '<a href="/api/quotes/' + q.id + '/download" class="btn-secondary btn-sm inline-flex items-center no-underline" title="Download"><span class="material-symbols-outlined text-base">download</span></a>';
+          actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="downloadFile(\'/api/quotes/' + q.id + '/download\')" title="Download"><span class="material-symbols-outlined text-base">download</span></button>';
 
           // Status actions
           actionsHtml += '<div class="relative inline-block" id="quoteMenu' + q.id + '">';

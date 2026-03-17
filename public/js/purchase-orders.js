@@ -1,13 +1,5 @@
 (function () {
-  // Modal helpers
-  function openModal(id) {
-    var el = document.getElementById(id);
-    if (el) { el.classList.remove('hidden'); el.classList.add('flex'); }
-  }
-  function closeModal(id) {
-    var el = document.getElementById(id);
-    if (el) { el.classList.add('hidden'); el.classList.remove('flex'); }
-  }
+  // openModal / closeModal provided by app.js (with scroll lock + Escape + backdrop)
 
   window.openPOModal = function () {
     document.getElementById('poForm').reset();
@@ -81,7 +73,7 @@
       if (status) url += 'status=' + status;
       var res = await apiCall('GET', url);
       if (res.data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-on-surface-variant py-8">No purchase orders found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-on-surface-variant py-8">No purchase orders found</td></tr>';
       } else {
         tbody.innerHTML = res.data.map(function (po) {
           var actionsHtml = '<div class="inline-flex items-center gap-1">';
@@ -103,6 +95,7 @@
             '<td class="text-right">' + formatCurrency(po.consumed_value) + '</td>' +
             '<td>' + progressBar(po.consumption_pct || 0) + '</td>' +
             '<td>' + statusBadge(po.status) + '</td>' +
+            '<td class="text-center">' + (po.linked_employees || 0) + '</td>' +
             '<td class="text-center">' + actionsHtml + '</td>' +
             '</tr>';
         }).join('');
@@ -142,6 +135,21 @@
                 return '<tr><td>' + formatDate(l.consumed_at) + '</td><td class="text-right">' + formatCurrency(l.amount) + '</td><td>' + escapeHtml(l.description || '') + '</td></tr>';
               }).join('') :
               '<tr><td colspan="3" class="text-center text-on-surface-variant py-4">No consumption recorded</td></tr>') +
+          '</tbody>' +
+        '</table></div>' +
+        '<h6 class="text-sm font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-3 mt-6">Linked Employees</h6>' +
+        '<div class="overflow-x-auto">' +
+        '<table class="stitch-table">' +
+          '<thead><tr><th>Emp Code</th><th>Name</th><th>Manager</th><th class="text-right">Monthly Rate</th></tr></thead>' +
+          '<tbody>' +
+            (po.linkedEmployees && po.linkedEmployees.length > 0 ?
+              po.linkedEmployees.map(function (emp) {
+                return '<tr><td><strong>' + escapeHtml(emp.emp_code) + '</strong></td>' +
+                  '<td>' + escapeHtml(emp.emp_name) + '</td>' +
+                  '<td>' + escapeHtml(emp.reporting_manager || '') + '</td>' +
+                  '<td class="text-right">' + formatCurrency(emp.monthly_rate) + '</td></tr>';
+              }).join('') :
+              '<tr><td colspan="4" class="text-center text-on-surface-variant py-4">No employees linked to this PO</td></tr>') +
           '</tbody>' +
         '</table></div>';
       openModal('poDetailModal');

@@ -13,6 +13,7 @@ const RATE_CARD_ALIASES = {
   reporting_manager: ['reporting_manager', 'reportingmanager', 'manager', 'rm'],
   monthly_rate: ['monthly_rate', 'monthlyrate', 'rate', 'billing_rate', 'billingrate'],
   leaves_allowed: ['leaves_allowed', 'leavesallowed', 'allowed_leaves', 'allowedleaves', 'leaves'],
+  po_number: ['po_number', 'ponumber', 'po', 'purchase_order', 'purchaseorder', 'po_no'],
 };
 
 const ATTENDANCE_ALIASES = {
@@ -121,6 +122,7 @@ async function parseRateCard(filePath) {
       reporting_manager: String(getValue('reporting_manager') || '').trim(),
       monthly_rate: monthlyRate,
       leaves_allowed: leavesAllowed,
+      po_number: String(getValue('po_number') || '').trim() || null,
     });
   }
 

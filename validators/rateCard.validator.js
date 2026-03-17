@@ -33,7 +33,12 @@ const createRateCard = Joi.object({
   leaves_allowed: Joi.number()
     .integer()
     .min(0)
-    .default(0)
+    .default(0),
+
+  po_id: Joi.number()
+    .integer()
+    .positive()
+    .allow(null)
 });
 
 const updateRateCard = Joi.object({
@@ -55,7 +60,12 @@ const updateRateCard = Joi.object({
 
   leaves_allowed: Joi.number()
     .integer()
-    .min(0)
+    .min(0),
+
+  po_id: Joi.number()
+    .integer()
+    .positive()
+    .allow(null)
 });
 
 module.exports = { createRateCard, updateRateCard };

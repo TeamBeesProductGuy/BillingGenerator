@@ -90,7 +90,7 @@
             '<td class="text-right">' + formatCurrency(r.total_amount) + '</td>' +
             '<td class="text-center">' + (r.error_count > 0 ? '<span class="badge-error">' + r.error_count + '</span>' : '<span class="badge-success">0</span>') + '</td>' +
             '<td>' + formatDate(r.created_at) + '</td>' +
-            '<td><a href="/api/billing/runs/' + r.id + '/download" class="btn-secondary btn-sm inline-flex items-center gap-1 no-underline" title="Download"><span class="material-symbols-outlined text-base">download</span></a></td>' +
+            '<td><button onclick="downloadFile(\'/api/billing/runs/' + r.id + '/download\')" class="btn-secondary btn-sm inline-flex items-center gap-1" title="Download"><span class="material-symbols-outlined text-base">download</span></button></td>' +
             '</tr>';
         }).join('');
       }
@@ -105,7 +105,7 @@
     document.getElementById('resTotalAmount').textContent = formatCurrency(data.summary.totalAmount);
     document.getElementById('resErrors').textContent = data.summary.errorCount;
     document.getElementById('resDays').textContent = data.summary.daysInMonth;
-    document.getElementById('downloadLink').href = data.downloadUrl;
+    document.getElementById('downloadLink').setAttribute('data-url', data.downloadUrl);
 
     var itemsBody = document.getElementById('billingItemsBody');
     if (data.billingItems.length === 0) {
