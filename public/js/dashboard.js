@@ -162,14 +162,13 @@
             // Billing History Table
             var historyBody = document.getElementById("billingHistoryBody");
             if (recentRuns.length === 0) {
-                historyBody.innerHTML = '<tr><td colspan="7" class="text-center text-on-surface-variant py-8">No billing runs yet</td></tr>';
+                historyBody.innerHTML = '<tr><td colspan="6" class="text-center text-on-surface-variant py-8">No billing runs yet</td></tr>';
             } else {
                 historyBody.innerHTML = recentRuns.map(function (r) {
                     return '<tr class="hover:bg-surface-container-low transition-colors">' +
                         '<td class="px-6 py-5 text-sm font-semibold">' + formatBillingMonth(r.billing_month) + '</td>' +
                         '<td class="px-6 py-5 text-sm text-center">' + r.total_employees + '</td>' +
                         '<td class="px-6 py-5 text-sm font-bold text-right">' + formatCurrency(r.total_amount) + '</td>' +
-                        '<td class="px-6 py-5 text-sm text-right">' + formatCurrency(r.gst_amount || 0) + '</td>' +
                         '<td class="px-6 py-5 text-center">' +
                         (r.error_count > 0
                             ? '<span class="badge-error">' + r.error_count + '</span>'

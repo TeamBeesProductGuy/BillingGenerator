@@ -11,6 +11,31 @@ const POModel = require('../models/purchaseOrder.model');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
 
+/**
+ * Auto-consume PO value for billing items that have a po_id.
+ * Groups amounts by PO and records each consumption.
+ */
+async function autoConsumePOs(billingItems, billingMonth, runId) {
+  const consumptionByPo = {};
+  for (const item of billingItems) {
+    if (item.po_id) {
+      if (!consumptionByPo[item.po_id]) consumptionByPo[item.po_id] = 0;
+      consumptionByPo[item.po_id] += item.invoice_amount;
+    }
+  }
+
+  const poConsumption = [];
+  for (const [poId, totalAmount] of Object.entries(consumptionByPo)) {
+    try {
+      await POModel.addConsumption(parseInt(poId, 10), totalAmount, `Billing ${billingMonth} run #${runId}`, runId);
+      poConsumption.push({ po_id: parseInt(poId, 10), amount: totalAmount, status: 'ok' });
+    } catch (err) {
+      poConsumption.push({ po_id: parseInt(poId, 10), amount: totalAmount, status: 'error', message: err.message });
+    }
+  }
+  return poConsumption;
+}
+
 const billingController = {
   generateFromFiles: catchAsync(async (req, res) => {
     const billingMonth = req.body.billingMonth;
@@ -44,15 +69,15 @@ const billingController = {
         billing_month: billingMonth,
         total_employees: result.summary.totalEmployees,
         total_amount: result.summary.totalAmount,
-        gst_percent: result.summary.gstPercent,
-        gst_amount: result.summary.totalGst,
-        total_with_gst: result.summary.grandTotal,
         error_count: allErrors.length,
         output_file: filePath,
       });
 
       if (result.billingItems.length > 0) await BillingModel.addItems(runId, result.billingItems);
       if (allErrors.length > 0) await BillingModel.addErrors(runId, allErrors);
+
+      // Auto-consume from POs linked via rate cards
+      const poConsumption = await autoConsumePOs(result.billingItems, billingMonth, runId);
 
       res.json({
         success: true,
@@ -63,6 +88,7 @@ const billingController = {
           billingItems: result.billingItems,
           downloadUrl: `/api/billing/runs/${runId}/download`,
           filename,
+          poConsumption,
         },
       });
     } finally {
@@ -106,9 +132,6 @@ const billingController = {
       client_id: clientId || null,
       total_employees: result.summary.totalEmployees,
       total_amount: result.summary.totalAmount,
-      gst_percent: result.summary.gstPercent,
-      gst_amount: result.summary.totalGst,
-      total_with_gst: result.summary.grandTotal,
       error_count: allErrors.length,
       output_file: filePath,
     });
@@ -116,24 +139,8 @@ const billingController = {
     if (result.billingItems.length > 0) await BillingModel.addItems(runId, result.billingItems);
     if (allErrors.length > 0) await BillingModel.addErrors(runId, allErrors);
 
-    // Auto-consume from assigned POs
-    const poConsumption = [];
-    const consumptionByPo = {};
-    for (const item of result.billingItems) {
-      const rc = rateCards.find((r) => r.emp_code === item.emp_code);
-      if (rc && rc.po_id) {
-        if (!consumptionByPo[rc.po_id]) consumptionByPo[rc.po_id] = 0;
-        consumptionByPo[rc.po_id] += item.invoice_amount;
-      }
-    }
-    for (const [poId, totalAmount] of Object.entries(consumptionByPo)) {
-      try {
-        await POModel.addConsumption(parseInt(poId, 10), totalAmount, `Billing ${billingMonth} run #${runId}`, runId);
-        poConsumption.push({ po_id: parseInt(poId, 10), amount: totalAmount, status: 'ok' });
-      } catch (err) {
-        poConsumption.push({ po_id: parseInt(poId, 10), amount: totalAmount, status: 'error', message: err.message });
-      }
-    }
+    // Auto-consume from POs linked via rate cards
+    const poConsumption = await autoConsumePOs(result.billingItems, billingMonth, runId);
 
     res.json({
       success: true,

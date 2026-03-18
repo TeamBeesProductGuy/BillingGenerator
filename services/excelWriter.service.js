@@ -24,9 +24,6 @@ async function generateBillingExcel(billingItems, errors, billingMonth) {
     { header: 'Leaves Taken', key: 'leaves_taken', width: 15 },
     { header: 'Chargeable Days', key: 'chargeable_days', width: 18 },
     { header: 'Invoice Amount', key: 'invoice_amount', width: 18 },
-    { header: 'GST %', key: 'gst_percent', width: 10 },
-    { header: 'GST Amount', key: 'gst_amount', width: 15 },
-    { header: 'Total with GST', key: 'total_with_gst', width: 18 },
   ];
 
   // Style header row
@@ -42,31 +39,22 @@ async function generateBillingExcel(billingItems, errors, billingMonth) {
   // Format currency columns
   billingSheet.getColumn('monthly_rate').numFmt = '#,##0.00';
   billingSheet.getColumn('invoice_amount').numFmt = '#,##0.00';
-  billingSheet.getColumn('gst_amount').numFmt = '#,##0.00';
-  billingSheet.getColumn('total_with_gst').numFmt = '#,##0.00';
-  billingSheet.getColumn('gst_percent').numFmt = '0.00';
 
   // Auto-filter
   billingSheet.autoFilter = {
     from: { row: 1, column: 1 },
-    to: { row: billingItems.length + 1, column: 12 },
+    to: { row: billingItems.length + 1, column: 9 },
   };
 
   // Add totals row
   if (billingItems.length > 0) {
     const totalInvoice = billingItems.reduce((sum, item) => sum + item.invoice_amount, 0);
-    const totalGst = billingItems.reduce((sum, item) => sum + item.gst_amount, 0);
-    const totalWithGst = billingItems.reduce((sum, item) => sum + item.total_with_gst, 0);
     const totalRow = billingSheet.addRow({
       client_name: 'TOTAL',
       invoice_amount: totalInvoice,
-      gst_amount: totalGst,
-      total_with_gst: totalWithGst,
     });
     totalRow.font = { bold: true };
     totalRow.getCell('invoice_amount').numFmt = '#,##0.00';
-    totalRow.getCell('gst_amount').numFmt = '#,##0.00';
-    totalRow.getCell('total_with_gst').numFmt = '#,##0.00';
   }
 
   // Sheet 2: Error_Report

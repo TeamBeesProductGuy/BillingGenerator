@@ -4,7 +4,6 @@ const env = require('../config/env');
 function calculateBilling(rateCards, attendanceRecords, billingMonth) {
   const daysInMonth = getDaysInMonth(billingMonth);
   const divisor = env.billingDivisor === '30' ? 30 : daysInMonth;
-  const gstPercent = env.defaultGstPercent;
   const attendanceMap = new Map();
 
   for (const att of attendanceRecords) {
@@ -27,8 +26,6 @@ function calculateBilling(rateCards, attendanceRecords, billingMonth) {
     const leavesTaken = attendance.leaves_taken;
     const chargeableDays = daysInMonth - leavesTaken + rc.leaves_allowed;
     const invoiceAmount = Math.round((chargeableDays / divisor) * rc.monthly_rate * 100) / 100;
-    const gstAmount = Math.round(invoiceAmount * gstPercent / 100 * 100) / 100;
-    const totalWithGst = Math.round((invoiceAmount + gstAmount) * 100) / 100;
 
     billingItems.push({
       client_name: rc.client_name,
@@ -41,15 +38,11 @@ function calculateBilling(rateCards, attendanceRecords, billingMonth) {
       days_in_month: daysInMonth,
       chargeable_days: chargeableDays,
       invoice_amount: invoiceAmount,
-      gst_percent: gstPercent,
-      gst_amount: gstAmount,
-      total_with_gst: totalWithGst,
+      po_id: rc.po_id || null,
     });
   }
 
   const totalAmount = Math.round(billingItems.reduce((sum, item) => sum + item.invoice_amount, 0) * 100) / 100;
-  const totalGst = Math.round(billingItems.reduce((sum, item) => sum + item.gst_amount, 0) * 100) / 100;
-  const grandTotal = Math.round((totalAmount + totalGst) * 100) / 100;
 
   return {
     billingItems,
@@ -57,9 +50,6 @@ function calculateBilling(rateCards, attendanceRecords, billingMonth) {
     summary: {
       totalEmployees: billingItems.length,
       totalAmount,
-      gstPercent,
-      totalGst,
-      grandTotal,
       errorCount: errors.length,
       daysInMonth,
       billingMonth,

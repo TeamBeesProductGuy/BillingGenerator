@@ -61,9 +61,6 @@ CREATE TABLE IF NOT EXISTS billing_runs (
     client_id       INTEGER REFERENCES clients(id),
     total_employees INTEGER NOT NULL DEFAULT 0,
     total_amount    NUMERIC(15,2) NOT NULL DEFAULT 0,
-    gst_percent     NUMERIC(5,2) NOT NULL DEFAULT 18,
-    gst_amount      NUMERIC(15,2) NOT NULL DEFAULT 0,
-    total_with_gst  NUMERIC(15,2) NOT NULL DEFAULT 0,
     error_count     INTEGER NOT NULL DEFAULT 0,
     output_file     TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -82,9 +79,6 @@ CREATE TABLE IF NOT EXISTS billing_items (
     days_in_month     INTEGER NOT NULL,
     chargeable_days   NUMERIC(10,2) NOT NULL,
     invoice_amount    NUMERIC(15,2) NOT NULL,
-    gst_percent       NUMERIC(5,2) NOT NULL DEFAULT 18,
-    gst_amount        NUMERIC(15,2) NOT NULL DEFAULT 0,
-    total_with_gst    NUMERIC(15,2) NOT NULL DEFAULT 0,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

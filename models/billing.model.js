@@ -9,9 +9,6 @@ const BillingModel = {
         client_id: data.client_id || null,
         total_employees: data.total_employees,
         total_amount: data.total_amount,
-        gst_percent: data.gst_percent || 0,
-        gst_amount: data.gst_amount || 0,
-        total_with_gst: data.total_with_gst || 0,
         error_count: data.error_count,
         output_file: data.output_file,
       })
@@ -34,9 +31,6 @@ const BillingModel = {
       days_in_month: item.days_in_month,
       chargeable_days: item.chargeable_days,
       invoice_amount: item.invoice_amount,
-      gst_percent: item.gst_percent || 0,
-      gst_amount: item.gst_amount || 0,
-      total_with_gst: item.total_with_gst || 0,
     }));
     const { error } = await supabase.from('billing_items').insert(rows);
     if (error) throw new Error(error.message);
@@ -55,7 +49,7 @@ const BillingModel = {
   async findRuns(limit = 20, offset = 0) {
     const { data, error } = await supabase
       .from('billing_runs')
-      .select('id, billing_month, total_employees, total_amount, gst_amount, total_with_gst, error_count, output_file, created_at')
+      .select('id, billing_month, total_employees, total_amount, error_count, output_file, created_at')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
     if (error) throw new Error(error.message);
