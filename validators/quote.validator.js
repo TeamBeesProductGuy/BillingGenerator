@@ -21,6 +21,11 @@ const quoteItem = Joi.object({
 
   emp_code: Joi.string()
     .trim()
+    .allow('', null),
+
+  location: Joi.string()
+    .trim()
+    .max(200)
     .allow('', null)
 });
 

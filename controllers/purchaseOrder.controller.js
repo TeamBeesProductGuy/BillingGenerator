@@ -27,8 +27,8 @@ const poController = {
 
   create: catchAsync(async (req, res) => {
     try {
-      const { po_number, client_id, po_date, start_date, end_date, po_value, alert_threshold, notes } = req.body;
-      const id = await POModel.create({ po_number, client_id, po_date, start_date, end_date, po_value, alert_threshold, notes });
+      const { po_number, client_id, po_date, start_date, end_date, po_value, alert_threshold, sow_id, notes } = req.body;
+      const id = await POModel.create({ po_number, client_id, po_date, start_date, end_date, po_value, alert_threshold, sow_id, notes });
       res.status(201).json({ success: true, data: { id, po_number } });
     } catch (err) {
       if (err.message && (err.message.includes('UNIQUE') || err.message.includes('duplicate key'))) {

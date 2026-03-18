@@ -35,6 +35,9 @@ const createRateCard = Joi.object({
     .min(0)
     .default(0),
 
+  date_of_reporting: Joi.string()
+    .allow('', null),
+
   po_id: Joi.number()
     .integer()
     .positive()
@@ -61,6 +64,9 @@ const updateRateCard = Joi.object({
   leaves_allowed: Joi.number()
     .integer()
     .min(0),
+
+  date_of_reporting: Joi.string()
+    .allow('', null),
 
   po_id: Joi.number()
     .integer()

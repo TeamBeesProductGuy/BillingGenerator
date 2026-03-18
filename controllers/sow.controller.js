@@ -1,0 +1,65 @@
+const SOWModel = require('../models/sow.model');
+const { AppError } = require('../middleware/errorHandler');
+const catchAsync = require('../middleware/catchAsync');
+
+const sowController = {
+  list: catchAsync(async (req, res) => {
+    const { clientId, status } = req.query;
+    const sows = await SOWModel.findAll(clientId ? parseInt(clientId, 10) : null, status);
+    res.json({ success: true, data: sows });
+  }),
+
+  getById: catchAsync(async (req, res) => {
+    const sow = await SOWModel.findById(parseInt(req.params.id, 10));
+    if (!sow) throw new AppError(404, 'SOW not found');
+    res.json({ success: true, data: sow });
+  }),
+
+  create: catchAsync(async (req, res) => {
+    const { client_id, quote_id, sow_date, effective_start, effective_end, notes, items } = req.body;
+    const result = await SOWModel.create({ client_id, quote_id, sow_date, effective_start, effective_end, notes }, items);
+    res.status(201).json({ success: true, data: result });
+  }),
+
+  update: catchAsync(async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    const existing = await SOWModel.findById(id);
+    if (!existing) throw new AppError(404, 'SOW not found');
+    if (existing.status !== 'Draft') throw new AppError(400, 'Only draft SOWs can be edited');
+    const { client_id, quote_id, sow_date, effective_start, effective_end, notes, items } = req.body;
+    await SOWModel.update(id, { client_id, quote_id, sow_date, effective_start, effective_end, notes }, items || []);
+    res.json({ success: true, data: { id } });
+  }),
+
+  updateStatus: catchAsync(async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    const { status } = req.body;
+    const existing = await SOWModel.findById(id);
+    if (!existing) throw new AppError(404, 'SOW not found');
+
+    const VALID_TRANSITIONS = {
+      Draft: ['Active'],
+      Active: ['Expired', 'Terminated'],
+      Expired: [],
+      Terminated: [],
+    };
+    const allowed = VALID_TRANSITIONS[existing.status] || [];
+    if (!allowed.includes(status)) {
+      throw new AppError(400, `Cannot change status from "${existing.status}" to "${status}". Allowed: ${allowed.join(', ') || 'none'}`);
+    }
+
+    await SOWModel.updateStatus(id, status);
+    res.json({ success: true, data: { id, status } });
+  }),
+
+  remove: catchAsync(async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    const existing = await SOWModel.findById(id);
+    if (!existing) throw new AppError(404, 'SOW not found');
+    if (existing.status !== 'Draft') throw new AppError(400, 'Only draft SOWs can be deleted');
+    await SOWModel.delete(id);
+    res.json({ success: true, data: { message: 'SOW deleted' } });
+  }),
+};
+
+module.exports = sowController;

@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS clients (
     email           TEXT,
     phone           TEXT,
     address         TEXT,
+    industry        TEXT,
     is_active       BOOLEAN NOT NULL DEFAULT TRUE,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -28,6 +29,7 @@ CREATE TABLE IF NOT EXISTS rate_cards (
     reporting_manager TEXT,
     monthly_rate      NUMERIC(15,2) NOT NULL CHECK(monthly_rate > 0),
     leaves_allowed    INTEGER NOT NULL DEFAULT 0 CHECK(leaves_allowed >= 0),
+    date_of_reporting TEXT,
     po_id             INTEGER REFERENCES purchase_orders(id),
     is_active         BOOLEAN NOT NULL DEFAULT TRUE,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -122,16 +124,44 @@ CREATE TABLE IF NOT EXISTS quote_items (
     unit_rate       NUMERIC(15,2) NOT NULL,
     amount          NUMERIC(15,2) NOT NULL,
     emp_code        TEXT,
+    location        TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_quote_items_quote ON quote_items(quote_id);
+
+CREATE TABLE IF NOT EXISTS sows (
+    id              SERIAL PRIMARY KEY,
+    sow_number      TEXT NOT NULL UNIQUE,
+    client_id       INTEGER NOT NULL REFERENCES clients(id),
+    quote_id        INTEGER REFERENCES quotes(id),
+    sow_date        TEXT NOT NULL,
+    effective_start TEXT NOT NULL,
+    effective_end   TEXT NOT NULL,
+    total_value     NUMERIC(15,2) NOT NULL DEFAULT 0,
+    status          TEXT NOT NULL DEFAULT 'Draft' CHECK(status IN ('Draft', 'Active', 'Expired', 'Terminated')),
+    notes           TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS sow_items (
+    id              SERIAL PRIMARY KEY,
+    sow_id          INTEGER NOT NULL REFERENCES sows(id) ON DELETE CASCADE,
+    role_position   TEXT NOT NULL,
+    quantity        INTEGER NOT NULL DEFAULT 1,
+    amount          NUMERIC(15,2) NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_sow_items_sow ON sow_items(sow_id);
 
 CREATE TABLE IF NOT EXISTS purchase_orders (
     id              SERIAL PRIMARY KEY,
     po_number       TEXT NOT NULL UNIQUE,
     client_id       INTEGER NOT NULL REFERENCES clients(id),
     quote_id        INTEGER REFERENCES quotes(id),
+    sow_id          INTEGER REFERENCES sows(id),
     po_date         TEXT NOT NULL,
     start_date      TEXT NOT NULL,
     end_date        TEXT NOT NULL,
@@ -157,6 +187,19 @@ CREATE TABLE IF NOT EXISTS po_consumption_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_po_consumption_po ON po_consumption_log(po_id);
+
+CREATE TABLE IF NOT EXISTS employee_po_history (
+    id              SERIAL PRIMARY KEY,
+    rate_card_id    INTEGER NOT NULL REFERENCES rate_cards(id),
+    po_id           INTEGER NOT NULL REFERENCES purchase_orders(id),
+    client_id       INTEGER NOT NULL REFERENCES clients(id),
+    assigned_date   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    unassigned_date TIMESTAMPTZ,
+    notes           TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_emp_po_history_rc ON employee_po_history(rate_card_id);
+CREATE INDEX IF NOT EXISTS idx_emp_po_history_po ON employee_po_history(po_id);
 
 CREATE TABLE IF NOT EXISTS audit_log (
     id              SERIAL PRIMARY KEY,
@@ -186,13 +229,19 @@ SELECT q.*, c.client_name
 FROM quotes q
 JOIN clients c ON q.client_id = c.id;
 
+CREATE OR REPLACE VIEW sows_view AS
+SELECT s.*, c.client_name
+FROM sows s
+JOIN clients c ON s.client_id = c.id;
+
 CREATE OR REPLACE VIEW purchase_orders_view AS
-SELECT po.*, c.client_name,
+SELECT po.*, c.client_name, sw.sow_number,
   CASE WHEN po.po_value > 0 THEN ROUND((po.consumed_value / po.po_value) * 100, 2) ELSE 0 END AS consumption_pct,
   ROUND(po.po_value - po.consumed_value, 2) AS remaining_value,
   (SELECT COUNT(*) FROM rate_cards rc WHERE rc.po_id = po.id AND rc.is_active = TRUE) AS linked_employees
 FROM purchase_orders po
-JOIN clients c ON po.client_id = c.id;
+JOIN clients c ON po.client_id = c.id
+LEFT JOIN sows sw ON po.sow_id = sw.id;
 
 -- ============================================================
 -- FUNCTIONS
@@ -270,6 +319,12 @@ BEGIN
   VALUES (p_po_number, p_client_id, p_po_date, p_start_date, p_end_date, p_po_value, p_alert_threshold, p_notes)
   RETURNING id INTO v_new_id;
 
+  -- Log assignment history before migrating
+  INSERT INTO employee_po_history (rate_card_id, po_id, client_id, unassigned_date, notes)
+  SELECT id, po_id, client_id, NOW(), 'PO renewed to ' || p_po_number
+  FROM rate_cards
+  WHERE po_id = p_old_id AND is_active = TRUE;
+
   -- Migrate employees from old PO to new PO
   UPDATE rate_cards SET po_id = v_new_id, updated_at = NOW()
   WHERE po_id = p_old_id AND is_active = TRUE;
@@ -326,6 +381,7 @@ DECLARE
   v_clients BIGINT;
   v_employees BIGINT;
   v_active_pos BIGINT;
+  v_active_sows BIGINT;
   v_billing_runs BIGINT;
   v_pending_quotes BIGINT;
   v_recent_runs JSON;
@@ -334,6 +390,7 @@ BEGIN
   SELECT COUNT(*) INTO v_clients FROM clients WHERE is_active = TRUE;
   SELECT COUNT(*) INTO v_employees FROM rate_cards WHERE is_active = TRUE;
   SELECT COUNT(*) INTO v_active_pos FROM purchase_orders WHERE status = 'Active';
+  SELECT COUNT(*) INTO v_active_sows FROM sows WHERE status = 'Active';
   SELECT COUNT(*) INTO v_billing_runs FROM billing_runs;
   SELECT COUNT(*) INTO v_pending_quotes FROM quotes WHERE status = 'Draft';
 
@@ -360,6 +417,7 @@ BEGIN
       'clients', v_clients,
       'employees', v_employees,
       'activePOs', v_active_pos,
+      'activeSOWs', v_active_sows,
       'billingRuns', v_billing_runs,
       'pendingQuotes', v_pending_quotes
     ),

@@ -5,6 +5,7 @@
     document.getElementById('poForm').reset();
     document.getElementById('poId').value = '';
     document.getElementById('poModalTitle').textContent = 'Create Purchase Order';
+    document.getElementById('poSOW').innerHTML = '<option value="">None</option>';
     window.poEdit = null;
     openModal('poModal');
   };
@@ -41,6 +42,18 @@
     } catch (e) { /* ignore */ }
   }
 
+  async function loadSOWsForClient(clientId) {
+    var sel = document.getElementById('poSOW');
+    sel.innerHTML = '<option value="">None</option>';
+    if (!clientId) return;
+    try {
+      var res = await apiCall('GET', '/api/sows?clientId=' + clientId + '&status=Active');
+      res.data.forEach(function (s) {
+        sel.innerHTML += '<option value="' + s.id + '">' + escapeHtml(s.sow_number) + ' (' + formatCurrency(s.total_value) + ')</option>';
+      });
+    } catch (e) { /* ignore */ }
+  }
+
   async function loadAlerts() {
     try {
       var res = await apiCall('GET', '/api/purchase-orders/alerts');
@@ -73,10 +86,11 @@
       if (status) url += 'status=' + status;
       var res = await apiCall('GET', url);
       if (res.data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-on-surface-variant py-8">No purchase orders found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center text-on-surface-variant py-8">No purchase orders found</td></tr>';
       } else {
         tbody.innerHTML = res.data.map(function (po) {
           var actionsHtml = '<div class="inline-flex items-center gap-1">';
+          actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="editPO(' + po.id + ')" title="Edit"><span class="material-symbols-outlined text-base">edit</span></button>';
           actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="viewPO(' + po.id + ')" title="Details"><span class="material-symbols-outlined text-base">visibility</span></button>';
           if (po.status === 'Active') {
             actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="consumePO(' + po.id + ')" title="Consume"><span class="material-symbols-outlined text-base">remove_circle</span></button>';
@@ -89,6 +103,7 @@
           return '<tr>' +
             '<td><strong>' + escapeHtml(po.po_number) + '</strong></td>' +
             '<td>' + escapeHtml(po.client_name) + '</td>' +
+            '<td>' + escapeHtml(po.sow_number || '---') + '</td>' +
             '<td>' + formatDate(po.start_date) + '</td>' +
             '<td>' + formatDate(po.end_date) + '</td>' +
             '<td class="text-right">' + formatCurrency(po.po_value) + '</td>' +
@@ -156,6 +171,27 @@
     } catch (err) { showToast(err.message, 'danger'); }
   };
 
+  window.editPO = async function (id) {
+    try {
+      var res = await apiCall('GET', '/api/purchase-orders/' + id);
+      var po = res.data;
+      window.poEdit = id;
+      document.getElementById('poModalTitle').textContent = 'Edit Purchase Order';
+      document.getElementById('poId').value = id;
+      document.getElementById('poNumber').value = po.po_number;
+      document.getElementById('poClient').value = po.client_id;
+      await loadSOWsForClient(po.client_id);
+      document.getElementById('poSOW').value = po.sow_id || '';
+      document.getElementById('poDate').value = po.po_date;
+      document.getElementById('poStartDate').value = po.start_date;
+      document.getElementById('poEndDate').value = po.end_date;
+      document.getElementById('poValue').value = po.po_value;
+      document.getElementById('poThreshold').value = po.alert_threshold;
+      document.getElementById('poNotes').value = po.notes || '';
+      openModal('poModal');
+    } catch (err) { showToast(err.message, 'danger'); }
+  };
+
   window.consumePO = function (id) {
     document.getElementById('consumePoId').value = id;
     document.getElementById('consumeForm').reset();
@@ -172,6 +208,7 @@
 
   document.getElementById('poForm').addEventListener('submit', async function (e) {
     e.preventDefault();
+    var sowVal = document.getElementById('poSOW').value;
     var data = {
       po_number: document.getElementById('poNumber').value.trim(),
       client_id: parseInt(document.getElementById('poClient').value, 10),
@@ -180,6 +217,7 @@
       end_date: document.getElementById('poEndDate').value,
       po_value: parseFloat(document.getElementById('poValue').value),
       alert_threshold: parseFloat(document.getElementById('poThreshold').value) || 80,
+      sow_id: sowVal ? parseInt(sowVal, 10) : null,
       notes: document.getElementById('poNotes').value.trim(),
     };
     try {
@@ -228,6 +266,11 @@
       loadPOs();
       loadAlerts();
     } catch (err) { showToast(err.message, 'danger'); }
+  });
+
+  // Load SOWs when client changes in PO form
+  document.getElementById('poClient').addEventListener('change', function () {
+    loadSOWsForClient(this.value);
   });
 
   document.getElementById('poFilterClient').addEventListener('change', loadPOs);

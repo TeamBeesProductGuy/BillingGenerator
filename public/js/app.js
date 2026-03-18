@@ -25,7 +25,7 @@
     // -----------------------------------------------------------
     //  Routes & State
     // -----------------------------------------------------------
-    var ROUTES = ["dashboard", "billing", "rate-cards", "attendance", "quotes", "purchase-orders", "clients"];
+    var ROUTES = ["dashboard", "billing", "rate-cards", "attendance", "quotes", "sows", "purchase-orders", "clients"];
     var DEFAULT_ROUTE = "dashboard";
     var currentPage = null;
     var pageCache = {};
@@ -37,6 +37,7 @@
         "rate-cards": "Rate Cards",
         "attendance": "Attendance",
         "quotes": "Quotes",
+        "sows": "Statements of Work",
         "purchase-orders": "Purchase Orders"
     };
 

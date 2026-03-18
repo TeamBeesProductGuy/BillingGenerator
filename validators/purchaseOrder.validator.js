@@ -29,6 +29,11 @@ const createPO = Joi.object({
     .max(100)
     .default(80),
 
+  sow_id: Joi.number()
+    .integer()
+    .positive()
+    .allow(null),
+
   notes: Joi.string()
     .trim()
     .allow('', null)
@@ -98,7 +103,12 @@ const convertToPO = Joi.object({
   alert_threshold: Joi.number()
     .min(1)
     .max(100)
-    .default(80)
+    .default(80),
+
+  sow_id: Joi.number()
+    .integer()
+    .positive()
+    .allow(null)
 });
 
 module.exports = { createPO, updatePO, recordConsumption, renewPO, convertToPO };

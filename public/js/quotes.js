@@ -51,15 +51,26 @@
           if (q.status === 'Draft') {
             actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="editQuote(' + q.id + ')" title="Edit"><span class="material-symbols-outlined text-base">edit</span></button>';
           }
-          actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="downloadFile(\'/api/quotes/' + q.id + '/download\')" title="Download"><span class="material-symbols-outlined text-base">download</span></button>';
+          actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="downloadFile(\'/api/quotes/' + q.id + '/download\')" title="Download Excel"><span class="material-symbols-outlined text-base">download</span></button>';
+          actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="downloadFile(\'/api/quotes/' + q.id + '/pdf\')" title="Download PDF"><span class="material-symbols-outlined text-base">picture_as_pdf</span></button>';
 
-          // Status actions
+          // Status actions — show only valid transitions
+          var VALID_TRANSITIONS = {
+            Draft: ['Sent'],
+            Sent: ['Accepted', 'Rejected'],
+            Rejected: ['Draft'],
+            Accepted: [],
+            Expired: []
+          };
+          var STATUS_LABELS = { Sent: 'Mark Sent', Accepted: 'Accept', Rejected: 'Reject', Draft: 'Revert to Draft' };
+          var allowed = VALID_TRANSITIONS[q.status] || [];
+
           actionsHtml += '<div class="relative inline-block" id="quoteMenu' + q.id + '">';
           actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="toggleQuoteMenu(' + q.id + ')" title="More"><span class="material-symbols-outlined text-base">more_vert</span></button>';
           actionsHtml += '<div class="quote-dropdown hidden absolute right-0 top-full mt-1 bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-2xl py-1 z-50 min-w-[160px]">';
-          actionsHtml += '<a href="#" class="block px-4 py-2 text-sm text-on-surface hover:bg-surface-container-highest transition-colors no-underline" onclick="event.preventDefault();changeQuoteStatus(' + q.id + ',\'Sent\')">Mark Sent</a>';
-          actionsHtml += '<a href="#" class="block px-4 py-2 text-sm text-on-surface hover:bg-surface-container-highest transition-colors no-underline" onclick="event.preventDefault();changeQuoteStatus(' + q.id + ',\'Accepted\')">Accept</a>';
-          actionsHtml += '<a href="#" class="block px-4 py-2 text-sm text-on-surface hover:bg-surface-container-highest transition-colors no-underline" onclick="event.preventDefault();changeQuoteStatus(' + q.id + ',\'Rejected\')">Reject</a>';
+          allowed.forEach(function (s) {
+            actionsHtml += '<a href="#" class="block px-4 py-2 text-sm text-on-surface hover:bg-surface-container-highest transition-colors no-underline" onclick="event.preventDefault();changeQuoteStatus(' + q.id + ',\'' + s + '\')">' + (STATUS_LABELS[s] || s) + '</a>';
+          });
           if (q.status === 'Accepted') {
             actionsHtml += '<div class="border-t border-outline-variant/10 my-1"></div>';
             actionsHtml += '<a href="#" class="block px-4 py-2 text-sm text-green-400 hover:bg-surface-container-highest transition-colors no-underline" onclick="event.preventDefault();convertToPO(' + q.id + ')">Convert to PO</a>';
@@ -108,6 +119,7 @@
     var row = document.createElement('tr');
     row.innerHTML =
       '<td><input type="text" class="qi-desc" value="' + (item ? escapeHtml(item.description) : '') + '" required></td>' +
+      '<td><input type="text" class="qi-loc" value="' + (item && item.location ? escapeHtml(item.location) : '') + '" placeholder="Location"></td>' +
       '<td><input type="number" class="qi-qty" value="' + (item ? item.quantity : 1) + '" min="1"></td>' +
       '<td><input type="number" class="qi-rate" value="' + (item ? item.unit_rate : '') + '" step="0.01" min="0"></td>' +
       '<td><input type="number" class="qi-amt" value="' + (item ? item.amount : '') + '" step="0.01" readonly></td>' +
@@ -173,10 +185,20 @@
     } catch (err) { showToast(err.message, 'danger'); }
   };
 
-  window.convertToPO = function (id) {
+  window.convertToPO = async function (id) {
     document.getElementById('convertQuoteId').value = id;
     document.getElementById('convertPoForm').reset();
     document.getElementById('convertQuoteId').value = id;
+    // Load SOWs for the quote's client
+    try {
+      var qRes = await apiCall('GET', '/api/quotes/' + id);
+      var sowSel = document.getElementById('convertSowId');
+      sowSel.innerHTML = '<option value="">None</option>';
+      var sowRes = await apiCall('GET', '/api/sows?clientId=' + qRes.data.client_id + '&status=Active');
+      sowRes.data.forEach(function (s) {
+        sowSel.innerHTML += '<option value="' + s.id + '">' + escapeHtml(s.sow_number) + '</option>';
+      });
+    } catch (e) { /* ignore */ }
     openModal('convertPoModal');
   };
 
@@ -186,6 +208,7 @@
     document.querySelectorAll('#quoteItemsBody tr').forEach(function (row) {
       items.push({
         description: row.querySelector('.qi-desc').value.trim(),
+        location: row.querySelector('.qi-loc').value.trim() || null,
         quantity: parseInt(row.querySelector('.qi-qty').value, 10) || 1,
         unit_rate: parseFloat(row.querySelector('.qi-rate').value) || 0,
         amount: parseFloat(row.querySelector('.qi-amt').value) || 0,
@@ -216,11 +239,13 @@
     e.preventDefault();
     var quoteId = document.getElementById('convertQuoteId').value;
     try {
+      var convertSowVal = document.getElementById('convertSowId').value;
       await apiCall('POST', '/api/quotes/' + quoteId + '/convert-to-po', {
         po_number: document.getElementById('convertPoNumber').value.trim(),
         po_date: document.getElementById('convertPoDate').value,
         start_date: document.getElementById('convertStartDate').value,
         end_date: document.getElementById('convertEndDate').value,
+        sow_id: convertSowVal ? parseInt(convertSowVal, 10) : null,
       });
       showToast('Purchase Order created!', 'success');
       closeConvertPoModal();

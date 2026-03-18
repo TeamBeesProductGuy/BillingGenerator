@@ -4,7 +4,53 @@ All notable changes to the TeamBees Billing Engine are documented here.
 
 ---
 
-## [Unreleased] - 2026-03-17
+## [Unreleased] - 2026-03-18
+
+### Phase 1: Admin Control Features
+
+#### Client Management
+- Added `industry` field to clients (validator, model, controller, HTML table + modal)
+
+#### Quote Enhancements
+- Added `location` field per quote line item (validator, model, controller, Excel download, HTML + JS)
+- Enforced quote status transitions: Draft -> Sent -> Accepted/Rejected, Rejected -> Draft
+- Frontend now shows only valid status actions in the dropdown menu per current status
+- Added PDF export for quotes using PDFKit (new route `GET /api/quotes/:id/pdf`)
+- PDF includes company header, quote info, items table with location, subtotal/tax/total, notes
+
+#### Statement of Work (SOW) - New Feature
+- Full CRUD backend: model, validator, controller, routes (`/api/sows`)
+- SOW number auto-generated as `SOW-YYYYMMDD-NNN`
+- Status flow: Draft -> Active -> Expired/Terminated
+- SOW items (role/position, quantity, amount) with parent-child relationship
+- Frontend: SOW page with table, search/filter, create/edit modal with dynamic items
+- Frontend: SOW detail view modal
+- Sidebar link added (icon: `description`)
+
+#### Purchase Order Enhancements
+- Added `sow_id` foreign key linking POs to SOWs
+- SOW# column in PO table and SOW dropdown in PO create/edit modal
+- Added Edit button in PO table actions (opens pre-filled modal for editing)
+- SOW dropdown in quote convert-to-PO modal
+
+#### Employee (Rate Card) Enhancements
+- Added `date_of_reporting` field (validator, model, controller, HTML table + modal, Excel export)
+- Employee-PO assignment history table (`employee_po_history`) - logged on PO renewal
+
+#### Database Schema Changes
+- `ALTER TABLE clients ADD COLUMN industry TEXT`
+- `ALTER TABLE quote_items ADD COLUMN location TEXT`
+- `ALTER TABLE rate_cards ADD COLUMN date_of_reporting TEXT`
+- `CREATE TABLE sows` + `sow_items` + `sows_view`
+- `ALTER TABLE purchase_orders ADD COLUMN sow_id REFERENCES sows(id)`
+- Updated `purchase_orders_view` with `sow_number` via LEFT JOIN
+- `CREATE TABLE employee_po_history`
+- Updated `renew_po()` function to log assignment history before migrating employees
+- Updated `get_dashboard_stats()` to include `activeSOWs` count
+
+---
+
+## [1.1.0] - 2026-03-17
 
 ### Link Employees (Rate Cards) to Purchase Orders
 - Added `po_id` foreign key on `rate_cards` table linking employees to specific POs

@@ -26,11 +26,12 @@
             <th class="sortable" data-sort-key="1">Contact Person</th>
             <th class="sortable" data-sort-key="2">Email</th>
             <th class="sortable" data-sort-key="3">Phone</th>
+            <th class="sortable" data-sort-key="4">Industry</th>
             <th class="text-center">Actions</th>
           </tr>
         </thead>
         <tbody id="clientsBody">
-          <tr><td colspan="5"><div class="loading-spinner"></div></td></tr>
+          <tr><td colspan="6"><div class="loading-spinner"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -65,9 +66,15 @@
           <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Phone</label>
           <input type="text" id="clientPhone">
         </div>
-        <div>
-          <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Address</label>
-          <textarea id="clientAddress" rows="2"></textarea>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Industry</label>
+            <input type="text" id="clientIndustry" placeholder="e.g. IT Services, Healthcare...">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Address</label>
+            <textarea id="clientAddress" rows="2"></textarea>
+          </div>
         </div>
       </div>
       <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/10">

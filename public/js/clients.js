@@ -33,7 +33,7 @@
   function renderClients(data) {
     var tbody = document.getElementById('clientsBody');
     if (data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" class="text-center text-on-surface-variant py-8">No clients found. Add one!</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-on-surface-variant py-8">No clients found. Add one!</td></tr>';
     } else {
       tbody.innerHTML = data.map(function (c) {
         return '<tr>' +
@@ -41,6 +41,7 @@
           '<td>' + escapeHtml(c.contact_person || '') + '</td>' +
           '<td>' + escapeHtml(c.email || '') + '</td>' +
           '<td>' + escapeHtml(c.phone || '') + '</td>' +
+          '<td>' + escapeHtml(c.industry || '') + '</td>' +
           '<td class="text-center">' +
             '<div class="inline-flex items-center gap-1">' +
             '<button class="btn-secondary btn-sm inline-flex items-center" onclick="editClient(' + c.id + ')" title="Edit"><span class="material-symbols-outlined text-base">edit</span></button>' +
@@ -63,6 +64,7 @@
       document.getElementById('clientEmail').value = c.email || '';
       document.getElementById('clientPhone').value = c.phone || '';
       document.getElementById('clientAddress').value = c.address || '';
+      document.getElementById('clientIndustry').value = c.industry || '';
       document.getElementById('clientModalTitle').textContent = 'Edit Client';
       window.clientEdit = c.id;
       openModal('clientModal');
@@ -87,6 +89,7 @@
       email: document.getElementById('clientEmail').value.trim(),
       phone: document.getElementById('clientPhone').value.trim(),
       address: document.getElementById('clientAddress').value.trim(),
+      industry: document.getElementById('clientIndustry').value.trim(),
     };
 
     try {

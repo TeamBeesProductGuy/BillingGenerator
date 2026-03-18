@@ -30,6 +30,7 @@ const ClientModel = {
         email: data.email || null,
         phone: data.phone || null,
         address: data.address || null,
+        industry: data.industry || null,
       })
       .select('id')
       .single();
@@ -46,6 +47,7 @@ const ClientModel = {
         email: data.email || null,
         phone: data.phone || null,
         address: data.address || null,
+        industry: data.industry || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id);

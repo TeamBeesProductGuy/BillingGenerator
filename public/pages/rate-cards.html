@@ -46,12 +46,13 @@
             <th class="sortable" data-sort-key="4">Manager</th>
             <th class="sortable text-right" data-sort-key="5" data-sort-type="currency">Monthly Rate</th>
             <th class="sortable text-center" data-sort-key="6" data-sort-type="number">Leaves</th>
-            <th class="sortable" data-sort-key="7">PO#</th>
+            <th class="sortable" data-sort-key="7" data-sort-type="date">Reporting Date</th>
+            <th class="sortable" data-sort-key="8">PO#</th>
             <th class="text-center">Actions</th>
           </tr>
         </thead>
         <tbody id="rcBody">
-          <tr><td colspan="9"><div class="loading-spinner"></div></td></tr>
+          <tr><td colspan="10"><div class="loading-spinner"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -103,6 +104,10 @@
             <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Leaves Allowed</label>
             <input type="number" id="rcLeaves" value="0" min="0">
           </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Date of Reporting</label>
+          <input type="date" id="rcDateOfReporting">
         </div>
         <div>
           <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Purchase Order</label>

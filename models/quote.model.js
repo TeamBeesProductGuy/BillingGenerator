@@ -75,6 +75,7 @@ const QuoteModel = {
         unit_rate: item.unit_rate,
         amount: item.amount,
         emp_code: item.emp_code || null,
+        location: item.location || null,
       }));
       const { error: iErr } = await supabase.from('quote_items').insert(itemRows);
       if (iErr) throw new Error(iErr.message);
@@ -116,6 +117,7 @@ const QuoteModel = {
         unit_rate: item.unit_rate,
         amount: item.amount,
         emp_code: item.emp_code || null,
+        location: item.location || null,
       }));
       const { error: iErr } = await supabase.from('quote_items').insert(itemRows);
       if (iErr) throw new Error(iErr.message);

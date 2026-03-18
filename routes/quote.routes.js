@@ -11,6 +11,7 @@ router.put('/:id', validate(updateQuote), quoteController.update);
 router.patch('/:id/status', validate(updateStatus), quoteController.updateStatus);
 router.delete('/:id', quoteController.remove);
 router.get('/:id/download', quoteController.download);
+router.get('/:id/pdf', quoteController.downloadPDF);
 router.post('/:id/convert-to-po', validate(convertToPO), quoteController.convertToPO);
 
 module.exports = router;

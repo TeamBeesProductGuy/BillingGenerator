@@ -42,6 +42,7 @@ const POModel = {
         end_date: data.end_date,
         po_value: data.po_value,
         alert_threshold: data.alert_threshold || 80,
+        sow_id: data.sow_id || null,
         notes: data.notes || null,
       })
       .select('id')
@@ -61,6 +62,7 @@ const POModel = {
         end_date: data.end_date,
         po_value: data.po_value,
         alert_threshold: data.alert_threshold || 80,
+        sow_id: data.sow_id || null,
         notes: data.notes || null,
         updated_at: new Date().toISOString(),
       })

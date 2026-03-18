@@ -53,18 +53,19 @@
           <tr>
             <th class="sortable" data-sort-key="0">PO#</th>
             <th class="sortable" data-sort-key="1">Client</th>
-            <th class="sortable" data-sort-key="2" data-sort-type="date">Start</th>
-            <th class="sortable" data-sort-key="3" data-sort-type="date">End</th>
-            <th class="sortable text-right" data-sort-key="4" data-sort-type="currency">PO Value</th>
-            <th class="sortable text-right" data-sort-key="5" data-sort-type="currency">Consumed</th>
+            <th class="sortable" data-sort-key="2">SOW#</th>
+            <th class="sortable" data-sort-key="3" data-sort-type="date">Start</th>
+            <th class="sortable" data-sort-key="4" data-sort-type="date">End</th>
+            <th class="sortable text-right" data-sort-key="5" data-sort-type="currency">PO Value</th>
+            <th class="sortable text-right" data-sort-key="6" data-sort-type="currency">Consumed</th>
             <th style="width:150px">Progress</th>
-            <th class="sortable" data-sort-key="7">Status</th>
-            <th class="sortable text-center" data-sort-key="8" data-sort-type="number">Employees</th>
+            <th class="sortable" data-sort-key="8">Status</th>
+            <th class="sortable text-center" data-sort-key="9" data-sort-type="number">Employees</th>
             <th class="text-center">Actions</th>
           </tr>
         </thead>
         <tbody id="poBody">
-          <tr><td colspan="10"><div class="loading-spinner"></div></td></tr>
+          <tr><td colspan="11"><div class="loading-spinner"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -127,6 +128,10 @@
             <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Alert Threshold %</label>
             <input type="number" id="poThreshold" value="80" min="1" max="100">
           </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">SOW</label>
+          <select id="poSOW"><option value="">None</option></select>
         </div>
         <div>
           <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Notes</label>
