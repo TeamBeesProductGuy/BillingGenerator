@@ -12,7 +12,14 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
     -webkit-backdrop-filter: blur(16px);
 }
 
-/* No scrollbar utility */
+/* Custom thin scrollbar */
+.styled-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+.styled-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.styled-scrollbar::-webkit-scrollbar-thumb { background: rgba(195, 192, 255, 0.15); border-radius: 999px; }
+.styled-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(195, 192, 255, 0.3); }
+.styled-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(195, 192, 255, 0.15) transparent; }
+
+/* Legacy alias - keep for backwards compat */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
@@ -201,21 +208,92 @@ input[type="number"],
 input[type="tel"],
 input[type="month"],
 input[type="date"],
+input[type="password"],
+input[type="search"],
 select,
 textarea {
-    background: #222a3d;
-    border: 1px solid rgba(70, 69, 85, 0.3);
+    background: #222a3d !important;
+    border: 1px solid rgba(70, 69, 85, 0.3) !important;
     border-radius: 0.5rem;
     padding: 0.625rem 0.875rem;
-    color: #dae2fd;
+    color: #dae2fd !important;
     font-size: 0.875rem;
-    transition: border-color 0.2s;
+    transition: border-color 0.2s, box-shadow 0.2s;
     width: 100%;
 }
-input:focus, select:focus, textarea:focus {
-    outline: none;
-    border-color: #c3c0ff;
-    box-shadow: 0 0 0 2px rgba(195, 192, 255, 0.15);
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="number"]:focus,
+input[type="tel"]:focus,
+input[type="month"]:focus,
+input[type="date"]:focus,
+input[type="password"]:focus,
+input[type="search"]:focus,
+select:focus,
+textarea:focus {
+    outline: none !important;
+    border-color: #c3c0ff !important;
+    box-shadow: 0 0 0 2px rgba(195, 192, 255, 0.15) !important;
+    color: #dae2fd !important;
+    background: #222a3d !important;
+}
+
+/* Placeholder contrast */
+input::placeholder, textarea::placeholder {
+    color: #918fa1 !important;
+    opacity: 1;
+}
+
+/* Browser autofill override */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+select:-webkit-autofill,
+textarea:-webkit-autofill {
+    -webkit-text-fill-color: #dae2fd !important;
+    -webkit-box-shadow: 0 0 0 1000px #222a3d inset !important;
+    box-shadow: 0 0 0 1000px #222a3d inset !important;
+    border-color: rgba(70, 69, 85, 0.3) !important;
+    transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Date/month inputs - ensure calendar icon & text are visible */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.8);
+    cursor: pointer;
+}
+
+/* Select dropdown arrow visibility */
+select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23c7c4d8' d='M6 8L1 3h10z'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 0.75rem center !important;
+    background-size: 12px !important;
+    padding-right: 2.25rem !important;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+}
+
+/* File input */
+input[type="file"] {
+    color: #c7c4d8;
+    font-size: 0.875rem;
+}
+input[type="file"]::file-selector-button {
+    background: #2d3449;
+    color: #dae2fd;
+    border: 1px solid rgba(70, 69, 85, 0.3);
+    border-radius: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    margin-right: 0.75rem;
+    cursor: pointer;
+    font-size: 0.8125rem;
+}
+input[type="file"]::file-selector-button:hover {
+    background: #3d4560;
 }
 
 /* Buttons */
@@ -331,6 +409,27 @@ body.modal-open { overflow: hidden; }
 .btn-danger:focus-visible {
     outline: 2px solid #c3c0ff;
     outline-offset: 2px;
+}
+
+/* Inline table inputs (quote items, SOW items) — compact padding */
+.stitch-table td input[type="text"],
+.stitch-table td input[type="number"],
+.stitch-table td select {
+    padding: 0.375rem 0.5rem;
+    font-size: 0.8125rem;
+}
+
+/* Filter bar select overrides — auto width for inline selects */
+select.w-auto {
+    width: auto !important;
+    min-width: 8rem;
+}
+
+/* Action dropdown menus */
+.quote-dropdown,
+.sow-dropdown {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
 }
 
 /* Responsive sidebar */
