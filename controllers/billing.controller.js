@@ -8,8 +8,35 @@ const BillingModel = require('../models/billing.model');
 const RateCardModel = require('../models/rateCard.model');
 const AttendanceModel = require('../models/attendance.model');
 const POModel = require('../models/purchaseOrder.model');
+const { supabase } = require('../config/database');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
+
+/**
+ * Resolve po_number strings (from Excel upload) to po_id integers
+ * by looking up active POs in the database.
+ */
+async function resolvePoNumbers(records) {
+  const poNumbers = [...new Set(records.filter((r) => r.po_number && !r.po_id).map((r) => r.po_number))];
+  if (poNumbers.length === 0) return;
+
+  const { data: pos, error } = await supabase
+    .from('purchase_orders')
+    .select('id, po_number')
+    .in('po_number', poNumbers)
+    .eq('status', 'Active');
+  if (error || !pos) return;
+
+  const poMap = {};
+  for (const po of pos) {
+    poMap[po.po_number] = po.id;
+  }
+  for (const rc of records) {
+    if (rc.po_number && !rc.po_id && poMap[rc.po_number]) {
+      rc.po_id = poMap[rc.po_number];
+    }
+  }
+}
 
 /**
  * Auto-consume PO value for billing items that have a po_id.
@@ -52,6 +79,9 @@ const billingController = {
     try {
       const rateCardResult = await parseRateCard(rateCardPath);
       const attendanceResult = await parseAttendance(attendancePath, billingMonth);
+
+      // Resolve po_number strings from Excel to po_id integers from DB
+      await resolvePoNumbers(rateCardResult.records);
 
       const allErrors = [...rateCardResult.errors, ...attendanceResult.errors];
 

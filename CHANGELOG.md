@@ -4,7 +4,55 @@ All notable changes to the TeamBees Billing Engine are documented here.
 
 ---
 
-## [Unreleased] - 2026-03-18
+## [1.3.0] - 2026-03-18
+
+### GST Removal & PO Auto-Consumption
+
+#### Billing - GST Removed
+- Removed GST/tax from billing calculation entirely (`billing.service.js`)
+- Removed `gst_percent`, `gst_amount`, `total_with_gst` from billing runs and items (`billing.model.js`)
+- Removed GST columns from billing Excel output (`excelWriter.service.js`)
+- Removed `defaultGstPercent` from environment config (`config/env.js`)
+- Removed GST column from dashboard billing history (`dashboard.html`, `dashboard.js`)
+- Updated `supabase_schema.sql` to remove GST columns from `billing_runs` and `billing_items`
+
+#### PO Auto-Consumption from Billing
+- Billing generation now auto-deducts invoice amounts from linked POs via `consume_po` RPC
+- Added `autoConsumePOs()` shared helper in `billing.controller.js` - groups billing amounts by PO and records consumption
+- Both billing paths (file upload and database) now auto-consume POs
+- Added `resolvePoNumbers()` function to resolve `po_number` strings from Excel uploads to `po_id` integers via database lookup
+- PO consumption logged with billing run reference for full audit trail
+- PO auto-marked as "Exhausted" when `consumed_value >= po_value`
+
+#### PO Detail Modal Improvements
+- PO detail view now shows linked employee list (emp_code, name, manager, monthly rate) fetched from `rate_cards` table
+- `purchaseOrder.model.js` `findById` now returns both `consumptionLog` and `linkedEmployees` arrays
+
+#### Sample Excel Updates
+- Updated sample rate card (`TestRateCard.xlsx`) with `po_number` and `date_of_reporting` columns
+- Updated `samples.routes.js` to generate sample rate card with all 9 columns
+- Added `date_of_reporting` alias and date parsing in `excelParser.service.js`
+
+#### Documentation
+- Rewrote `DOCUMENTATION.md` to reflect current Supabase architecture, auth, SOW, PO consumption pipeline
+- Updated `CHANGELOG.md` with all recent changes
+- Updated `.env.example` to remove legacy SQLite/GST vars and add Supabase vars
+- Created `README.md` with quick-start guide
+
+#### Database Migration Required
+```sql
+-- Run in Supabase SQL Editor to remove GST columns:
+ALTER TABLE billing_runs DROP COLUMN IF EXISTS gst_percent;
+ALTER TABLE billing_runs DROP COLUMN IF EXISTS gst_amount;
+ALTER TABLE billing_runs DROP COLUMN IF EXISTS total_with_gst;
+ALTER TABLE billing_items DROP COLUMN IF EXISTS gst_percent;
+ALTER TABLE billing_items DROP COLUMN IF EXISTS gst_amount;
+ALTER TABLE billing_items DROP COLUMN IF EXISTS total_with_gst;
+```
+
+---
+
+## [1.2.0] - 2026-03-18
 
 ### Phase 1: Admin Control Features
 
@@ -36,6 +84,15 @@ All notable changes to the TeamBees Billing Engine are documented here.
 #### Employee (Rate Card) Enhancements
 - Added `date_of_reporting` field (validator, model, controller, HTML table + modal, Excel export)
 - Employee-PO assignment history table (`employee_po_history`) - logged on PO renewal
+
+#### UI/UX Improvements
+- Fixed page scrolling: `min-h-screen` → `h-screen` on body, added `min-h-0` to main
+- Added `styled-scrollbar` CSS class replacing `no-scrollbar`
+- Fixed input text colors: added `!important` overrides for all input types in dark theme
+- Fixed autofill styling for dark theme (WebKit autofill overrides)
+- Added custom select arrows, date picker icons, file input styling
+- Added `backdrop-blur-sm` to all 12 modal overlays
+- Added `max-h-[90vh] overflow-y-auto` to rate card modal
 
 #### Database Schema Changes
 - `ALTER TABLE clients ADD COLUMN industry TEXT`

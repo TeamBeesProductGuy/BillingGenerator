@@ -20,14 +20,23 @@ const POModel = {
     if (poErr) throw new Error(poErr.message);
     if (!po) return null;
 
-    const { data: consumptionLog, error: logErr } = await supabase
-      .from('po_consumption_log')
-      .select('*')
-      .eq('po_id', id)
-      .order('consumed_at', { ascending: false });
-    if (logErr) throw new Error(logErr.message);
+    const [logResult, empResult] = await Promise.all([
+      supabase
+        .from('po_consumption_log')
+        .select('*')
+        .eq('po_id', id)
+        .order('consumed_at', { ascending: false }),
+      supabase
+        .from('rate_cards')
+        .select('emp_code, emp_name, reporting_manager, monthly_rate')
+        .eq('po_id', id)
+        .eq('is_active', true)
+        .order('emp_code'),
+    ]);
+    if (logResult.error) throw new Error(logResult.error.message);
+    if (empResult.error) throw new Error(empResult.error.message);
 
-    return { ...po, consumptionLog };
+    return { ...po, consumptionLog: logResult.data, linkedEmployees: empResult.data };
   },
 
   async create(data) {

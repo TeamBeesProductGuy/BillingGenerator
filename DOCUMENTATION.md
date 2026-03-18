@@ -2,14 +2,18 @@
 
 ## 1. Overview
 
-A Node.js/Express-based billing engine that automates monthly invoice calculations from employee rate card and attendance data. The system accepts Excel files, processes billing calculations server-side, and generates structured Excel output files.
+A Node.js/Express-based billing engine that automates monthly invoice calculations from employee rate card and attendance data. The system supports Excel file upload and database-driven billing, generates structured Excel output, and integrates with Purchase Orders for automatic value consumption tracking.
 
 ### Key Features
-- **Excel-based Billing Generation** - Upload Rate Card + Attendance Excel files with a billing month to generate billing output
-- **Rate Card Management** - Persistent CRUD storage for employee rate cards with Excel import/export
+- **Excel-based Billing Generation** - Upload Rate Card + Attendance Excel files to generate billing output
+- **Database-driven Billing** - Generate billing from stored rate cards and attendance data
+- **Rate Card Management** - CRUD storage for employee rate cards with Excel import/export and PO linkage
 - **Attendance Management** - Manual entry per employee or bulk Excel upload
-- **Quote Generation** - Create, manage, and track client quotes with line items
-- **Purchase Order Management** - PO tracking with value/time consumption and expiry alerts
+- **Quote Generation** - Create, manage, track client quotes with line items, PDF export, and status workflow
+- **Statement of Work (SOW)** - Full lifecycle management with auto-generated SOW numbers and items
+- **Purchase Order Management** - PO tracking with automatic billing consumption, threshold alerts, renewal, and SOW linkage
+- **Auto PO Consumption** - When billing is generated, invoice amounts are automatically deducted from linked POs
+- **Authentication** - Supabase Auth with JWT-based API protection
 - **Downloadable Output** - Generated billing Excel files with Billing_Working and Error_Report sheets
 
 ---
@@ -19,11 +23,24 @@ A Node.js/Express-based billing engine that automates monthly invoice calculatio
 ### Prerequisites
 - Node.js v18+ (tested on v24.13.0)
 - npm
+- Supabase project (for PostgreSQL database + authentication)
 
 ### Installation
 ```bash
-cd "d:\TeamBees\Billing Generator"
+cd "Billing Generator"
 npm install
+```
+
+### Database Setup
+1. Create a Supabase project at https://supabase.com
+2. Open the SQL Editor in the Supabase Dashboard
+3. Run the full schema from `database/supabase_schema.sql`
+4. Copy the project URL, anon key, and service role key
+
+### Environment Configuration
+Copy `.env.example` to `.env` and fill in values:
+```bash
+cp .env.example .env
 ```
 
 ### Running
@@ -42,31 +59,44 @@ The application starts at **http://localhost:3000**
 |----------|---------|-------------|
 | PORT | 3000 | Server port |
 | NODE_ENV | development | Environment |
-| DB_PATH | ./database/billing.db | SQLite database file path |
 | UPLOAD_DIR | ./uploads | Temporary upload directory |
 | OUTPUT_DIR | ./output | Generated billing files directory |
+| LOG_LEVEL | dev | Morgan log level |
+| MAX_FILE_SIZE | 10485760 | Max upload file size in bytes (10MB) |
+| CORS_ORIGINS | * | Comma-separated origins or * |
+| BILLING_DIVISOR | actual | `actual` = days in month, `30` = fixed 30-day divisor |
+| SUPABASE_URL | (required) | Supabase project URL |
+| SUPABASE_ANON_KEY | (required) | Supabase anonymous/public key |
+| SUPABASE_SERVICE_ROLE_KEY | (required) | Supabase service role key (bypasses RLS) |
 
 ---
 
 ## 3. Architecture
 
 ### Tech Stack
-| Layer | Technology | Rationale |
-|-------|-----------|-----------|
-| Runtime | Node.js | Assignment requirement |
-| Framework | Express.js | Assignment requirement |
-| Database | SQLite (sql.js) | Zero-setup, file-based, portable |
-| Excel | ExcelJS | Full-featured read/write with styles |
-| Upload | Multer | Standard Express multipart handling |
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| Runtime | Node.js | Server-side JavaScript |
+| Framework | Express.js | HTTP server, routing, middleware |
+| Database | Supabase (PostgreSQL) | Managed PostgreSQL with views, RPC functions, triggers |
+| Auth | Supabase Auth | JWT-based authentication |
+| Excel | ExcelJS | Full-featured Excel read/write with styles |
+| PDF | PDFKit | Quote PDF generation |
+| Upload | Multer | Multipart file upload handling |
 | Validation | Joi | Declarative schema validation |
-| Frontend | Vanilla JS + Bootstrap 5 | No build tools, instant demo |
+| Security | Helmet + CORS + express-rate-limit | HTTP headers, CORS, rate limiting |
+| Logging | Morgan | HTTP request logging |
+| Frontend | Vanilla JS + Tailwind CSS (CDN) | SPA with hash-based routing |
+| Icons | Material Symbols (Outlined) | Google Material Design icons |
+| Design System | Stitch | Custom dark theme design system |
 
 ### Design Decisions
-1. **SQLite via sql.js** - Pure JavaScript SQLite (WASM-based), no native compilation needed. Ideal for demo/interview scenarios with zero external dependencies.
+1. **Supabase PostgreSQL** - Managed PostgreSQL with built-in auth, views, RPC functions, and triggers. Backend uses `service_role` key (bypasses RLS) for full DB access; frontend uses `anon` key for auth only.
 2. **Normalized Attendance** - Attendance stored as one row per employee per day (vs. 31 columns). Better for queries, aggregation, and variable month lengths.
 3. **Service Layer Pattern** - Business logic isolated in services, separate from controllers (HTTP handling) and models (data access).
 4. **Error Collection over Error Throwing** - Billing errors are collected and reported (in Error_Report sheet), not thrown. The system produces output even when some employees have issues.
 5. **SPA with Hash Routing** - Single `index.html` with hash-based client-side routing. No build tools, instantly servable by Express.
+6. **Auto PO Consumption** - Billing generation automatically deducts invoice amounts from linked POs via the `consume_po` database function, ensuring PO values stay in sync.
 
 ### Project Structure
 ```
@@ -74,27 +104,34 @@ billing-engine/
 ├── server.js                    # Entry point - starts Express after DB init
 ├── app.js                       # Express configuration, middleware, route mounting
 ├── package.json                 # Dependencies and scripts
-├── .env                         # Environment configuration
+├── .env                         # Environment configuration (not committed)
+├── .env.example                 # Environment template
 │
 ├── config/
 │   ├── env.js                   # Environment variable loader
-│   └── database.js              # SQLite connection, initialization, helper API
+│   └── database.js              # Supabase client initialization
 │
 ├── database/
-│   └── schema.sql               # Full database DDL (9 tables)
+│   ├── supabase_schema.sql      # Full PostgreSQL schema (tables, views, functions, triggers)
+│   ├── schema.sql               # Legacy SQLite schema (reference only)
+│   ├── seed.js                  # Database seed script
+│   └── migrations/              # Legacy migration files (reference only)
 │
 ├── middleware/
+│   ├── auth.js                  # JWT authentication via Supabase Auth
+│   ├── catchAsync.js            # Async error wrapper for controllers
 │   ├── errorHandler.js          # AppError class + centralized error handler
 │   ├── upload.js                # Multer configuration for Excel uploads
 │   └── validate.js              # Joi validation middleware factory
 │
-├── models/                      # Data access layer (SQLite queries)
+├── models/                      # Data access layer (Supabase queries)
 │   ├── client.model.js          # Client CRUD
-│   ├── rateCard.model.js        # Rate card CRUD + bulk operations
+│   ├── rateCard.model.js        # Rate card CRUD + bulk operations + PO linkage
 │   ├── attendance.model.js      # Attendance CRUD + summaries
 │   ├── billing.model.js         # Billing run history + items + errors
 │   ├── quote.model.js           # Quote CRUD + line items
-│   └── purchaseOrder.model.js   # PO CRUD + consumption tracking
+│   ├── purchaseOrder.model.js   # PO CRUD + consumption tracking + linked employees
+│   └── sow.model.js             # SOW CRUD + items
 │
 ├── services/                    # Business logic layer
 │   ├── excelParser.service.js   # Parse Rate Card & Attendance Excel files
@@ -103,106 +140,159 @@ billing-engine/
 │   ├── validation.service.js    # Business rule validations
 │   └── poTracker.service.js     # PO consumption & expiry alert logic
 │
+├── validators/                  # Joi validation schemas
+│   ├── billing.validator.js     # Billing request schemas
+│   ├── client.validator.js      # Client request schemas
+│   ├── rateCard.validator.js    # Rate card request schemas
+│   ├── attendance.validator.js  # Attendance request schemas
+│   ├── quote.validator.js       # Quote request schemas
+│   ├── purchaseOrder.validator.js # PO request schemas
+│   └── sow.validator.js         # SOW request schemas
+│
 ├── controllers/                 # HTTP request handlers
-│   ├── billing.controller.js    # Billing generation endpoints
-│   ├── client.controller.js     # Client management endpoints
-│   ├── rateCard.controller.js   # Rate card management endpoints
-│   ├── attendance.controller.js # Attendance management endpoints
-│   ├── quote.controller.js      # Quote management endpoints
-│   └── purchaseOrder.controller.js # PO management endpoints
+│   ├── billing.controller.js    # Billing generation + PO auto-consumption
+│   ├── client.controller.js     # Client management
+│   ├── rateCard.controller.js   # Rate card management + Excel upload/export
+│   ├── attendance.controller.js # Attendance management
+│   ├── quote.controller.js      # Quote management + PDF export
+│   ├── purchaseOrder.controller.js # PO management + consumption + renewal
+│   └── sow.controller.js        # SOW management
 │
 ├── routes/                      # Express route definitions
-│   ├── index.js                 # Route aggregator
+│   ├── index.js                 # Route aggregator (applies auth middleware)
 │   ├── billing.routes.js
 │   ├── client.routes.js
 │   ├── rateCard.routes.js
 │   ├── attendance.routes.js
 │   ├── quote.routes.js
 │   ├── purchaseOrder.routes.js
-│   └── dashboard.routes.js
+│   ├── sow.routes.js
+│   ├── dashboard.routes.js
+│   └── samples.routes.js
 │
 ├── public/                      # Static frontend (SPA)
 │   ├── index.html               # Main shell with sidebar navigation
-│   ├── css/styles.css           # Custom styles
+│   ├── css/styles.css           # Stitch design system + custom styles
 │   ├── js/
 │   │   ├── app.js               # Client-side router + shared utilities
+│   │   ├── login.js             # Supabase Auth login/signup
 │   │   ├── dashboard.js         # Dashboard page logic
 │   │   ├── billing.js           # Billing generation UI
 │   │   ├── clients.js           # Client management UI
 │   │   ├── rate-cards.js        # Rate card management UI
 │   │   ├── attendance.js        # Attendance management UI
 │   │   ├── quotes.js            # Quote management UI
-│   │   └── purchase-orders.js   # PO management UI
+│   │   ├── purchase-orders.js   # PO management UI
+│   │   └── sows.js              # SOW management UI
 │   └── pages/                   # HTML partial templates
+│       ├── login.html
 │       ├── dashboard.html
 │       ├── billing.html
 │       ├── clients.html
 │       ├── rate-cards.html
 │       ├── attendance.html
 │       ├── quotes.html
-│       └── purchase-orders.html
+│       ├── purchase-orders.html
+│       └── sows.html
 │
-├── uploads/                     # Temporary uploaded files
+├── uploads/                     # Temporary uploaded files (auto-cleaned)
 ├── output/                      # Generated billing Excel files
-└── data/                        # Sample/test Excel files
+└── data/                        # Sample Excel files for testing
+    ├── TestRateCard.xlsx
+    └── TestAttendance.xlsx
 ```
 
 ---
 
-## 4. Data Flow
+## 4. Authentication
+
+### Architecture
+- **Backend**: Uses Supabase `service_role` key (bypasses RLS) for full database access
+- **Frontend**: Uses Supabase `anon` key for authentication only (login/signup)
+- **Middleware**: `middleware/auth.js` verifies JWT tokens via `supabaseAuth.auth.getUser(token)`
+- **Route Protection**: All `/api/*` routes require authentication (`routes/index.js` applies `requireAuth`)
+- **Frontend Auth Flow**: Login page at `public/pages/login.html`, token stored in localStorage, sent as `Authorization: Bearer <token>` via `apiCall()` in app.js
+
+### Login/Signup
+Users authenticate via the Supabase Auth UI. The frontend calls `supabase.auth.signInWithPassword()` or `supabase.auth.signUp()`.
+
+---
+
+## 5. Data Flow
 
 ### Billing Generation (from files)
 ```
 1. User uploads Rate Card + Attendance Excel files + billing month
 2. Multer saves files to /uploads
 3. excelParser.service parses both files → records[] + errors[]
-4. validation.service cross-validates emp_codes between files
-5. billing.service calculates billing for each matched employee
-6. excelWriter.service generates Billing_Working_For_YYYYMM.xlsx
-7. billing.model saves run + items + errors to database
-8. Response includes summary, items, errors, and download URL
-9. Uploaded files are cleaned up
+4. po_number strings from Excel are resolved to po_id integers via DB lookup
+5. validation.service cross-validates emp_codes between files
+6. billing.service calculates billing for each matched employee
+7. excelWriter.service generates Billing_Working_For_YYYYMM.xlsx
+8. billing.model saves run + items + errors to database
+9. autoConsumePOs() deducts invoice amounts from linked POs
+10. Response includes summary, items, errors, download URL, and PO consumption results
+11. Uploaded files are cleaned up
 ```
 
 ### Billing Generation (from database)
 ```
-1. User selects client + billing month
-2. Rate cards fetched from rate_cards table
-3. Attendance fetched from attendance table (aggregated)
-4. Same calculation → Excel generation → DB save flow
+1. User selects client (optional) + billing month
+2. Rate cards fetched from rate_cards_view (includes po_id from DB)
+3. Attendance fetched from attendance table (aggregated via RPC)
+4. Same calculation → Excel generation → DB save → PO consumption flow
+```
+
+### PO Auto-Consumption Pipeline
+```
+Billing Generated (file upload or DB)
+    ↓
+calculateBilling() → billingItems with po_id on each item
+    ↓
+autoConsumePOs() → groups amounts by po_id
+    ↓
+consume_po RPC → inserts po_consumption_log + increments consumed_value
+    ↓
+Auto-marks PO as "Exhausted" if consumed_value >= po_value
+    ↓
+PO page reflects updated consumption_pct, remaining_value, progress bar
 ```
 
 ---
 
-## 5. Core Billing Logic
+## 6. Core Billing Logic
 
 ### Formula
 ```
 DaysInMonth = actual calendar days in YYYYMM (e.g., Feb 2026 = 28)
 LeavesTaken = count of "L" in attendance (days 1..DaysInMonth only)
 ChargeableDays = DaysInMonth - LeavesTaken + LeavesAllowed
-InvoiceAmount = (ChargeableDays / 30) × MonthlyRate
+InvoiceAmount = (ChargeableDays / Divisor) × MonthlyRate
 ```
 
-### Example (EMP001, Feb 2026)
+The **Divisor** is configurable via the `BILLING_DIVISOR` environment variable:
+- `actual` (default) — uses the actual number of days in the month
+- `30` — always divides by 30 (fixed billing month assumption)
+
+### Example (EMP001, Feb 2026, Divisor = 30)
 ```
 DaysInMonth = 28
 LeavesTaken = 2
 LeavesAllowed = 2
 ChargeableDays = 28 - 2 + 2 = 28
-InvoiceAmount = (28 / 30) × 50,000 = ₹46,666.67
+InvoiceAmount = (28 / 30) × 50,000 = 46,666.67
 ```
 
 ### Key Points
 - `DaysInMonth` is dynamically derived from the YYYYMM input using `new Date(year, month, 0).getDate()`
 - `LeavesAllowed` acts as a "free leave" buffer - it adds back days that would otherwise be deducted
 - `ChargeableDays` can exceed `DaysInMonth` (e.g., 0 leaves with 2 allowed = DaysInMonth + 2)
-- The divisor is always 30 (fixed billing month assumption), regardless of actual days
 - Monetary values are rounded to 2 decimal places
+- Invoice amounts are automatically deducted from linked POs when billing is generated
 
 ---
 
-## 6. Input File Specifications
+## 7. Input File Specifications
 
 ### Rate Card Excel (Sheet1)
 | Column | Type | Required | Description |
@@ -214,8 +304,10 @@ InvoiceAmount = (28 / 30) × 50,000 = ₹46,666.67
 | reporting_manager | Text | No | Manager name |
 | monthly_rate | Number | Yes | Monthly billing rate (positive) |
 | leaves_allowed | Number | Yes | Leaves per month (non-negative) |
+| po_number | Text | No | PO number (resolved to po_id for auto-consumption) |
+| date_of_reporting | Date/Text | No | Employee reporting date |
 
-Column names are matched case-insensitively with alias support (e.g., "Employee Code" maps to "emp_code").
+Column names are matched case-insensitively with alias support (e.g., "Employee Code" maps to "emp_code", "PO" maps to "po_number").
 
 ### Attendance Excel (Sheet1)
 | Column | Type | Required | Description |
@@ -240,7 +332,9 @@ Days beyond the actual month length are ignored.
 | Allowed Leaves | From rate card |
 | Leaves Taken | Counted from attendance |
 | Chargeable Days | Calculated |
-| Invoice Amount | Calculated |
+| Invoice Amount | Calculated (also consumed from linked PO) |
+
+Includes a TOTAL row at the bottom and auto-filter on all columns.
 
 **Sheet 2: Error_Report**
 | Column | Description |
@@ -250,14 +344,16 @@ Days beyond the actual month length are ignored.
 
 ---
 
-## 7. API Reference
+## 8. API Reference
+
+All API routes require authentication via `Authorization: Bearer <token>` header.
 
 ### Billing
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/api/billing/generate` | Upload files + generate billing (multipart) |
-| POST | `/api/billing/generate-from-db` | Generate from stored data (JSON) |
-| GET | `/api/billing/runs` | List billing run history |
+| POST | `/api/billing/generate-from-db` | Generate from stored data (JSON body: `{clientId?, billingMonth}`) |
+| GET | `/api/billing/runs` | List billing run history (`?limit=&offset=`) |
 | GET | `/api/billing/runs/:id` | Get run details with items + errors |
 | GET | `/api/billing/runs/:id/download` | Download generated Excel file |
 
@@ -266,16 +362,16 @@ Days beyond the actual month length are ignored.
 |--------|----------|-------------|
 | GET | `/api/clients` | List all active clients |
 | GET | `/api/clients/:id` | Get single client |
-| POST | `/api/clients` | Create client |
+| POST | `/api/clients` | Create client (includes `industry` field) |
 | PUT | `/api/clients/:id` | Update client |
 | DELETE | `/api/clients/:id` | Soft-delete client |
 
 ### Rate Cards
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/rate-cards` | List rate cards (?clientId=) |
+| GET | `/api/rate-cards` | List rate cards (`?clientId=`) |
 | GET | `/api/rate-cards/:id` | Get single rate card |
-| POST | `/api/rate-cards` | Create rate card |
+| POST | `/api/rate-cards` | Create rate card (includes `po_id`, `date_of_reporting`) |
 | PUT | `/api/rate-cards/:id` | Update rate card |
 | DELETE | `/api/rate-cards/:id` | Soft-delete rate card |
 | POST | `/api/rate-cards/upload` | Bulk upload from Excel |
@@ -284,8 +380,8 @@ Days beyond the actual month length are ignored.
 ### Attendance
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/attendance` | Get attendance (?empCode=&billingMonth=) |
-| GET | `/api/attendance/summary` | Get month summary (?billingMonth=) |
+| GET | `/api/attendance` | Get attendance (`?empCode=&billingMonth=`) |
+| GET | `/api/attendance/summary` | Get month summary (`?billingMonth=`) |
 | POST | `/api/attendance` | Submit single day |
 | POST | `/api/attendance/bulk` | Submit full month for one employee |
 | POST | `/api/attendance/upload` | Bulk upload from Excel |
@@ -294,30 +390,64 @@ Days beyond the actual month length are ignored.
 ### Quotes
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/quotes` | List quotes (?clientId=&status=) |
+| GET | `/api/quotes` | List quotes (`?clientId=&status=`) |
 | GET | `/api/quotes/:id` | Get quote with line items |
-| POST | `/api/quotes` | Create quote |
+| POST | `/api/quotes` | Create quote (items include `location`) |
 | PUT | `/api/quotes/:id` | Update draft quote |
-| PATCH | `/api/quotes/:id/status` | Change quote status |
+| PATCH | `/api/quotes/:id/status` | Change status (enforced transitions) |
 | DELETE | `/api/quotes/:id` | Delete draft quote |
 | GET | `/api/quotes/:id/download` | Download quote as Excel |
-| POST | `/api/quotes/:id/convert-to-po` | Create PO from accepted quote |
+| GET | `/api/quotes/:id/pdf` | Download quote as PDF |
+| POST | `/api/quotes/:id/convert-to-po` | Create PO from accepted quote (optional `sow_id`) |
+
+#### Quote Status Transitions
+```
+Draft → Sent → Accepted
+                Sent → Rejected → Draft
+Any status → Expired
+```
+
+### Statements of Work (SOW)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/sows` | List SOWs (`?clientId=&status=`) |
+| GET | `/api/sows/:id` | Get SOW with items |
+| POST | `/api/sows` | Create SOW (auto-generated number: `SOW-YYYYMMDD-NNN`) |
+| PUT | `/api/sows/:id` | Update SOW |
+| PATCH | `/api/sows/:id/status` | Change SOW status |
+| DELETE | `/api/sows/:id` | Delete SOW |
+
+#### SOW Status Transitions
+```
+Draft → Active → Expired / Terminated
+```
 
 ### Purchase Orders
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/purchase-orders` | List POs (?clientId=&status=) |
-| GET | `/api/purchase-orders/:id` | Get PO with consumption log |
-| POST | `/api/purchase-orders` | Create PO |
+| GET | `/api/purchase-orders` | List POs (`?clientId=&status=`) |
+| GET | `/api/purchase-orders/:id` | Get PO with consumption log + linked employees |
+| POST | `/api/purchase-orders` | Create PO (optional `sow_id`, `quote_id`) |
 | PUT | `/api/purchase-orders/:id` | Update PO |
-| PATCH | `/api/purchase-orders/:id/consume` | Record consumption |
-| GET | `/api/purchase-orders/alerts` | Get POs nearing threshold/expiry |
-| PATCH | `/api/purchase-orders/:id/renew` | Renew PO |
+| PATCH | `/api/purchase-orders/:id/consume` | Manual consumption (`{amount, description}`) |
+| GET | `/api/purchase-orders/alerts` | Get POs nearing threshold or expiry |
+| PATCH | `/api/purchase-orders/:id/renew` | Renew PO (marks old as Renewed, creates new, migrates employees) |
 
 ### Dashboard
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/dashboard/stats` | Summary stats + recent runs + alerts |
+| GET | `/api/dashboard/stats` | Summary stats + recent runs + PO alerts |
+
+### Samples
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/samples/rate-card` | Download sample rate card Excel |
+| GET | `/api/samples/attendance` | Download sample attendance Excel |
+
+### Health Check (No Auth Required)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Server health + DB status + uptime |
 
 ### Response Format
 All API responses follow this envelope:
@@ -331,34 +461,63 @@ All API responses follow this envelope:
 
 ---
 
-## 8. Database Schema
+## 9. Database Schema
 
 ### Tables
-1. **clients** - Client information with soft-delete
-2. **rate_cards** - Employee rate cards linked to clients (UNIQUE: client_id + emp_code)
+1. **clients** - Client information with `industry` field and soft-delete
+2. **rate_cards** - Employee rate cards linked to clients and POs (UNIQUE: client_id + emp_code)
 3. **attendance** - Daily attendance records (UNIQUE: emp_code + billing_month + day_number)
 4. **billing_runs** - Audit log of billing generations
 5. **billing_items** - Per-employee calculation results for each run
 6. **billing_errors** - Per-employee errors for each run
-7. **quotes** + **quote_items** - Quote management with line items
-8. **purchase_orders** - PO tracking with value consumption
-9. **po_consumption_log** - Consumption event history
+7. **quotes** + **quote_items** - Quote management with line items (includes `location`)
+8. **sows** + **sow_items** - Statement of Work with role/position items
+9. **purchase_orders** - PO tracking with value consumption and SOW linkage
+10. **po_consumption_log** - Consumption event history (auto + manual)
+11. **employee_po_history** - Assignment history when employees move between POs
+12. **audit_log** - General audit trail
 
 ### Key Relationships
 - `rate_cards.client_id` → `clients.id`
-- `billing_items.billing_run_id` → `billing_runs.id`
-- `billing_errors.billing_run_id` → `billing_runs.id`
+- `rate_cards.po_id` → `purchase_orders.id` (employee-to-PO linkage)
+- `billing_items.billing_run_id` → `billing_runs.id` (CASCADE)
+- `billing_errors.billing_run_id` → `billing_runs.id` (CASCADE)
 - `quotes.client_id` → `clients.id`
-- `quote_items.quote_id` → `quotes.id`
+- `quote_items.quote_id` → `quotes.id` (CASCADE)
+- `sows.client_id` → `clients.id`
+- `sows.quote_id` → `quotes.id`
+- `sow_items.sow_id` → `sows.id` (CASCADE)
 - `purchase_orders.client_id` → `clients.id`
+- `purchase_orders.sow_id` → `sows.id`
+- `purchase_orders.quote_id` → `quotes.id`
 - `po_consumption_log.po_id` → `purchase_orders.id`
+- `po_consumption_log.billing_run_id` → `billing_runs.id`
+- `employee_po_history.rate_card_id` → `rate_cards.id`
+- `employee_po_history.po_id` → `purchase_orders.id`
+
+### Views
+- **rate_cards_view** - rate_cards + client_name + po_number
+- **quotes_view** - quotes + client_name
+- **sows_view** - sows + client_name
+- **purchase_orders_view** - purchase_orders + client_name + sow_number + consumption_pct + remaining_value + linked_employees count
+
+### Database Functions (RPC)
+- **get_attendance_summary(billing_month)** - Aggregated attendance per employee
+- **consume_po(po_id, amount, description, billing_run_id)** - Atomic PO consumption (insert log + update value + auto-mark Exhausted)
+- **renew_po(...)** - Atomic PO renewal (mark old as Renewed + create new + log history + migrate employees)
+- **get_po_alerts()** - POs exceeding threshold or expiring within 30 days
+- **check_and_update_expired_pos()** - Mark expired POs
+- **get_dashboard_stats()** - All dashboard stats in a single call
+
+### Triggers
+- **trg_rate_card_po_client** - Ensures a rate card's `po_id` references a PO belonging to the same client
 
 ---
 
-## 9. Validation Rules
+## 10. Validation Rules
 
 ### Rate Card
-- Required columns present: client_name, emp_code, emp_name, monthly_rate, leaves_allowed
+- Required columns present: emp_code, emp_name, monthly_rate, leaves_allowed
 - emp_code unique within the file
 - monthly_rate must be a positive number
 - leaves_allowed must be a non-negative integer
@@ -380,7 +539,7 @@ All API responses follow this envelope:
 
 ---
 
-## 10. Error Handling
+## 11. Error Handling
 
 Errors are categorized and reported:
 
@@ -393,54 +552,41 @@ Errors are categorized and reported:
 | Missing in Attendance | Employee in rate card but not in attendance |
 | File format | Invalid file type or corrupted Excel |
 | Validation | Invalid billing month format |
+| PO consumption | PO not found or consumption failed (logged but non-fatal) |
 
-Fatal errors (bad file, missing month) return HTTP 400. Employee-level errors are collected in the Error_Report sheet while valid employees are still processed.
+Fatal errors (bad file, missing month) return HTTP 400. Employee-level errors are collected in the Error_Report sheet while valid employees are still processed. PO consumption errors are included in the response but do not prevent billing generation.
 
 ---
 
-## 11. Edge Cases Handled
+## 12. Edge Cases Handled
 
 1. **Variable month lengths** - DaysInMonth dynamically calculated (28/29/30/31)
 2. **Leap years** - February correctly returns 29 days for leap years
 3. **Header name variations** - Case-insensitive matching with aliases ("Employee Code" → emp_code)
-4. **Excel date formats** - Handles both JavaScript Date objects and string dates for DOJ
+4. **Excel date formats** - Handles both JavaScript Date objects and string dates for DOJ and date_of_reporting
 5. **Empty rows** - Skipped during parsing
 6. **Partial data** - Employees with errors are reported; valid employees are still billed
 7. **Excess day columns** - Columns 29-31 ignored for months with fewer days
+8. **PO number resolution** - File-upload billing resolves `po_number` strings to `po_id` integers via database lookup
+9. **PO exhaustion** - Auto-marks PO as "Exhausted" when consumed_value >= po_value
+10. **PO-client integrity** - Database trigger prevents assigning a rate card to a PO from a different client
 
 ---
 
-## 12. Scalability Considerations
+## 13. Security
 
-### Current Limitations
-- SQLite is single-writer (appropriate for single-user demo)
-- File-based DB limits to single-server deployment
-- In-memory processing for Excel files
-
-### Scaling Strategies
-1. **Database** - Migrate to PostgreSQL for multi-user concurrent access
-2. **File Processing** - Use ExcelJS streaming API for files with 1000+ rows
-3. **Async Jobs** - Queue billing generation as background jobs (Bull/Redis)
-4. **Caching** - Redis for rate card lookups and dashboard stats
-5. **Horizontal Scaling** - Stateless Express servers behind a load balancer
-6. **File Storage** - S3/Azure Blob for generated files instead of local disk
-7. **API Rate Limiting** - Add rate limiting middleware for production
-
-### Production Readiness Checklist
-- [ ] Switch to PostgreSQL
-- [ ] Add authentication/authorization (JWT)
-- [ ] Implement request logging (Winston/Morgan)
-- [ ] Add API rate limiting
-- [ ] Set up HTTPS
-- [ ] Docker containerization
-- [ ] CI/CD pipeline
-- [ ] Monitoring and alerting
-- [ ] Automated backups
-- [ ] Input sanitization audit
+- **Authentication**: JWT-based via Supabase Auth on all API routes
+- **Rate Limiting**: 100 requests per minute per IP on `/api` routes
+- **HTTP Headers**: Helmet.js for security headers
+- **CORS**: Configurable origins (default: allow all)
+- **File Upload**: Multer with 10MB size limit, Excel files only
+- **Input Validation**: Joi schemas on all POST/PUT/PATCH routes
+- **SQL Injection**: Prevented by Supabase client (parameterized queries)
+- **XSS Prevention**: `escapeHtml()` used in frontend rendering
 
 ---
 
-## 13. Testing
+## 14. Testing
 
 ### Manual Test with Sample Files
 ```bash
@@ -450,6 +596,7 @@ npm run dev
 # Open browser
 http://localhost:3000
 
+# Login with Supabase credentials
 # Navigate to Billing page
 # Upload data/TestRateCard.xlsx and data/TestAttendance.xlsx
 # Enter billing month: 202602
@@ -457,7 +604,7 @@ http://localhost:3000
 # Download the output file
 ```
 
-### Expected Results for Test Data (Feb 2026, 28 days)
+### Expected Results for Test Data (Feb 2026, 28 days, divisor=30)
 | Emp Code | Monthly Rate | Leaves Taken | Leaves Allowed | Chargeable Days | Invoice Amount |
 |----------|-------------|--------------|----------------|-----------------|----------------|
 | EMP001 | 50,000 | 2 | 2 | 28 | 46,666.67 |
