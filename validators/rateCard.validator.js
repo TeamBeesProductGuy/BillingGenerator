@@ -41,7 +41,8 @@ const createRateCard = Joi.object({
   po_id: Joi.number()
     .integer()
     .positive()
-    .allow(null)
+    .required()
+    .messages({ 'any.required': 'Purchase Order is required. A Rate Card must be assigned to a PO.' })
 });
 
 const updateRateCard = Joi.object({
@@ -71,7 +72,8 @@ const updateRateCard = Joi.object({
   po_id: Joi.number()
     .integer()
     .positive()
-    .allow(null)
+    .required()
+    .messages({ 'any.required': 'Purchase Order is required. A Rate Card must be assigned to a PO.' })
 });
 
 module.exports = { createRateCard, updateRateCard };

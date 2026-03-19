@@ -1,8 +1,8 @@
-<div class="p-4 sm:p-8 space-y-6 fade-in">
+<div class="p-5 sm:p-8 space-y-6 fade-in">
 
   <!-- Tabs -->
   <div>
-    <div class="flex gap-1 border-b border-outline-variant/10 mb-6" id="attendanceTabs">
+    <div class="flex gap-1 border-b border-outline-variant/8 mb-6" id="attendanceTabs">
       <button class="tab-btn att-tab active px-5 py-3 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2"
               data-tab="tab-manual" onclick="switchAttTab('tab-manual')">
         <span class="material-symbols-outlined text-lg">keyboard</span>Manual Entry
@@ -19,36 +19,36 @@
 
     <!-- Manual Entry -->
     <div class="att-tab-pane" id="tab-manual">
-      <div class="bg-surface-container rounded-2xl border border-outline-variant/10 p-6">
+      <div class="stat-card !p-6">
         <form id="attManualForm">
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
-              <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Emp Code *</label>
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Emp Code *</label>
               <input type="text" id="attEmpCode" required>
             </div>
             <div>
-              <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Emp Name</label>
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Emp Name</label>
               <input type="text" id="attEmpName">
             </div>
             <div>
-              <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Reporting Manager</label>
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Reporting Manager</label>
               <input type="text" id="attManager">
             </div>
             <div>
-              <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Billing Month *</label>
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Billing Month *</label>
               <input type="month" id="attMonth" required>
             </div>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
             <div>
-              <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Number of Leaves</label>
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Number of Leaves</label>
               <input type="number" id="attLeaveCount" min="0" placeholder="e.g. 3">
-              <p class="text-xs text-on-surface-variant mt-1">OR specify specific leave days below</p>
+              <p class="text-[11px] text-on-surface-variant mt-1">OR specify leave days below</p>
             </div>
             <div>
-              <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Leave Day Numbers</label>
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Leave Day Numbers</label>
               <input type="text" id="attLeaveDays" placeholder="e.g. 5,12,23">
-              <p class="text-xs text-on-surface-variant mt-1">Comma-separated day numbers</p>
+              <p class="text-[11px] text-on-surface-variant mt-1">Comma-separated day numbers</p>
             </div>
             <div class="flex items-end">
               <button type="submit" class="btn-primary w-full flex items-center justify-center gap-2" style="height: 48px;">
@@ -62,11 +62,11 @@
 
     <!-- Upload Excel -->
     <div class="att-tab-pane hidden" id="tab-upload-att">
-      <div class="bg-surface-container rounded-2xl border border-outline-variant/10 p-6 space-y-4">
+      <div class="stat-card !p-6 space-y-4">
         <!-- Sample download hint -->
-        <div class="bg-surface-container-high rounded-xl border border-outline-variant/10 p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-          <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-            <span class="material-symbols-outlined text-primary">info</span>
+        <div class="bg-surface-container-high/50 rounded-xl border border-outline-variant/8 p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div class="w-10 h-10 rounded-xl bg-[#4f46e5]/10 flex items-center justify-center flex-shrink-0">
+            <span class="material-symbols-outlined text-[#a78bfa]">info</span>
           </div>
           <div class="flex-1">
             <h6 class="text-sm font-bold text-on-surface mb-0.5">Need the attendance template?</h6>
@@ -80,11 +80,11 @@
         <form id="attUploadForm">
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Attendance Excel File *</label>
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Attendance Excel File *</label>
               <input type="file" id="attFile" accept=".xlsx,.xls" required>
             </div>
             <div>
-              <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Billing Month *</label>
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Billing Month *</label>
               <input type="month" id="attUploadMonth" required>
             </div>
             <div class="flex items-end">
@@ -100,10 +100,10 @@
 
     <!-- Summary -->
     <div class="att-tab-pane hidden" id="tab-summary">
-      <div class="bg-surface-container rounded-2xl border border-outline-variant/10 p-6 space-y-4">
+      <div class="stat-card !p-6 space-y-4">
         <div class="flex flex-col sm:flex-row items-start sm:items-end gap-4">
           <div>
-            <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Billing Month</label>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Billing Month</label>
             <input type="month" id="summaryMonth">
           </div>
           <button class="btn-primary flex items-center gap-2" id="btnLoadSummary" style="height: 48px;">
@@ -134,5 +134,3 @@
     </div>
   </div>
 </div>
-
-<!-- Tab styles in /css/styles.css (.tab-btn) -->

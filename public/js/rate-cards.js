@@ -5,7 +5,7 @@
     document.getElementById('rcForm').reset();
     document.getElementById('rcId').value = '';
     document.getElementById('rcModalTitle').textContent = 'Add Rate Card';
-    document.getElementById('rcPO').innerHTML = '<option value="">None (Unassigned)</option>';
+    document.getElementById('rcPO').innerHTML = '<option value="">Select PO</option>';
     window.rcEdit = null;
     openModal('rcModal');
   };
@@ -14,7 +14,7 @@
     document.getElementById('rcForm').reset();
     document.getElementById('rcId').value = '';
     document.getElementById('rcModalTitle').textContent = 'Add Rate Card';
-    document.getElementById('rcPO').innerHTML = '<option value="">None (Unassigned)</option>';
+    document.getElementById('rcPO').innerHTML = '<option value="">Select PO</option>';
     window.rcEdit = null;
   };
   window.openUploadRCModal = function () {
@@ -42,7 +42,7 @@
 
   async function loadPOsForClient(clientId) {
     var sel = document.getElementById('rcPO');
-    sel.innerHTML = '<option value="">None (Unassigned)</option>';
+    sel.innerHTML = '<option value="">Select PO</option>';
     if (!clientId) return;
     try {
       var res = await apiCall('GET', '/api/purchase-orders?clientId=' + clientId + '&status=Active');
@@ -121,6 +121,7 @@
   document.getElementById('rcForm').addEventListener('submit', async function (e) {
     e.preventDefault();
     var poVal = document.getElementById('rcPO').value;
+    if (!poVal) { showToast('Purchase Order is required', 'danger'); return; }
     var data = {
       client_id: parseInt(document.getElementById('rcClient').value, 10),
       emp_code: document.getElementById('rcEmpCode').value.trim(),

@@ -5,7 +5,7 @@
     document.getElementById('poForm').reset();
     document.getElementById('poId').value = '';
     document.getElementById('poModalTitle').textContent = 'Create Purchase Order';
-    document.getElementById('poSOW').innerHTML = '<option value="">None</option>';
+    document.getElementById('poSOW').innerHTML = '<option value="">Select SOW</option>';
     window.poEdit = null;
     openModal('poModal');
   };
@@ -44,7 +44,7 @@
 
   async function loadSOWsForClient(clientId) {
     var sel = document.getElementById('poSOW');
-    sel.innerHTML = '<option value="">None</option>';
+    sel.innerHTML = '<option value="">Select SOW</option>';
     if (!clientId) return;
     try {
       var res = await apiCall('GET', '/api/sows?clientId=' + clientId + '&status=Active');
@@ -209,6 +209,7 @@
   document.getElementById('poForm').addEventListener('submit', async function (e) {
     e.preventDefault();
     var sowVal = document.getElementById('poSOW').value;
+    if (!sowVal) { showToast('SOW is required', 'danger'); return; }
     var data = {
       po_number: document.getElementById('poNumber').value.trim(),
       client_id: parseInt(document.getElementById('poClient').value, 10),

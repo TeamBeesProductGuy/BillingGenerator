@@ -32,7 +32,8 @@ const createPO = Joi.object({
   sow_id: Joi.number()
     .integer()
     .positive()
-    .allow(null),
+    .required()
+    .messages({ 'any.required': 'SOW is required. A Purchase Order must be linked to a Statement of Work.' }),
 
   notes: Joi.string()
     .trim()
@@ -108,7 +109,8 @@ const convertToPO = Joi.object({
   sow_id: Joi.number()
     .integer()
     .positive()
-    .allow(null)
+    .required()
+    .messages({ 'any.required': 'SOW is required when converting a quote to PO.' })
 });
 
 module.exports = { createPO, updatePO, recordConsumption, renewPO, convertToPO };

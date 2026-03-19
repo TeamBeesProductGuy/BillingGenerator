@@ -2,6 +2,7 @@ const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
 const QuoteModel = require('../models/quote.model');
 const POModel = require('../models/purchaseOrder.model');
+const SOWModel = require('../models/sow.model');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
 
@@ -194,6 +195,12 @@ const quoteController = {
 
     const { po_number, po_date, start_date, end_date, alert_threshold, sow_id } = req.body;
 
+    // Validate SOW exists, belongs to quote's client, and is Active
+    const sow = await SOWModel.findById(sow_id);
+    if (!sow) throw new AppError(404, 'SOW not found');
+    if (sow.client_id !== quote.client_id) throw new AppError(400, 'SOW belongs to a different client than the quote');
+    if (sow.status !== 'Active') throw new AppError(400, 'SOW must be Active to link a PO. Current status: ' + sow.status);
+
     const poId = await POModel.create({
       po_number,
       client_id: quote.client_id,
@@ -203,7 +210,7 @@ const quoteController = {
       end_date,
       po_value: quote.total_amount,
       alert_threshold: alert_threshold || 80,
-      sow_id: sow_id || null,
+      sow_id,
     });
 
     res.status(201).json({ success: true, data: { poId, po_number } });

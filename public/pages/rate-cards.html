@@ -1,4 +1,4 @@
-<div class="p-4 sm:p-8 space-y-6 fade-in">
+<div class="p-5 sm:p-8 space-y-6 fade-in">
 
   <!-- Header with actions -->
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -17,11 +17,11 @@
   </div>
 
   <!-- Filter & Search -->
-  <div class="bg-surface-container rounded-2xl border border-outline-variant/10 p-4">
+  <div class="stat-card !p-4">
     <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
       <div class="flex items-center gap-2">
         <span class="material-symbols-outlined text-on-surface-variant text-lg">filter_list</span>
-        <label class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Client:</label>
+        <label class="text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Client:</label>
         <select id="rcFilterClient" class="w-auto">
           <option value="">All Clients</option>
         </select>
@@ -34,7 +34,7 @@
   </div>
 
   <!-- Rate Cards Table -->
-  <div class="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden">
+  <div class="stat-card !p-0 overflow-hidden">
     <div class="overflow-x-auto">
       <table class="stitch-table" id="rcTable">
         <thead>
@@ -61,9 +61,9 @@
 
 <!-- Add/Edit Rate Card Modal -->
 <div id="rcModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
-  <div class="bg-surface-container-high rounded-2xl w-full max-w-lg mx-4 border border-outline-variant/20 shadow-2xl max-h-[90vh] overflow-y-auto styled-scrollbar">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-lg mx-4 border border-outline-variant/15 shadow-2xl max-h-[90vh] overflow-y-auto styled-scrollbar">
     <form id="rcForm">
-      <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/10">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8">
         <h5 class="font-headline font-bold text-lg text-on-surface" id="rcModalTitle">Add Rate Card</h5>
         <button type="button" onclick="closeRCModal()" class="text-on-surface-variant hover:text-on-surface transition-colors">
           <span class="material-symbols-outlined">close</span>
@@ -72,49 +72,49 @@
       <div class="p-6 space-y-4">
         <input type="hidden" id="rcId">
         <div>
-          <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Client *</label>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Client *</label>
           <select id="rcClient" required><option value="">Select Client</option></select>
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Emp Code *</label>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Emp Code *</label>
             <input type="text" id="rcEmpCode" required>
           </div>
           <div>
-            <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Emp Name *</label>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Emp Name *</label>
             <input type="text" id="rcEmpName" required>
           </div>
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">DOJ</label>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">DOJ</label>
             <input type="date" id="rcDoj">
           </div>
           <div>
-            <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Reporting Manager</label>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Reporting Manager</label>
             <input type="text" id="rcManager">
           </div>
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Monthly Rate *</label>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Monthly Rate *</label>
             <input type="number" id="rcRate" step="0.01" min="0.01" required>
           </div>
           <div>
-            <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Leaves Allowed</label>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Leaves Allowed</label>
             <input type="number" id="rcLeaves" value="0" min="0">
           </div>
         </div>
         <div>
-          <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Date of Reporting</label>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Date of Reporting</label>
           <input type="date" id="rcDateOfReporting">
         </div>
         <div>
-          <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Purchase Order</label>
-          <select id="rcPO"><option value="">None (Unassigned)</option></select>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Purchase Order *</label>
+          <select id="rcPO" required><option value="">Select PO</option></select>
         </div>
       </div>
-      <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/10">
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
         <button type="button" class="btn-secondary" onclick="closeRCModal()">Cancel</button>
         <button type="submit" class="btn-primary">Save</button>
       </div>
@@ -124,9 +124,9 @@
 
 <!-- Upload Rate Card Modal -->
 <div id="uploadRCModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
-  <div class="bg-surface-container-high rounded-2xl w-full max-w-lg mx-4 border border-outline-variant/20 shadow-2xl">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-lg mx-4 border border-outline-variant/15 shadow-2xl">
     <form id="uploadRCForm">
-      <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/10">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8">
         <h5 class="font-headline font-bold text-lg text-on-surface">Upload Rate Card Excel</h5>
         <button type="button" onclick="closeUploadRCModal()" class="text-on-surface-variant hover:text-on-surface transition-colors">
           <span class="material-symbols-outlined">close</span>
@@ -134,15 +134,15 @@
       </div>
       <div class="p-6 space-y-4">
         <div>
-          <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Client *</label>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Client *</label>
           <select id="uploadRCClient" required><option value="">Select Client</option></select>
         </div>
         <div>
-          <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1.5">Excel File *</label>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Excel File *</label>
           <input type="file" id="uploadRCFile" accept=".xlsx,.xls" required>
         </div>
       </div>
-      <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/10">
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
         <button type="button" class="btn-secondary" onclick="closeUploadRCModal()">Cancel</button>
         <button type="submit" class="btn-primary">Upload</button>
       </div>

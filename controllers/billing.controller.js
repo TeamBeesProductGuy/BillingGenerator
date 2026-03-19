@@ -85,6 +85,13 @@ const billingController = {
 
       const allErrors = [...rateCardResult.errors, ...attendanceResult.errors];
 
+      // Warn about rate cards without PO linkage
+      for (const rc of rateCardResult.records) {
+        if (!rc.po_id) {
+          allErrors.push({ emp_code: rc.emp_code, error_message: `WARNING: ${rc.emp_code} (${rc.emp_name}) has no PO assignment. Billing will not consume from any PO.` });
+        }
+      }
+
       if (rateCardResult.records.length > 0 && attendanceResult.records.length > 0) {
         const crossErrors = crossValidate(rateCardResult.records, attendanceResult.records);
         allErrors.push(...crossErrors);
@@ -149,6 +156,14 @@ const billingController = {
     }));
 
     const allErrors = [];
+
+    // Warn about rate cards without PO linkage
+    for (const rc of rateCards) {
+      if (!rc.po_id) {
+        allErrors.push({ emp_code: rc.emp_code, error_message: `WARNING: ${rc.emp_code} (${rc.emp_name}) has no PO assignment. Billing will not consume from any PO.` });
+      }
+    }
+
     const crossErrors = crossValidate(rateCards, attendanceRecords);
     allErrors.push(...crossErrors);
 

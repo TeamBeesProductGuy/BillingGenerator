@@ -291,7 +291,7 @@ BEGIN
 END;
 $$;
 
--- Renew PO (transaction: mark old as Renewed + insert new)
+-- Renew PO (transaction: mark old as Renewed + insert new + inherit SOW)
 CREATE OR REPLACE FUNCTION renew_po(
   p_old_id INTEGER,
   p_po_number TEXT,
@@ -301,16 +301,25 @@ CREATE OR REPLACE FUNCTION renew_po(
   p_end_date TEXT,
   p_po_value NUMERIC,
   p_alert_threshold NUMERIC DEFAULT 80,
-  p_notes TEXT DEFAULT NULL
+  p_notes TEXT DEFAULT NULL,
+  p_sow_id INTEGER DEFAULT NULL
 ) RETURNS INTEGER LANGUAGE plpgsql AS $$
 DECLARE
   v_new_id INTEGER;
+  v_sow_id INTEGER;
 BEGIN
+  -- Inherit sow_id from old PO if not explicitly provided
+  IF p_sow_id IS NULL THEN
+    SELECT sow_id INTO v_sow_id FROM purchase_orders WHERE id = p_old_id;
+  ELSE
+    v_sow_id := p_sow_id;
+  END IF;
+
   UPDATE purchase_orders SET status = 'Renewed', updated_at = NOW()
   WHERE id = p_old_id;
 
-  INSERT INTO purchase_orders (po_number, client_id, po_date, start_date, end_date, po_value, alert_threshold, notes)
-  VALUES (p_po_number, p_client_id, p_po_date, p_start_date, p_end_date, p_po_value, p_alert_threshold, p_notes)
+  INSERT INTO purchase_orders (po_number, client_id, po_date, start_date, end_date, po_value, alert_threshold, notes, sow_id)
+  VALUES (p_po_number, p_client_id, p_po_date, p_start_date, p_end_date, p_po_value, p_alert_threshold, p_notes, v_sow_id)
   RETURNING id INTO v_new_id;
 
   -- Log assignment history before migrating
@@ -446,6 +455,31 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_rate_card_po_client ON rate_cards;
 CREATE TRIGGER trg_rate_card_po_client
 BEFORE INSERT OR UPDATE ON rate_cards
 FOR EACH ROW EXECUTE FUNCTION check_rate_card_po_client();
+
+-- Ensure PO's sow_id references a SOW belonging to the same client
+CREATE OR REPLACE FUNCTION check_po_sow_client()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+    v_sow_client_id INTEGER;
+BEGIN
+    IF NEW.sow_id IS NOT NULL THEN
+        SELECT client_id INTO v_sow_client_id FROM sows WHERE id = NEW.sow_id;
+        IF v_sow_client_id IS NULL THEN
+            RAISE EXCEPTION 'SOW % not found', NEW.sow_id;
+        END IF;
+        IF v_sow_client_id != NEW.client_id THEN
+            RAISE EXCEPTION 'SOW belongs to a different client';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_po_sow_client ON purchase_orders;
+CREATE TRIGGER trg_po_sow_client
+BEFORE INSERT OR UPDATE ON purchase_orders
+FOR EACH ROW EXECUTE FUNCTION check_po_sow_client();

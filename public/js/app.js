@@ -64,7 +64,7 @@
         if (!loginContainer) {
             loginContainer = document.createElement("div");
             loginContainer.id = "login-container";
-            loginContainer.className = "min-h-screen bg-background";
+            loginContainer.className = "fixed inset-0 z-[999] bg-background overflow-y-auto";
             document.body.insertBefore(loginContainer, document.body.firstChild);
         }
         loginContainer.style.display = "";
@@ -491,42 +491,10 @@
     };
 
     // -----------------------------------------------------------
-    //  Dark Mode
+    //  Dark Mode (always on)
     // -----------------------------------------------------------
     function initDarkMode() {
-        var saved = localStorage.getItem("darkMode");
-        if (saved === "false") {
-            document.documentElement.classList.remove("dark");
-        } else {
-            document.documentElement.classList.add("dark");
-            localStorage.setItem("darkMode", "true");
-        }
-        updateDarkModeIcon();
-    }
-
-    window.toggleDarkMode = function () {
-        var isDark = document.documentElement.classList.contains("dark");
-        if (isDark) {
-            document.documentElement.classList.remove("dark");
-            localStorage.setItem("darkMode", "false");
-        } else {
-            document.documentElement.classList.add("dark");
-            localStorage.setItem("darkMode", "true");
-        }
-        updateDarkModeIcon();
-    };
-
-    function updateDarkModeIcon() {
-        var isDark = document.documentElement.classList.contains("dark");
-        var icon = document.getElementById("darkModeIcon");
-        var label = document.getElementById("darkModeLabel");
-        var dot = document.getElementById("darkModeDot");
-        if (icon) icon.textContent = isDark ? "dark_mode" : "light_mode";
-        if (label) label.textContent = isDark ? "Dark Mode" : "Light Mode";
-        if (dot) {
-            dot.style.right = isDark ? "4px" : "auto";
-            dot.style.left = isDark ? "auto" : "4px";
-        }
+        document.documentElement.classList.add("dark");
     }
 
     // -----------------------------------------------------------

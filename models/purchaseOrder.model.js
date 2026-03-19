@@ -106,6 +106,7 @@ const POModel = {
       p_po_value: newPoData.po_value,
       p_alert_threshold: newPoData.alert_threshold || 80,
       p_notes: newPoData.notes || null,
+      p_sow_id: newPoData.sow_id || null,
     });
     if (error) throw new Error(error.message);
     return data;

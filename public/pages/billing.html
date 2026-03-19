@@ -1,9 +1,9 @@
-<div class="p-4 sm:p-8 space-y-6 fade-in">
+<div class="p-5 sm:p-8 space-y-6 fade-in">
 
   <!-- Sample Download Banner -->
-  <div class="bg-surface-container rounded-2xl border border-outline-variant/10 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-    <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-      <span class="material-symbols-outlined text-primary">download</span>
+  <div class="stat-card !p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+    <div class="w-10 h-10 rounded-xl bg-[#4f46e5]/10 flex items-center justify-center flex-shrink-0">
+      <span class="material-symbols-outlined text-[#a78bfa]">download</span>
     </div>
     <div class="flex-1">
       <h6 class="text-sm font-bold text-on-surface mb-0.5">Need sample Excel templates?</h6>
@@ -21,7 +21,7 @@
 
   <!-- Tabs -->
   <div>
-    <div class="flex gap-1 border-b border-outline-variant/10 mb-6" id="billingTabs">
+    <div class="flex gap-1 border-b border-outline-variant/8 mb-6" id="billingTabs">
       <button class="tab-btn billing-tab active px-5 py-3 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2"
               data-tab="tab-files" onclick="switchBillingTab('tab-files')">
         <span class="material-symbols-outlined text-lg">upload_file</span>Generate from Files
@@ -34,31 +34,31 @@
 
     <!-- Tab 1: From Files -->
     <div class="billing-tab-pane" id="tab-files">
-      <div class="bg-surface-container rounded-2xl border border-outline-variant/10 p-6">
+      <div class="stat-card !p-6">
         <form id="billingFileForm">
           <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-2">Rate Card Excel File</label>
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-2">Rate Card Excel File</label>
               <div class="upload-zone cursor-pointer relative" id="rateCardZone">
-                <span class="material-symbols-outlined text-3xl text-on-surface-variant/50 mb-2">cloud_upload</span>
-                <div class="text-sm text-on-surface-variant">Drop Rate Card file here or click to browse</div>
-                <div class="text-xs text-outline mt-1">.xlsx or .xls files only</div>
+                <span class="material-symbols-outlined text-3xl text-on-surface-variant/30 mb-2">cloud_upload</span>
+                <div class="text-sm text-on-surface-variant">Drop Rate Card file here</div>
+                <div class="text-[11px] text-outline mt-1">.xlsx or .xls files only</div>
                 <div class="text-xs text-primary font-semibold mt-2" id="rateCardFileName"></div>
                 <input type="file" id="rateCardFile" name="rateCardFile" accept=".xlsx,.xls" required class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
               </div>
             </div>
             <div>
-              <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-2">Attendance Excel File</label>
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-2">Attendance Excel File</label>
               <div class="upload-zone cursor-pointer relative" id="attendanceZone">
-                <span class="material-symbols-outlined text-3xl text-on-surface-variant/50 mb-2">cloud_upload</span>
-                <div class="text-sm text-on-surface-variant">Drop Attendance file here or click to browse</div>
-                <div class="text-xs text-outline mt-1">.xlsx or .xls files only</div>
+                <span class="material-symbols-outlined text-3xl text-on-surface-variant/30 mb-2">cloud_upload</span>
+                <div class="text-sm text-on-surface-variant">Drop Attendance file here</div>
+                <div class="text-[11px] text-outline mt-1">.xlsx or .xls files only</div>
                 <div class="text-xs text-primary font-semibold mt-2" id="attendanceFileName"></div>
                 <input type="file" id="attendanceFile" name="attendanceFile" accept=".xlsx,.xls" required class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
               </div>
             </div>
             <div>
-              <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-2">Billing Month</label>
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-2">Billing Month</label>
               <input type="month" id="billingMonth" required>
             </div>
             <div class="flex items-end">
@@ -73,17 +73,17 @@
 
     <!-- Tab 2: From Database -->
     <div class="billing-tab-pane hidden" id="tab-db">
-      <div class="bg-surface-container rounded-2xl border border-outline-variant/10 p-6">
+      <div class="stat-card !p-6">
         <form id="billingDbForm">
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-2">Client</label>
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-2">Client</label>
               <select id="dbClientId">
                 <option value="">All Clients</option>
               </select>
             </div>
             <div>
-              <label class="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-2">Billing Month</label>
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-2">Billing Month</label>
               <input type="month" id="dbBillingMonth" required>
             </div>
             <div class="flex items-end">
@@ -99,43 +99,46 @@
 
   <!-- Results Section (hidden initially) -->
   <div id="billingResults" class="hidden space-y-6">
-    <h3 class="text-sm font-bold uppercase tracking-[0.2em] text-on-surface-variant">Results</h3>
+    <div class="flex items-center gap-2">
+      <span class="material-symbols-outlined text-on-surface-variant text-lg">analytics</span>
+      <h3 class="section-label">Results</h3>
+    </div>
 
     <!-- Summary Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <div class="bg-surface-container rounded-2xl border border-outline-variant/10 p-5">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 stagger-in">
+      <div class="stat-card">
         <div class="flex items-center gap-3 mb-3">
-          <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <span class="material-symbols-outlined text-primary">group</span>
+          <div class="w-9 h-9 rounded-xl bg-[#4f46e5]/10 flex items-center justify-center">
+            <span class="material-symbols-outlined text-[#a78bfa] text-lg">group</span>
           </div>
-          <span class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Total Employees</span>
+          <span class="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Total Employees</span>
         </div>
         <div class="text-2xl font-headline font-bold text-on-surface" id="resTotalEmp">0</div>
       </div>
-      <div class="bg-surface-container rounded-2xl border border-outline-variant/10 p-5">
+      <div class="stat-card">
         <div class="flex items-center gap-3 mb-3">
-          <div class="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center">
-            <span class="material-symbols-outlined text-green-400">currency_rupee</span>
+          <div class="w-9 h-9 rounded-xl bg-[#10b981]/10 flex items-center justify-center">
+            <span class="material-symbols-outlined text-[#6ee7b7] text-lg">currency_rupee</span>
           </div>
-          <span class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Total Amount</span>
+          <span class="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Total Amount</span>
         </div>
         <div class="text-2xl font-headline font-bold text-on-surface" id="resTotalAmount">&#8377;0</div>
       </div>
-      <div class="bg-surface-container rounded-2xl border border-outline-variant/10 p-5">
+      <div class="stat-card">
         <div class="flex items-center gap-3 mb-3">
-          <div class="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center">
-            <span class="material-symbols-outlined text-red-400">error</span>
+          <div class="w-9 h-9 rounded-xl bg-red-500/10 flex items-center justify-center">
+            <span class="material-symbols-outlined text-red-400 text-lg">error</span>
           </div>
-          <span class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Errors</span>
+          <span class="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Errors</span>
         </div>
         <div class="text-2xl font-headline font-bold text-on-surface" id="resErrors">0</div>
       </div>
-      <div class="bg-surface-container rounded-2xl border border-outline-variant/10 p-5">
+      <div class="stat-card">
         <div class="flex items-center gap-3 mb-3">
-          <div class="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
-            <span class="material-symbols-outlined text-blue-400">calendar_month</span>
+          <div class="w-9 h-9 rounded-xl bg-[#06b6d4]/10 flex items-center justify-center">
+            <span class="material-symbols-outlined text-[#67e8f9] text-lg">calendar_month</span>
           </div>
-          <span class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Days in Month</span>
+          <span class="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Days in Month</span>
         </div>
         <div class="text-2xl font-headline font-bold text-on-surface" id="resDays">0</div>
       </div>
@@ -149,10 +152,10 @@
     </div>
 
     <!-- Billing Items Table -->
-    <div class="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden">
-      <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center gap-2">
+    <div class="stat-card !p-0 overflow-hidden">
+      <div class="px-6 py-4 border-b border-outline-variant/8 flex items-center gap-2">
         <span class="material-symbols-outlined text-on-surface-variant">table_chart</span>
-        <h5 class="text-sm font-bold uppercase tracking-[0.2em] text-on-surface-variant">Billing Items</h5>
+        <h5 class="section-label">Billing Items</h5>
       </div>
       <div class="overflow-x-auto">
         <table class="stitch-table">
@@ -170,10 +173,10 @@
     </div>
 
     <!-- Errors Table -->
-    <div class="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden hidden" id="errorsCard">
-      <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center gap-2">
+    <div class="stat-card !p-0 overflow-hidden hidden" id="errorsCard">
+      <div class="px-6 py-4 border-b border-outline-variant/8 flex items-center gap-2">
         <span class="material-symbols-outlined text-error">warning</span>
-        <h5 class="text-sm font-bold uppercase tracking-[0.2em] text-error">Errors</h5>
+        <h5 class="section-label text-error">Errors</h5>
       </div>
       <div class="overflow-x-auto">
         <table class="stitch-table">
@@ -185,10 +188,10 @@
   </div>
 
   <!-- Billing History -->
-  <div class="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden">
-    <div class="px-6 py-4 border-b border-outline-variant/10 flex items-center gap-2">
+  <div class="stat-card !p-0 overflow-hidden">
+    <div class="px-6 py-4 border-b border-outline-variant/8 flex items-center gap-2">
       <span class="material-symbols-outlined text-on-surface-variant">history</span>
-      <h5 class="text-sm font-bold uppercase tracking-[0.2em] text-on-surface-variant">Billing History</h5>
+      <h5 class="section-label">Billing History</h5>
     </div>
     <div class="overflow-x-auto">
       <table class="stitch-table">

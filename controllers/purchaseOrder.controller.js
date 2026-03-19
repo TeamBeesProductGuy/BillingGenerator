@@ -1,5 +1,6 @@
 const POModel = require('../models/purchaseOrder.model');
 const RateCardModel = require('../models/rateCard.model');
+const SOWModel = require('../models/sow.model');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
 
@@ -26,8 +27,15 @@ const poController = {
   }),
 
   create: catchAsync(async (req, res) => {
+    const { po_number, client_id, po_date, start_date, end_date, po_value, alert_threshold, sow_id, notes } = req.body;
+
+    // Validate SOW exists, belongs to same client, and is Active
+    const sow = await SOWModel.findById(sow_id);
+    if (!sow) throw new AppError(404, 'SOW not found');
+    if (sow.client_id !== client_id) throw new AppError(400, 'SOW belongs to a different client');
+    if (sow.status !== 'Active') throw new AppError(400, 'SOW must be Active to link a PO. Current status: ' + sow.status);
+
     try {
-      const { po_number, client_id, po_date, start_date, end_date, po_value, alert_threshold, sow_id, notes } = req.body;
       const id = await POModel.create({ po_number, client_id, po_date, start_date, end_date, po_value, alert_threshold, sow_id, notes });
       res.status(201).json({ success: true, data: { id, po_number } });
     } catch (err) {
@@ -42,6 +50,15 @@ const poController = {
     const id = parseInt(req.params.id, 10);
     const existing = await POModel.findById(id);
     if (!existing) throw new AppError(404, 'Purchase order not found');
+
+    // Validate SOW if provided
+    if (req.body.sow_id) {
+      const sow = await SOWModel.findById(req.body.sow_id);
+      if (!sow) throw new AppError(404, 'SOW not found');
+      if (sow.client_id !== req.body.client_id) throw new AppError(400, 'SOW belongs to a different client');
+      if (sow.status !== 'Active') throw new AppError(400, 'SOW must be Active to link a PO. Current status: ' + sow.status);
+    }
+
     await POModel.update(id, req.body);
     res.json({ success: true, data: { id } });
   }),
@@ -74,7 +91,7 @@ const poController = {
 
     const newPoId = await POModel.renew(id, {
       po_number, client_id: po.client_id, po_date, start_date, end_date,
-      po_value, alert_threshold, notes,
+      po_value, alert_threshold, notes, sow_id: po.sow_id,
     });
     res.json({ success: true, data: { oldPoId: id, newPoId, po_number } });
   }),

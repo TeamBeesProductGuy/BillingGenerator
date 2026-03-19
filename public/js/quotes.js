@@ -193,7 +193,7 @@
     try {
       var qRes = await apiCall('GET', '/api/quotes/' + id);
       var sowSel = document.getElementById('convertSowId');
-      sowSel.innerHTML = '<option value="">None</option>';
+      sowSel.innerHTML = '<option value="">Select SOW</option>';
       var sowRes = await apiCall('GET', '/api/sows?clientId=' + qRes.data.client_id + '&status=Active');
       sowRes.data.forEach(function (s) {
         sowSel.innerHTML += '<option value="' + s.id + '">' + escapeHtml(s.sow_number) + '</option>';
@@ -238,8 +238,9 @@
   document.getElementById('convertPoForm').addEventListener('submit', async function (e) {
     e.preventDefault();
     var quoteId = document.getElementById('convertQuoteId').value;
+    var convertSowVal = document.getElementById('convertSowId').value;
+    if (!convertSowVal) { showToast('SOW is required when converting a quote to PO', 'danger'); return; }
     try {
-      var convertSowVal = document.getElementById('convertSowId').value;
       await apiCall('POST', '/api/quotes/' + quoteId + '/convert-to-po', {
         po_number: document.getElementById('convertPoNumber').value.trim(),
         po_date: document.getElementById('convertPoDate').value,

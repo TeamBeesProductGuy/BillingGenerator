@@ -2,6 +2,7 @@ const fs = require('fs');
 const ExcelJS = require('exceljs');
 const RateCardModel = require('../models/rateCard.model');
 const ClientModel = require('../models/client.model');
+const POModel = require('../models/purchaseOrder.model');
 const { parseRateCard } = require('../services/excelParser.service');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
@@ -21,6 +22,13 @@ const rateCardController = {
 
   create: catchAsync(async (req, res) => {
     const { client_id, emp_code, emp_name, doj, reporting_manager, monthly_rate, leaves_allowed, date_of_reporting, po_id } = req.body;
+
+    // Validate PO exists, belongs to same client, and is Active
+    const po = await POModel.findById(po_id);
+    if (!po) throw new AppError(404, 'Purchase order not found');
+    if (po.client_id !== client_id) throw new AppError(400, 'Purchase order belongs to a different client');
+    if (po.status !== 'Active') throw new AppError(400, 'Purchase order must be Active to assign employees. Current status: ' + po.status);
+
     try {
       const id = await RateCardModel.create({ client_id, emp_code, emp_name, doj, reporting_manager, monthly_rate, leaves_allowed, date_of_reporting, po_id });
       res.status(201).json({ success: true, data: { id } });
@@ -36,6 +44,16 @@ const rateCardController = {
     const id = parseInt(req.params.id, 10);
     const existing = await RateCardModel.findById(id);
     if (!existing) throw new AppError(404, 'Rate card not found');
+
+    // Validate PO if provided
+    if (req.body.po_id) {
+      const po = await POModel.findById(req.body.po_id);
+      if (!po) throw new AppError(404, 'Purchase order not found');
+      const clientId = req.body.client_id || existing.client_id;
+      if (po.client_id !== clientId) throw new AppError(400, 'Purchase order belongs to a different client');
+      if (po.status !== 'Active') throw new AppError(400, 'Purchase order must be Active. Current status: ' + po.status);
+    }
+
     await RateCardModel.update(id, req.body);
     res.json({ success: true, data: { id } });
   }),
@@ -59,32 +77,33 @@ const rateCardController = {
     try {
       const { records, errors } = await parseRateCard(req.file.path);
 
-      // Resolve po_number to po_id if present
-      if (records.some((r) => r.po_number)) {
-        const POModel = require('../models/purchaseOrder.model');
-        const poList = await POModel.findAll(clientId, 'Active');
-        const poMap = new Map(poList.map((po) => [po.po_number, po.id]));
-        for (const r of records) {
-          if (r.po_number) {
-            const poId = poMap.get(r.po_number);
-            if (poId) {
-              r.po_id = poId;
-            } else {
-              errors.push({ emp_code: r.emp_code, error_message: `PO number "${r.po_number}" not found or not Active for this client` });
-            }
-          }
+      // Resolve po_number to po_id — po_number is required
+      const poList = await POModel.findAll(clientId, 'Active');
+      const poMap = new Map(poList.map((po) => [po.po_number, po.id]));
+      const validRecords = [];
+      for (const r of records) {
+        if (!r.po_number) {
+          errors.push({ emp_code: r.emp_code, error_message: 'Missing po_number. A PO is required for every employee.' });
+          continue;
+        }
+        const poId = poMap.get(r.po_number);
+        if (poId) {
+          r.po_id = poId;
+          validRecords.push(r);
+        } else {
+          errors.push({ emp_code: r.emp_code, error_message: `PO number "${r.po_number}" not found or not Active for this client` });
         }
       }
 
-      if (records.length > 0) {
-        const dbRecords = records.map((r) => ({ ...r, client_id: clientId }));
+      if (validRecords.length > 0) {
+        const dbRecords = validRecords.map((r) => ({ ...r, client_id: clientId }));
         await RateCardModel.bulkCreate(dbRecords);
       }
 
       res.json({
         success: true,
         data: {
-          imported: records.length,
+          imported: validRecords.length,
           errors: errors.length,
           errorDetails: errors,
         },

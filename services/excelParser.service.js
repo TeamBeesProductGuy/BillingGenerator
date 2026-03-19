@@ -57,7 +57,7 @@ async function parseRateCard(filePath) {
     }
   });
 
-  const requiredFields = ['emp_code', 'emp_name', 'monthly_rate', 'leaves_allowed'];
+  const requiredFields = ['emp_code', 'emp_name', 'monthly_rate', 'leaves_allowed', 'po_number'];
   const missingFields = requiredFields.filter((f) => !(f in columnMap));
   if (missingFields.length > 0) {
     errors.push({
@@ -108,6 +108,12 @@ async function parseRateCard(filePath) {
       continue;
     }
 
+    const poNumber = String(getValue('po_number') || '').trim();
+    if (!poNumber) {
+      errors.push({ emp_code: empCodeStr, error_message: 'Missing po_number. A PO is required for every employee.' });
+      continue;
+    }
+
     let doj = getValue('doj');
     if (doj instanceof Date) {
       doj = doj.toISOString().split('T')[0];
@@ -130,7 +136,7 @@ async function parseRateCard(filePath) {
       reporting_manager: String(getValue('reporting_manager') || '').trim(),
       monthly_rate: monthlyRate,
       leaves_allowed: leavesAllowed,
-      po_number: String(getValue('po_number') || '').trim() || null,
+      po_number: poNumber,
       date_of_reporting: dateOfReporting || null,
     });
   }

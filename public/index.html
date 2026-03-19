@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <title>TeamBees Dashboard | Billing Engine</title>
+    <meta name="description" content="TeamBees Billing Engine — Automate monthly invoice calculations, manage rate cards, attendance, quotes, SOWs and purchase orders.">
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
@@ -13,174 +14,136 @@
             theme: {
                 extend: {
                     colors: {
-                        "tertiary-fixed-dim": "#ffb695",
-                        "on-primary-fixed": "#0f0069",
-                        "surface-dim": "#0b1326",
+                        "surface-dim": "#080e1e",
                         "primary-container": "#4f46e5",
-                        "surface-container": "#171f33",
-                        "surface-container-lowest": "#060e20",
-                        "on-secondary-fixed": "#140f54",
-                        "surface-container-highest": "#2d3449",
+                        "surface-container": "#131b2e",
+                        "surface-container-lowest": "#050b18",
+                        "surface-container-highest": "#2a3146",
                         "primary": "#c3c0ff",
-                        "on-primary-fixed-variant": "#3323cc",
                         "tertiary": "#ffb695",
-                        "primary-fixed": "#e2dfff",
                         "on-surface": "#dae2fd",
-                        "surface-container-high": "#222a3d",
-                        "secondary-fixed": "#e2dfff",
-                        "outline": "#918fa1",
-                        "outline-variant": "#464555",
-                        "inverse-on-surface": "#283044",
-                        "background": "#0b1326",
-                        "on-error-container": "#ffdad6",
+                        "surface-container-high": "#1d2538",
+                        "outline": "#6b6a82",
+                        "outline-variant": "#3a3950",
+                        "background": "#080e1e",
                         "on-background": "#dae2fd",
-                        "on-tertiary": "#571f00",
-                        "inverse-primary": "#4d44e3",
-                        "secondary": "#c3c0ff",
-                        "tertiary-container": "#a44100",
-                        "tertiary-fixed": "#ffdbcc",
-                        "on-surface-variant": "#c7c4d8",
-                        "error-container": "#93000a",
-                        "on-secondary-container": "#b0aef9",
-                        "on-tertiary-container": "#ffd2be",
-                        "on-secondary": "#2a276a",
-                        "on-secondary-fixed-variant": "#413f82",
-                        "primary-fixed-dim": "#c3c0ff",
-                        "on-tertiary-fixed-variant": "#7b2f00",
-                        "inverse-surface": "#dae2fd",
-                        "secondary-fixed-dim": "#c3c0ff",
-                        "surface-container-low": "#131b2e",
-                        "secondary-container": "#413f82",
-                        "surface-tint": "#c3c0ff",
-                        "on-error": "#690005",
-                        "surface": "#0b1326",
-                        "surface-bright": "#31394d",
+                        "on-primary-fixed": "#ffffff",
+                        "secondary": "#b8b6d0",
+                        "on-surface-variant": "#8b89a8",
                         "error": "#ffb4ab",
-                        "surface-variant": "#2d3449",
-                        "on-primary": "#1d00a5",
-                        "on-primary-container": "#dad7ff",
-                        "on-tertiary-fixed": "#351000"
+                        "error-container": "#93000a",
+                        "on-error": "#690005",
+                        "surface": "#080e1e",
+                        "surface-bright": "#2a3146",
+                        "surface-variant": "#1d2538",
                     },
                     fontFamily: {
                         "headline": ["Plus Jakarta Sans"],
                         "body": ["Inter"],
                         "label": ["Inter"]
                     },
-                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "full": "9999px"},
                 },
             },
         }
     </script>
     <link href="/css/styles.css" rel="stylesheet">
 </head>
-<body class="bg-background text-on-surface h-screen flex overflow-hidden font-body">
+<body class="bg-background text-on-surface h-screen flex overflow-hidden font-body antialiased">
 
 <!-- Sidebar -->
-<aside id="sidebar" class="w-64 bg-surface-container-low flex flex-col border-r border-outline-variant/10 z-50 fixed md:relative h-full transition-transform -translate-x-full md:translate-x-0">
-    <div class="p-6 mb-4">
+<aside id="sidebar" class="w-[240px] bg-surface-container flex flex-col border-r border-outline-variant/8 z-50 fixed md:relative h-full transition-transform -translate-x-full md:translate-x-0">
+    <!-- Brand -->
+    <div class="px-5 pt-6 pb-4">
         <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-container flex items-center justify-center text-on-primary-fixed shadow-lg shadow-primary-container/20">
-                <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1">hive</span>
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#7c3aed] flex items-center justify-center shadow-lg shadow-[#4f46e5]/20">
+                <span class="material-symbols-outlined text-white text-lg" style="font-variation-settings: 'FILL' 1">hive</span>
             </div>
             <div>
-                <h1 class="font-headline font-bold text-lg leading-tight">TeamBees</h1>
-                <p class="text-[10px] uppercase tracking-widest text-on-surface-variant font-medium">Billing Engine</p>
+                <h1 class="font-headline font-bold text-[15px] leading-tight text-on-surface">TeamBees</h1>
+                <p class="text-[9px] uppercase tracking-[0.25em] text-on-surface-variant font-semibold mt-0.5">Billing Engine</p>
             </div>
         </div>
     </div>
 
-    <nav class="flex-1 px-4 space-y-1 overflow-y-auto">
-        <a href="#dashboard" data-page="dashboard" class="sidebar-link flex items-center px-4 py-3 rounded-lg transition-colors cursor-pointer no-underline active">
-            <span class="material-symbols-outlined mr-3">dashboard</span>
-            <span class="font-medium">Dashboard</span>
+    <div class="gradient-divider mx-5"></div>
+
+    <!-- Navigation -->
+    <nav class="flex-1 px-3 pt-5 overflow-y-auto styled-scrollbar space-y-0.5">
+        <div class="sidebar-section-label">Overview</div>
+        <a href="#dashboard" data-page="dashboard" class="sidebar-link flex items-center px-3 py-2.5 rounded-lg transition-all cursor-pointer no-underline active">
+            <span class="material-symbols-outlined mr-3 text-[20px]">space_dashboard</span>
+            <span class="font-medium text-[13px]">Dashboard</span>
         </a>
-        <a href="#billing" data-page="billing" class="sidebar-link flex items-center px-4 py-3 rounded-lg transition-colors cursor-pointer no-underline">
-            <span class="material-symbols-outlined mr-3">receipt_long</span>
-            <span class="font-medium">Billing</span>
+        <a href="#billing" data-page="billing" class="sidebar-link flex items-center px-3 py-2.5 rounded-lg transition-all cursor-pointer no-underline">
+            <span class="material-symbols-outlined mr-3 text-[20px]">receipt_long</span>
+            <span class="font-medium text-[13px]">Billing</span>
         </a>
-        <a href="#clients" data-page="clients" class="sidebar-link flex items-center px-4 py-3 rounded-lg transition-colors cursor-pointer no-underline">
-            <span class="material-symbols-outlined mr-3">group</span>
-            <span class="font-medium">Clients</span>
+
+        <div class="sidebar-section-label">Manage</div>
+        <a href="#clients" data-page="clients" class="sidebar-link flex items-center px-3 py-2.5 rounded-lg transition-all cursor-pointer no-underline">
+            <span class="material-symbols-outlined mr-3 text-[20px]">apartment</span>
+            <span class="font-medium text-[13px]">Clients</span>
         </a>
-        <a href="#rate-cards" data-page="rate-cards" class="sidebar-link flex items-center px-4 py-3 rounded-lg transition-colors cursor-pointer no-underline">
-            <span class="material-symbols-outlined mr-3">payments</span>
-            <span class="font-medium">Rate Cards</span>
+        <a href="#rate-cards" data-page="rate-cards" class="sidebar-link flex items-center px-3 py-2.5 rounded-lg transition-all cursor-pointer no-underline">
+            <span class="material-symbols-outlined mr-3 text-[20px]">credit_card</span>
+            <span class="font-medium text-[13px]">Rate Cards</span>
         </a>
-        <a href="#attendance" data-page="attendance" class="sidebar-link flex items-center px-4 py-3 rounded-lg transition-colors cursor-pointer no-underline">
-            <span class="material-symbols-outlined mr-3">event_available</span>
-            <span class="font-medium">Attendance</span>
+        <a href="#attendance" data-page="attendance" class="sidebar-link flex items-center px-3 py-2.5 rounded-lg transition-all cursor-pointer no-underline">
+            <span class="material-symbols-outlined mr-3 text-[20px]">event_available</span>
+            <span class="font-medium text-[13px]">Attendance</span>
         </a>
-        <a href="#quotes" data-page="quotes" class="sidebar-link flex items-center px-4 py-3 rounded-lg transition-colors cursor-pointer no-underline">
-            <span class="material-symbols-outlined mr-3">request_quote</span>
-            <span class="font-medium">Quotes</span>
+
+        <div class="sidebar-section-label">Commercial</div>
+        <a href="#quotes" data-page="quotes" class="sidebar-link flex items-center px-3 py-2.5 rounded-lg transition-all cursor-pointer no-underline">
+            <span class="material-symbols-outlined mr-3 text-[20px]">request_quote</span>
+            <span class="font-medium text-[13px]">Quotes</span>
         </a>
-        <a href="#sows" data-page="sows" class="sidebar-link flex items-center px-4 py-3 rounded-lg transition-colors cursor-pointer no-underline">
-            <span class="material-symbols-outlined mr-3">description</span>
-            <span class="font-medium">SOW</span>
+        <a href="#sows" data-page="sows" class="sidebar-link flex items-center px-3 py-2.5 rounded-lg transition-all cursor-pointer no-underline">
+            <span class="material-symbols-outlined mr-3 text-[20px]">description</span>
+            <span class="font-medium text-[13px]">SOW</span>
         </a>
-        <a href="#purchase-orders" data-page="purchase-orders" class="sidebar-link flex items-center px-4 py-3 rounded-lg transition-colors cursor-pointer no-underline">
-            <span class="material-symbols-outlined mr-3">shopping_cart</span>
-            <span class="font-medium">Purchase Orders</span>
+        <a href="#purchase-orders" data-page="purchase-orders" class="sidebar-link flex items-center px-3 py-2.5 rounded-lg transition-all cursor-pointer no-underline">
+            <span class="material-symbols-outlined mr-3 text-[20px]">local_shipping</span>
+            <span class="font-medium text-[13px]">Purchase Orders</span>
         </a>
     </nav>
 
-    <div class="p-4 border-t border-outline-variant/10">
-        <button id="darkModeToggleBtn" onclick="toggleDarkMode()" class="flex items-center w-full px-4 py-3 rounded-xl bg-surface-container-high text-on-surface hover:brightness-110 transition-all">
-            <span class="material-symbols-outlined mr-3" id="darkModeIcon">dark_mode</span>
-            <span class="font-medium" id="darkModeLabel">Dark Mode</span>
-            <div class="ml-auto w-8 h-4 bg-primary/20 rounded-full relative">
-                <div id="darkModeDot" class="absolute top-1 w-2 h-2 bg-primary rounded-full transition-all right-1"></div>
+    <!-- User Section -->
+    <div class="p-4 border-t border-outline-variant/8">
+        <div id="userInfo" class="flex items-center gap-2.5 px-2">
+            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-[#4f46e5] to-[#7c3aed] flex items-center justify-center flex-shrink-0 shadow-md shadow-[#4f46e5]/15">
+                <span class="material-symbols-outlined text-white text-sm">person</span>
             </div>
-        </button>
-        <div id="userInfo" class="mt-3 flex items-center gap-2 px-2">
-            <div class="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-                <span class="material-symbols-outlined text-primary text-sm">person</span>
+            <div class="flex-1 min-w-0">
+                <span id="userEmail" class="text-[11px] text-on-surface-variant truncate block"></span>
             </div>
-            <span id="userEmail" class="text-[10px] text-on-surface-variant truncate flex-1"></span>
-            <button onclick="handleLogout()" class="text-on-surface-variant hover:text-error transition-colors flex-shrink-0" title="Logout">
-                <span class="material-symbols-outlined text-sm">logout</span>
+            <button onclick="handleLogout()" class="text-on-surface-variant hover:text-error transition-colors flex-shrink-0 p-1 rounded-lg hover:bg-error/5" title="Logout">
+                <span class="material-symbols-outlined text-base">logout</span>
             </button>
         </div>
-        <div class="text-[10px] text-on-surface-variant text-center mt-2">TeamBees Billing Engine v1.0</div>
     </div>
 </aside>
 
 <!-- Sidebar Overlay (mobile) -->
-<div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden"></div>
+<div id="sidebar-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden md:hidden"></div>
 
 <!-- Main Content -->
 <main class="flex-1 flex flex-col relative overflow-y-auto styled-scrollbar min-h-0">
     <!-- Top Nav Bar -->
-    <header class="sticky top-0 z-30 glass border-b border-outline-variant/10 px-4 sm:px-8 py-4 flex items-center justify-between">
+    <header class="sticky top-0 z-30 glass border-b border-outline-variant/6 px-5 sm:px-8 py-3.5 flex items-center justify-between">
         <div class="flex items-center gap-4">
-            <button id="sidebar-toggle" class="md:hidden text-on-surface-variant hover:text-on-surface">
+            <button id="sidebar-toggle" class="md:hidden text-on-surface-variant hover:text-on-surface transition-colors p-1">
                 <span class="material-symbols-outlined text-2xl">menu</span>
             </button>
             <div class="flex flex-col">
-                <nav id="breadcrumb" class="flex items-center text-xs text-on-surface-variant mb-1 space-x-2">
+                <nav id="breadcrumb" class="flex items-center text-[11px] text-on-surface-variant mb-0.5 space-x-1.5">
                     <span>Home</span>
-                    <span class="material-symbols-outlined text-[10px]">chevron_right</span>
-                    <span class="text-on-surface" id="breadcrumbPage">Dashboard</span>
+                    <span class="material-symbols-outlined text-[10px] opacity-40">chevron_right</span>
+                    <span class="text-on-surface font-medium" id="breadcrumbPage">Dashboard</span>
                 </nav>
-                <h2 id="pageTitle" class="text-2xl font-headline font-bold text-on-surface">Dashboard</h2>
+                <h2 id="pageTitle" class="text-xl font-headline font-bold text-on-surface leading-tight">Dashboard</h2>
             </div>
-        </div>
-        <div class="flex items-center gap-3 sm:gap-4">
-            <div class="relative hidden sm:block">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-on-surface-variant text-xl">search</span>
-                <input class="bg-surface-container-high border-none rounded-full pl-10 pr-4 py-2 text-sm w-64 focus:ring-1 focus:ring-primary placeholder:text-outline text-on-surface" placeholder="Search resources..." type="text">
-            </div>
-            <button class="w-10 h-10 rounded-full border border-outline-variant/20 flex items-center justify-center hover:bg-surface-container transition-colors">
-                <span class="material-symbols-outlined text-on-surface-variant">notifications</span>
-            </button>
-            <button class="w-10 h-10 rounded-full border border-outline-variant/20 flex items-center justify-center hover:bg-surface-container transition-colors">
-                <span class="material-symbols-outlined text-on-surface-variant">settings</span>
-            </button>
-            <div class="h-8 w-[1px] bg-outline-variant/20 hidden sm:block"></div>
-            <a href="#billing" class="bg-gradient-to-r from-primary-container to-primary text-on-primary-fixed font-bold px-5 py-2.5 rounded-full hidden sm:flex items-center gap-2 shadow-lg shadow-primary-container/20 hover:scale-[1.02] active:scale-95 transition-all no-underline text-sm">
-                <span class="material-symbols-outlined text-xl">add</span>
-                Generate Billing
-            </a>
         </div>
     </header>
 
@@ -188,7 +151,7 @@
     <div id="app-content" class="flex-1">
         <div class="flex items-center justify-center min-h-[60vh]">
             <div class="text-center">
-                <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-primary border-t-transparent mb-3"></div>
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-[3px] border-primary border-t-transparent mb-3"></div>
                 <p class="text-on-surface-variant text-sm">Loading application...</p>
             </div>
         </div>
@@ -200,19 +163,19 @@
 
 <!-- Confirm Modal -->
 <div id="confirmModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
-    <div class="bg-surface-container-high rounded-2xl p-6 w-full max-w-md mx-4 border border-outline-variant/20 shadow-2xl">
-        <h3 id="confirmTitle" class="font-headline font-bold text-lg mb-3 text-on-surface">Confirm</h3>
-        <p id="confirmBody" class="text-on-surface-variant mb-6"></p>
+    <div class="bg-surface-container-high rounded-2xl p-6 w-full max-w-md mx-4 border border-outline-variant/15 shadow-2xl">
+        <h3 id="confirmTitle" class="font-headline font-bold text-lg mb-2 text-on-surface">Confirm</h3>
+        <p id="confirmBody" class="text-on-surface-variant text-sm mb-6 leading-relaxed"></p>
         <div class="flex justify-end gap-3">
-            <button id="confirmCancelBtn" class="px-5 py-2 rounded-lg bg-surface-container text-on-surface-variant hover:bg-surface-container-highest transition-colors font-medium">Cancel</button>
-            <button id="confirmOkBtn" class="px-5 py-2 rounded-lg bg-error text-on-error font-bold hover:brightness-110 transition-all">Confirm</button>
+            <button id="confirmCancelBtn" class="px-5 py-2 rounded-lg bg-surface-container text-on-surface-variant hover:bg-surface-container-highest transition-colors font-medium text-sm">Cancel</button>
+            <button id="confirmOkBtn" class="px-5 py-2 rounded-lg bg-error text-white font-bold hover:brightness-110 transition-all text-sm">Confirm</button>
         </div>
     </div>
 </div>
 
-<!-- Background Decorative Elements -->
-<div class="fixed top-0 right-0 -z-10 w-[600px] h-[600px] bg-primary/5 rounded-full blur-[120px] pointer-events-none"></div>
-<div class="fixed bottom-0 left-64 -z-10 w-[400px] h-[400px] bg-primary-container/5 rounded-full blur-[100px] pointer-events-none"></div>
+<!-- Background Ambient Glow -->
+<div class="fixed top-0 right-0 -z-10 w-[500px] h-[500px] bg-[#4f46e5]/[0.03] rounded-full blur-[150px] pointer-events-none"></div>
+<div class="fixed bottom-0 left-[240px] -z-10 w-[350px] h-[350px] bg-[#7c3aed]/[0.02] rounded-full blur-[120px] pointer-events-none"></div>
 
 <!-- Supabase Auth Client -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
