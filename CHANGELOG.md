@@ -4,6 +4,35 @@ All notable changes to the TeamBees Billing Engine are documented here.
 
 ---
 
+## [1.4.0] - 2026-03-19
+
+### Phase 2: Billing Engine Enhancements & Strict Workflow
+
+#### Strict Workflow Enforcement (Client → SOW → PO → Rate Card → Billing)
+- `sow_id` now required on PO creation (validators, controllers, frontend)
+- `po_id` now required on Rate Card creation (validators, controllers, frontend)
+- Cross-validation: SOW/PO must exist, belong to same client, and be Active
+- `po_number` column required in Excel rate card uploads
+- SOW inherited on PO renewal via `renew_po()` RPC function
+- Database triggers: `trg_po_sow_client` (PO-SOW client match), `trg_rate_card_po_client` (RC-PO client match)
+- Frontend: required attributes, JS guards, placeholder text updates on PO and Rate Card forms
+
+#### Billing Calculation Enhancements
+- **Date of Reporting pro-rata**: If `date_of_reporting` falls in billing month, bill only from that date to month-end
+- **Future reporting skip**: Employees reporting after the billing month are skipped with an error
+- **Chargeable days cap**: Maximum 30 chargeable days per employee (prevents over-billing)
+- **Negative billing prevention**: Chargeable days floor at 0
+
+#### Excel Output Enhancements
+- Added `Date of Reporting` and `Effective Days` columns to Billing_Working sheet
+- Added `Manager_Summary` sheet: grouped by reporting manager with employee count, total rate, total invoice
+- Output now has 3 sheets: Billing_Working, Manager_Summary, Error_Report
+
+#### Bug Fixes
+- Fixed rate card Excel upload response: now reports `validRecords.length` (actual imports) instead of `records.length`
+
+---
+
 ## [1.3.0] - 2026-03-18
 
 ### GST Removal & PO Auto-Consumption

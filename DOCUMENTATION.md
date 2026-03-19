@@ -14,7 +14,8 @@ A Node.js/Express-based billing engine that automates monthly invoice calculatio
 - **Purchase Order Management** - PO tracking with automatic billing consumption, threshold alerts, renewal, and SOW linkage
 - **Auto PO Consumption** - When billing is generated, invoice amounts are automatically deducted from linked POs
 - **Authentication** - Supabase Auth with JWT-based API protection
-- **Downloadable Output** - Generated billing Excel files with Billing_Working and Error_Report sheets
+- **Downloadable Output** - Generated billing Excel files with Billing_Working, Manager_Summary, and Error_Report sheets
+- **Strict Workflow Enforcement** - Client → SOW → PO → Rate Card → Billing (each step requires the previous)
 
 ---
 
@@ -227,8 +228,8 @@ Users authenticate via the Supabase Auth UI. The frontend calls `supabase.auth.s
 3. excelParser.service parses both files → records[] + errors[]
 4. po_number strings from Excel are resolved to po_id integers via DB lookup
 5. validation.service cross-validates emp_codes between files
-6. billing.service calculates billing for each matched employee
-7. excelWriter.service generates Billing_Working_For_YYYYMM.xlsx
+6. billing.service calculates billing (pro-rata for mid-month reporting, cap at 30 days)
+7. excelWriter.service generates Billing_Working_For_YYYYMM.xlsx (3 sheets: Billing, Manager Summary, Errors)
 8. billing.model saves run + items + errors to database
 9. autoConsumePOs() deducts invoice amounts from linked POs
 10. Response includes summary, items, errors, download URL, and PO consumption results
@@ -264,29 +265,56 @@ PO page reflects updated consumption_pct, remaining_value, progress bar
 
 ### Formula
 ```
-DaysInMonth = actual calendar days in YYYYMM (e.g., Feb 2026 = 28)
-LeavesTaken = count of "L" in attendance (days 1..DaysInMonth only)
-ChargeableDays = DaysInMonth - LeavesTaken + LeavesAllowed
-InvoiceAmount = (ChargeableDays / Divisor) × MonthlyRate
+DaysInMonth    = actual calendar days in YYYYMM (e.g., Feb 2026 = 28)
+EffectiveDays  = DaysInMonth (or pro-rated if date_of_reporting falls in billing month)
+LeavesTaken    = count of "L" in attendance (days 1..DaysInMonth only)
+ChargeableDays = min(EffectiveDays - LeavesTaken + LeavesAllowed, 30)   // capped at 30, min 0
+InvoiceAmount  = (ChargeableDays / Divisor) × MonthlyRate
 ```
 
 The **Divisor** is configurable via the `BILLING_DIVISOR` environment variable:
 - `actual` (default) — uses the actual number of days in the month
 - `30` — always divides by 30 (fixed billing month assumption)
 
-### Example (EMP001, Feb 2026, Divisor = 30)
+### Date of Reporting (Pro-rata)
+If an employee's `date_of_reporting` falls within the billing month, billing is pro-rated:
+- **EffectiveDays** = DaysInMonth - ReportingDay + 1 (bill from reporting date to month-end)
+- If `date_of_reporting` is **after** the billing month, the employee is skipped entirely with an error
+- If `date_of_reporting` is **before** the billing month (or not set), full month is billed
+
+### Chargeable Days Cap
+- Maximum chargeable days is **30** (hard cap)
+- Minimum chargeable days is **0** (no negative billing)
+
+### Example 1: Normal (EMP001, Feb 2026, Divisor = 30)
 ```
-DaysInMonth = 28
-LeavesTaken = 2
-LeavesAllowed = 2
-ChargeableDays = 28 - 2 + 2 = 28
+DaysInMonth = 28, EffectiveDays = 28 (no date_of_reporting)
+LeavesTaken = 2, LeavesAllowed = 2
+ChargeableDays = min(28 - 2 + 2, 30) = 28
 InvoiceAmount = (28 / 30) × 50,000 = 46,666.67
+```
+
+### Example 2: Pro-rata (EMP002, Mar 2026, reports 15th, Divisor = 30)
+```
+DaysInMonth = 31, EffectiveDays = 31 - 15 + 1 = 17
+LeavesTaken = 1, LeavesAllowed = 1
+ChargeableDays = min(17 - 1 + 1, 30) = 17
+InvoiceAmount = (17 / 30) × 150,000 = 85,000.00
+```
+
+### Example 3: Cap Applied (EMP003, Mar 2026, 0 leaves, 2 allowed, Divisor = 30)
+```
+DaysInMonth = 31, EffectiveDays = 31
+LeavesTaken = 0, LeavesAllowed = 2
+ChargeableDays = min(31 - 0 + 2, 30) = 30  (capped from 33)
+InvoiceAmount = (30 / 30) × 180,000 = 180,000.00
 ```
 
 ### Key Points
 - `DaysInMonth` is dynamically derived from the YYYYMM input using `new Date(year, month, 0).getDate()`
 - `LeavesAllowed` acts as a "free leave" buffer - it adds back days that would otherwise be deducted
-- `ChargeableDays` can exceed `DaysInMonth` (e.g., 0 leaves with 2 allowed = DaysInMonth + 2)
+- `ChargeableDays` is capped at 30 and cannot go negative
+- `EffectiveDays` reflects pro-rata when an employee joins mid-month
 - Monetary values are rounded to 2 decimal places
 - Invoice amounts are automatically deducted from linked POs when billing is generated
 
@@ -304,7 +332,7 @@ InvoiceAmount = (28 / 30) × 50,000 = 46,666.67
 | reporting_manager | Text | No | Manager name |
 | monthly_rate | Number | Yes | Monthly billing rate (positive) |
 | leaves_allowed | Number | Yes | Leaves per month (non-negative) |
-| po_number | Text | No | PO number (resolved to po_id for auto-consumption) |
+| po_number | Text | Yes | PO number (resolved to po_id for auto-consumption) |
 | date_of_reporting | Date/Text | No | Employee reporting date |
 
 Column names are matched case-insensitively with alias support (e.g., "Employee Code" maps to "emp_code", "PO" maps to "po_number").
@@ -328,15 +356,27 @@ Days beyond the actual month length are ignored.
 | Reporting Manager | From rate card or attendance |
 | Emp Code | Employee identifier |
 | Emp Name | Employee name |
+| Date of Reporting | Employee's reporting start date (for pro-rata) |
 | Monthly Rate | Billing rate |
 | Allowed Leaves | From rate card |
 | Leaves Taken | Counted from attendance |
-| Chargeable Days | Calculated |
+| Effective Days | Billable days (pro-rated if mid-month reporting) |
+| Chargeable Days | Calculated (capped at 30, min 0) |
 | Invoice Amount | Calculated (also consumed from linked PO) |
 
 Includes a TOTAL row at the bottom and auto-filter on all columns.
 
-**Sheet 2: Error_Report**
+**Sheet 2: Manager_Summary**
+| Column | Description |
+|--------|-------------|
+| Reporting Manager | Manager name (grouped) |
+| Employee Count | Number of employees under this manager |
+| Total Monthly Rate | Sum of monthly rates for the group |
+| Total Invoice Amount | Sum of invoice amounts for the group |
+
+Sorted alphabetically by manager name with a TOTAL row at the bottom.
+
+**Sheet 3: Error_Report**
 | Column | Description |
 |--------|-------------|
 | Emp Code | Employee identifier (or row reference) |
@@ -398,7 +438,7 @@ All API routes require authentication via `Authorization: Bearer <token>` header
 | DELETE | `/api/quotes/:id` | Delete draft quote |
 | GET | `/api/quotes/:id/download` | Download quote as Excel |
 | GET | `/api/quotes/:id/pdf` | Download quote as PDF |
-| POST | `/api/quotes/:id/convert-to-po` | Create PO from accepted quote (optional `sow_id`) |
+| POST | `/api/quotes/:id/convert-to-po` | Create PO from accepted quote (required `sow_id`) |
 
 #### Quote Status Transitions
 ```
@@ -427,7 +467,7 @@ Draft → Active → Expired / Terminated
 |--------|----------|-------------|
 | GET | `/api/purchase-orders` | List POs (`?clientId=&status=`) |
 | GET | `/api/purchase-orders/:id` | Get PO with consumption log + linked employees |
-| POST | `/api/purchase-orders` | Create PO (optional `sow_id`, `quote_id`) |
+| POST | `/api/purchase-orders` | Create PO (required `sow_id`, optional `quote_id`) |
 | PUT | `/api/purchase-orders/:id` | Update PO |
 | PATCH | `/api/purchase-orders/:id/consume` | Manual consumption (`{amount, description}`) |
 | GET | `/api/purchase-orders/alerts` | Get POs nearing threshold or expiry |
@@ -511,16 +551,18 @@ All API responses follow this envelope:
 
 ### Triggers
 - **trg_rate_card_po_client** - Ensures a rate card's `po_id` references a PO belonging to the same client
+- **trg_po_sow_client** - Ensures a PO's `sow_id` references a SOW belonging to the same client
 
 ---
 
 ## 10. Validation Rules
 
 ### Rate Card
-- Required columns present: emp_code, emp_name, monthly_rate, leaves_allowed
+- Required columns present: emp_code, emp_name, monthly_rate, leaves_allowed, po_number
 - emp_code unique within the file
 - monthly_rate must be a positive number
 - leaves_allowed must be a non-negative integer
+- po_number must match an Active PO for the selected client
 
 ### Attendance
 - Required columns: emp_code + day number columns
@@ -570,6 +612,11 @@ Fatal errors (bad file, missing month) return HTTP 400. Employee-level errors ar
 8. **PO number resolution** - File-upload billing resolves `po_number` strings to `po_id` integers via database lookup
 9. **PO exhaustion** - Auto-marks PO as "Exhausted" when consumed_value >= po_value
 10. **PO-client integrity** - Database trigger prevents assigning a rate card to a PO from a different client
+11. **SOW-client integrity** - Database trigger prevents linking a PO to a SOW from a different client
+12. **Date of Reporting pro-rata** - Employees reporting mid-month are billed only from their reporting date
+13. **Future reporting date** - Employees whose date_of_reporting is after the billing month are skipped with an error
+14. **Chargeable days cap** - Maximum 30 chargeable days per employee per month
+15. **Negative billing prevention** - Chargeable days cannot go below 0
 
 ---
 
