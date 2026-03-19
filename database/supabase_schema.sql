@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS quotes (
     valid_until     TEXT NOT NULL,
     status          TEXT NOT NULL DEFAULT 'Draft' CHECK(status IN ('Draft', 'Sent', 'Accepted', 'Rejected', 'Expired')),
     subtotal        NUMERIC(15,2) NOT NULL DEFAULT 0,
-    tax_percent     NUMERIC(5,2) NOT NULL DEFAULT 18,
+    tax_percent     NUMERIC(5,2) NOT NULL DEFAULT 0,
     tax_amount      NUMERIC(15,2) NOT NULL DEFAULT 0,
     total_amount    NUMERIC(15,2) NOT NULL DEFAULT 0,
     notes           TEXT,

@@ -44,7 +44,7 @@
       if (status) url += 'status=' + status;
       var res = await apiCall('GET', url);
       if (res.data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-on-surface-variant py-8">No quotes found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-on-surface-variant py-8">No quotes found</td></tr>';
       } else {
         tbody.innerHTML = res.data.map(function (q) {
           var actionsHtml = '<div class="inline-flex items-center gap-1">';
@@ -87,8 +87,6 @@
             '<td>' + formatDate(q.quote_date) + '</td>' +
             '<td>' + formatDate(q.valid_until) + '</td>' +
             '<td>' + statusBadge(q.status) + '</td>' +
-            '<td class="text-right">' + formatCurrency(q.subtotal) + '</td>' +
-            '<td class="text-right">' + formatCurrency(q.tax_amount) + '</td>' +
             '<td class="text-right font-bold">' + formatCurrency(q.total_amount) + '</td>' +
             '<td class="text-center">' + actionsHtml + '</td>' +
             '</tr>';
@@ -139,13 +137,9 @@
   }
 
   window.recalcQuote = function () {
-    var subtotal = 0;
-    document.querySelectorAll('.qi-amt').forEach(function (el) { subtotal += parseFloat(el.value) || 0; });
-    var taxPct = parseFloat(document.getElementById('quoteTax').value) || 0;
-    var tax = Math.round(subtotal * taxPct / 100 * 100) / 100;
-    document.getElementById('quoteSubtotal').textContent = formatCurrency(subtotal);
-    document.getElementById('quoteTaxAmt').textContent = formatCurrency(tax);
-    document.getElementById('quoteTotal').textContent = formatCurrency(subtotal + tax);
+    var total = 0;
+    document.querySelectorAll('.qi-amt').forEach(function (el) { total += parseFloat(el.value) || 0; });
+    document.getElementById('quoteTotal').textContent = formatCurrency(total);
   };
 
   window.editQuote = async function (id) {
@@ -158,7 +152,6 @@
       document.getElementById('quoteClient').value = q.client_id;
       document.getElementById('quoteDate').value = q.quote_date;
       document.getElementById('quoteValidUntil').value = q.valid_until;
-      document.getElementById('quoteTax').value = q.tax_percent;
       document.getElementById('quoteNotes').value = q.notes || '';
       document.getElementById('quoteItemsBody').innerHTML = '';
       q.items.forEach(function (item) { addItemRow(item); });
@@ -218,7 +211,6 @@
       client_id: parseInt(document.getElementById('quoteClient').value, 10),
       quote_date: document.getElementById('quoteDate').value,
       valid_until: document.getElementById('quoteValidUntil').value,
-      tax_percent: parseFloat(document.getElementById('quoteTax').value) || 18,
       notes: document.getElementById('quoteNotes').value.trim(),
       items: items,
     };
@@ -255,7 +247,6 @@
   });
 
   document.getElementById('btnAddQuoteItem').addEventListener('click', function () { addItemRow(); });
-  document.getElementById('quoteTax').addEventListener('input', recalcQuote);
   document.getElementById('quoteFilterClient').addEventListener('change', loadQuotes);
   document.getElementById('quoteFilterStatus').addEventListener('change', loadQuotes);
 

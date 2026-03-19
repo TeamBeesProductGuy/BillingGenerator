@@ -20,8 +20,8 @@ const quoteController = {
   }),
 
   create: catchAsync(async (req, res) => {
-    const { client_id, quote_date, valid_until, tax_percent, notes, items } = req.body;
-    const result = await QuoteModel.create({ client_id, quote_date, valid_until, tax_percent, notes }, items);
+    const { client_id, quote_date, valid_until, notes, items } = req.body;
+    const result = await QuoteModel.create({ client_id, quote_date, valid_until, notes }, items);
     res.status(201).json({ success: true, data: result });
   }),
 
@@ -30,8 +30,8 @@ const quoteController = {
     const existing = await QuoteModel.findById(id);
     if (!existing) throw new AppError(404, 'Quote not found');
     if (existing.status !== 'Draft') throw new AppError(400, 'Only draft quotes can be edited');
-    const { client_id, quote_date, valid_until, tax_percent, notes, items } = req.body;
-    await QuoteModel.update(id, { client_id, quote_date, valid_until, tax_percent, notes }, items || []);
+    const { client_id, quote_date, valid_until, notes, items } = req.body;
+    await QuoteModel.update(id, { client_id, quote_date, valid_until, notes }, items || []);
     res.json({ success: true, data: { id } });
   }),
 
@@ -101,14 +101,10 @@ const quoteController = {
     });
 
     const summaryRow = tableStart + 1 + quote.items.length + 1;
-    sheet.getCell(summaryRow, 4).value = 'Subtotal:';
-    sheet.getCell(summaryRow, 5).value = quote.subtotal;
-    sheet.getCell(summaryRow + 1, 4).value = `Tax (${quote.tax_percent}%):`;
-    sheet.getCell(summaryRow + 1, 5).value = quote.tax_amount;
-    sheet.getCell(summaryRow + 2, 4).value = 'Total:';
-    sheet.getCell(summaryRow + 2, 4).font = { bold: true };
-    sheet.getCell(summaryRow + 2, 5).value = quote.total_amount;
-    sheet.getCell(summaryRow + 2, 5).font = { bold: true };
+    sheet.getCell(summaryRow, 4).value = 'Total:';
+    sheet.getCell(summaryRow, 4).font = { bold: true };
+    sheet.getCell(summaryRow, 5).value = quote.total_amount;
+    sheet.getCell(summaryRow, 5).font = { bold: true };
 
     sheet.getColumn(1).width = 30;
     sheet.getColumn(2).width = 18;
@@ -170,12 +166,6 @@ const quoteController = {
     y += 10;
     doc.moveTo(350, y).lineTo(545, y).stroke();
     y += 8;
-    doc.font('Helvetica').text('Subtotal:', 350, y);
-    doc.text(Number(quote.subtotal).toFixed(2), 460, y, { width: 80, align: 'right' });
-    y += 16;
-    doc.text(`Tax (${quote.tax_percent}%):`, 350, y);
-    doc.text(Number(quote.tax_amount).toFixed(2), 460, y, { width: 80, align: 'right' });
-    y += 16;
     doc.font('Helvetica-Bold').text('Total:', 350, y);
     doc.text(Number(quote.total_amount).toFixed(2), 460, y, { width: 80, align: 'right' });
 

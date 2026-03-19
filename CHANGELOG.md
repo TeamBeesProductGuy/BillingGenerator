@@ -28,6 +28,14 @@ All notable changes to the TeamBees Billing Engine are documented here.
 - Added `Manager_Summary` sheet: grouped by reporting manager with employee count, total rate, total invoice
 - Output now has 3 sheets: Billing_Working, Manager_Summary, Error_Report
 
+#### Quotes - Tax Removed
+- Removed tax/GST from quotes module entirely (model, validator, controller, frontend)
+- Quote model now sets `tax_percent=0`, `tax_amount=0`, `total_amount=subtotal`
+- Removed Tax % input from quote create/edit modal
+- Removed Subtotal and Tax columns from quotes table (only Total shown)
+- Removed tax rows from quote Excel and PDF exports
+- DB columns (`tax_percent`, `tax_amount`) retained at 0 for backward compatibility
+
 #### Bug Fixes
 - Fixed rate card Excel upload response: now reports `validRecords.length` (actual imports) instead of `records.length`
 

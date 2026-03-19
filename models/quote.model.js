@@ -44,9 +44,7 @@ const QuoteModel = {
 
   async create(quote, items) {
     const quoteNumber = await QuoteModel.generateQuoteNumber();
-    const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
-    const taxAmount = Math.round(subtotal * (quote.tax_percent || 18) / 100 * 100) / 100;
-    const totalAmount = Math.round((subtotal + taxAmount) * 100) / 100;
+    const totalAmount = Math.round(items.reduce((sum, item) => sum + item.amount, 0) * 100) / 100;
 
     const { data: row, error: qErr } = await supabase
       .from('quotes')
@@ -56,9 +54,9 @@ const QuoteModel = {
         quote_date: quote.quote_date,
         valid_until: quote.valid_until,
         status: 'Draft',
-        subtotal,
-        tax_percent: quote.tax_percent || 18,
-        tax_amount: taxAmount,
+        subtotal: totalAmount,
+        tax_percent: 0,
+        tax_amount: 0,
         total_amount: totalAmount,
         notes: quote.notes || null,
       })
@@ -85,9 +83,7 @@ const QuoteModel = {
   },
 
   async update(id, quote, items) {
-    const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
-    const taxAmount = Math.round(subtotal * (quote.tax_percent || 18) / 100 * 100) / 100;
-    const totalAmount = Math.round((subtotal + taxAmount) * 100) / 100;
+    const totalAmount = Math.round(items.reduce((sum, item) => sum + item.amount, 0) * 100) / 100;
 
     const { error: qErr } = await supabase
       .from('quotes')
@@ -95,9 +91,9 @@ const QuoteModel = {
         client_id: quote.client_id,
         quote_date: quote.quote_date,
         valid_until: quote.valid_until,
-        subtotal,
-        tax_percent: quote.tax_percent || 18,
-        tax_amount: taxAmount,
+        subtotal: totalAmount,
+        tax_percent: 0,
+        tax_amount: 0,
         total_amount: totalAmount,
         notes: quote.notes || null,
         updated_at: new Date().toISOString(),

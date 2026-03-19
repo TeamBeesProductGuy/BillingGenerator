@@ -41,11 +41,6 @@ const createQuote = Joi.object({
   valid_until: Joi.string()
     .required(),
 
-  tax_percent: Joi.number()
-    .min(0)
-    .max(100)
-    .default(18),
-
   notes: Joi.string()
     .trim()
     .allow('', null),
