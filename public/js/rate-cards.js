@@ -72,7 +72,7 @@
             '<td>' + escapeHtml(r.reporting_manager || '') + '</td>' +
             '<td class="text-right">' + formatCurrency(r.monthly_rate) + '</td>' +
             '<td class="text-center">' + r.leaves_allowed + '</td>' +
-            '<td>' + (r.date_of_reporting ? formatDate(r.date_of_reporting) : '') + '</td>' +
+            '<td>' + (r.charging_date ? formatDate(r.charging_date) : '') + '</td>' +
             '<td>' + escapeHtml(r.po_number || '---') + '</td>' +
             '<td class="text-center">' +
               '<div class="inline-flex items-center gap-1">' +
@@ -101,7 +101,7 @@
       document.getElementById('rcManager').value = r.reporting_manager || '';
       document.getElementById('rcRate').value = r.monthly_rate;
       document.getElementById('rcLeaves').value = r.leaves_allowed;
-      document.getElementById('rcDateOfReporting').value = r.date_of_reporting || '';
+      document.getElementById('rcChargingDate').value = r.charging_date || '';
       document.getElementById('rcModalTitle').textContent = 'Edit Rate Card';
       window.rcEdit = r.id;
       openModal('rcModal');
@@ -130,7 +130,7 @@
       reporting_manager: document.getElementById('rcManager').value.trim(),
       monthly_rate: parseFloat(document.getElementById('rcRate').value),
       leaves_allowed: parseInt(document.getElementById('rcLeaves').value, 10) || 0,
-      date_of_reporting: document.getElementById('rcDateOfReporting').value || null,
+      charging_date: document.getElementById('rcChargingDate').value || null,
       po_id: poVal ? parseInt(poVal, 10) : null,
     };
     try {

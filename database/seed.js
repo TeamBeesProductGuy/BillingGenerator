@@ -49,10 +49,7 @@ async function seed() {
       client_id: clientIds[0],
       quote_date: '2026-02-01',
       valid_until: '2026-03-01',
-      subtotal: 160000,
-      tax_percent: 18,
-      tax_amount: 28800,
-      total_amount: 188800,
+      total_amount: 160000,
       status: 'Accepted',
       notes: 'Monthly staffing for Q1',
     })

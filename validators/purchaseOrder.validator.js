@@ -86,31 +86,4 @@ const renewPO = Joi.object({
     .allow('', null)
 });
 
-const convertToPO = Joi.object({
-  po_number: Joi.string()
-    .trim()
-    .min(1)
-    .required(),
-
-  po_date: Joi.string()
-    .required(),
-
-  start_date: Joi.string()
-    .required(),
-
-  end_date: Joi.string()
-    .required(),
-
-  alert_threshold: Joi.number()
-    .min(1)
-    .max(100)
-    .default(80),
-
-  sow_id: Joi.number()
-    .integer()
-    .positive()
-    .required()
-    .messages({ 'any.required': 'SOW is required when converting a quote to PO.' })
-});
-
-module.exports = { createPO, updatePO, recordConsumption, renewPO, convertToPO };
+module.exports = { createPO, updatePO, recordConsumption, renewPO };

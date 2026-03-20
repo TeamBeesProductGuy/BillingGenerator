@@ -14,7 +14,7 @@ const RATE_CARD_ALIASES = {
   monthly_rate: ['monthly_rate', 'monthlyrate', 'rate', 'billing_rate', 'billingrate'],
   leaves_allowed: ['leaves_allowed', 'leavesallowed', 'allowed_leaves', 'allowedleaves', 'leaves'],
   po_number: ['po_number', 'ponumber', 'po', 'purchase_order', 'purchaseorder', 'po_no'],
-  date_of_reporting: ['date_of_reporting', 'dateofreporting', 'reporting_date', 'reportingdate'],
+  charging_date: ['charging_date', 'chargingdate', 'date_of_reporting', 'dateofreporting', 'reporting_date', 'reportingdate'],
 };
 
 const ATTENDANCE_ALIASES = {
@@ -121,11 +121,11 @@ async function parseRateCard(filePath) {
       doj = String(doj).trim();
     }
 
-    let dateOfReporting = getValue('date_of_reporting');
-    if (dateOfReporting instanceof Date) {
-      dateOfReporting = dateOfReporting.toISOString().split('T')[0];
-    } else if (dateOfReporting) {
-      dateOfReporting = String(dateOfReporting).trim();
+    let chargingDate = getValue('charging_date');
+    if (chargingDate instanceof Date) {
+      chargingDate = chargingDate.toISOString().split('T')[0];
+    } else if (chargingDate) {
+      chargingDate = String(chargingDate).trim();
     }
 
     records.push({
@@ -137,7 +137,7 @@ async function parseRateCard(filePath) {
       monthly_rate: monthlyRate,
       leaves_allowed: leavesAllowed,
       po_number: poNumber,
-      date_of_reporting: dateOfReporting || null,
+      charging_date: chargingDate || null,
     });
   }
 

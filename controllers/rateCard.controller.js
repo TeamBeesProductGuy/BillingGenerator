@@ -21,7 +21,7 @@ const rateCardController = {
   }),
 
   create: catchAsync(async (req, res) => {
-    const { client_id, emp_code, emp_name, doj, reporting_manager, monthly_rate, leaves_allowed, date_of_reporting, po_id } = req.body;
+    const { client_id, emp_code, emp_name, doj, reporting_manager, monthly_rate, leaves_allowed, charging_date, po_id } = req.body;
 
     // Validate PO exists, belongs to same client, and is Active
     const po = await POModel.findById(po_id);
@@ -30,7 +30,7 @@ const rateCardController = {
     if (po.status !== 'Active') throw new AppError(400, 'Purchase order must be Active to assign employees. Current status: ' + po.status);
 
     try {
-      const id = await RateCardModel.create({ client_id, emp_code, emp_name, doj, reporting_manager, monthly_rate, leaves_allowed, date_of_reporting, po_id });
+      const id = await RateCardModel.create({ client_id, emp_code, emp_name, doj, reporting_manager, monthly_rate, leaves_allowed, charging_date, po_id });
       res.status(201).json({ success: true, data: { id } });
     } catch (err) {
       if (err.message && (err.message.includes('UNIQUE') || err.message.includes('duplicate key'))) {
@@ -127,7 +127,7 @@ const rateCardController = {
       { header: 'Reporting Manager', key: 'reporting_manager', width: 20 },
       { header: 'Monthly Rate', key: 'monthly_rate', width: 15 },
       { header: 'Leaves Allowed', key: 'leaves_allowed', width: 15 },
-      { header: 'Date of Reporting', key: 'date_of_reporting', width: 15 },
+      { header: 'Charging Date', key: 'charging_date', width: 15 },
       { header: 'PO Number', key: 'po_number', width: 18 },
     ];
 

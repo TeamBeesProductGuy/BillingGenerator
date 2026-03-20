@@ -110,44 +110,40 @@
   </div>
 </div>
 
-<!-- Convert to PO Modal -->
-<div id="convertPoModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
+<!-- Convert to SOW Modal -->
+<div id="convertSowModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
   <div class="bg-surface-container-high rounded-2xl w-full max-w-md mx-4 border border-outline-variant/15 shadow-2xl">
-    <form id="convertPoForm">
+    <form id="convertSowForm">
       <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8">
-        <h5 class="font-headline font-bold text-lg text-on-surface">Convert to Purchase Order</h5>
-        <button type="button" onclick="closeConvertPoModal()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+        <h5 class="font-headline font-bold text-lg text-on-surface">Convert to Statement of Work</h5>
+        <button type="button" onclick="closeConvertSowModal()" class="text-on-surface-variant hover:text-on-surface transition-colors">
           <span class="material-symbols-outlined">close</span>
         </button>
       </div>
       <div class="p-6 space-y-4">
         <input type="hidden" id="convertQuoteId">
         <div>
-          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">PO Number *</label>
-          <input type="text" id="convertPoNumber" required>
-        </div>
-        <div>
-          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">PO Date *</label>
-          <input type="date" id="convertPoDate" required>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">SOW Date *</label>
+          <input type="date" id="convertSowDate" required>
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Start Date *</label>
-            <input type="date" id="convertStartDate" required>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Effective Start *</label>
+            <input type="date" id="convertEffectiveStart" required>
           </div>
           <div>
-            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">End Date *</label>
-            <input type="date" id="convertEndDate" required>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Effective End *</label>
+            <input type="date" id="convertEffectiveEnd" required>
           </div>
         </div>
         <div>
-          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">SOW *</label>
-          <select id="convertSowId" required><option value="">Select SOW</option></select>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Notes</label>
+          <textarea id="convertSowNotes" rows="2"></textarea>
         </div>
       </div>
       <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
-        <button type="button" class="btn-secondary" onclick="closeConvertPoModal()">Cancel</button>
-        <button type="submit" class="btn-primary">Create PO</button>
+        <button type="button" class="btn-secondary" onclick="closeConvertSowModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Create SOW</button>
       </div>
     </form>
   </div>

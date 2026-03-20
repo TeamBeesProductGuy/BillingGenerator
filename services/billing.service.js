@@ -26,21 +26,21 @@ function calculateBilling(rateCards, attendanceRecords, billingMonth) {
       continue;
     }
 
-    // Pro-rata: if date_of_reporting falls within the billing month, bill from that date
+    // Pro-rata: if charging_date falls within the billing month, bill from that date
     let effectiveDays = daysInMonth;
-    if (rc.date_of_reporting) {
-      const reportDate = new Date(rc.date_of_reporting);
-      if (reportDate > billingMonthEnd) {
-        // Reporting date is after this billing month — skip billing
+    if (rc.charging_date) {
+      const chargeDate = new Date(rc.charging_date);
+      if (chargeDate > billingMonthEnd) {
+        // Charging date is after this billing month — skip billing
         errors.push({
           emp_code: rc.emp_code,
-          error_message: `${rc.emp_code} (${rc.emp_name}) reports on ${rc.date_of_reporting}, which is after billing month ${billingMonth}. Skipped.`,
+          error_message: `${rc.emp_code} (${rc.emp_name}) charging date is ${rc.charging_date}, which is after billing month ${billingMonth}. Skipped.`,
         });
         continue;
       }
-      if (reportDate.getFullYear() === billingYear && (reportDate.getMonth() + 1) === billingMon) {
-        // Reporting date is within billing month — pro-rata from that day
-        effectiveDays = daysInMonth - reportDate.getDate() + 1;
+      if (chargeDate.getFullYear() === billingYear && (chargeDate.getMonth() + 1) === billingMon) {
+        // Charging date is within billing month — pro-rata from that day
+        effectiveDays = daysInMonth - chargeDate.getDate() + 1;
       }
     }
 
@@ -55,7 +55,7 @@ function calculateBilling(rateCards, attendanceRecords, billingMonth) {
       reporting_manager: rc.reporting_manager || attendance.reporting_manager,
       emp_code: rc.emp_code,
       emp_name: rc.emp_name,
-      date_of_reporting: rc.date_of_reporting || null,
+      charging_date: rc.charging_date || null,
       monthly_rate: rc.monthly_rate,
       allowed_leaves: rc.leaves_allowed,
       leaves_taken: leavesTaken,

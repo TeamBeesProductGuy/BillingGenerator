@@ -59,4 +59,19 @@ const updateStatus = Joi.object({
     .required()
 });
 
-module.exports = { createQuote, updateQuote, updateStatus };
+const convertToSOW = Joi.object({
+  sow_date: Joi.string()
+    .required(),
+
+  effective_start: Joi.string()
+    .required(),
+
+  effective_end: Joi.string()
+    .required(),
+
+  notes: Joi.string()
+    .trim()
+    .allow('', null)
+});
+
+module.exports = { createQuote, updateQuote, updateStatus, convertToSOW };

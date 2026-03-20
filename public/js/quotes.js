@@ -11,7 +11,7 @@
     openModal('quoteModal');
   };
   window.closeQuoteModal = function () { closeModal('quoteModal'); };
-  window.closeConvertPoModal = function () { closeModal('convertPoModal'); };
+  window.closeConvertSowModal = function () { closeModal('convertSowModal'); };
 
   var statusBadge = function (s) {
     var map = { Draft: 'badge-processing', Sent: 'badge-processing', Accepted: 'badge-success', Rejected: 'badge-error', Expired: 'badge-warning' };
@@ -73,7 +73,7 @@
           });
           if (q.status === 'Accepted') {
             actionsHtml += '<div class="border-t border-outline-variant/10 my-1"></div>';
-            actionsHtml += '<a href="#" class="block px-4 py-2 text-sm text-green-400 hover:bg-surface-container-highest transition-colors no-underline" onclick="event.preventDefault();convertToPO(' + q.id + ')">Convert to PO</a>';
+            actionsHtml += '<a href="#" class="block px-4 py-2 text-sm text-green-400 hover:bg-surface-container-highest transition-colors no-underline" onclick="event.preventDefault();convertToSOW(' + q.id + ')">Convert to SOW</a>';
           }
           if (q.status === 'Draft') {
             actionsHtml += '<div class="border-t border-outline-variant/10 my-1"></div>';
@@ -178,21 +178,10 @@
     } catch (err) { showToast(err.message, 'danger'); }
   };
 
-  window.convertToPO = async function (id) {
+  window.convertToSOW = async function (id) {
+    document.getElementById('convertSowForm').reset();
     document.getElementById('convertQuoteId').value = id;
-    document.getElementById('convertPoForm').reset();
-    document.getElementById('convertQuoteId').value = id;
-    // Load SOWs for the quote's client
-    try {
-      var qRes = await apiCall('GET', '/api/quotes/' + id);
-      var sowSel = document.getElementById('convertSowId');
-      sowSel.innerHTML = '<option value="">Select SOW</option>';
-      var sowRes = await apiCall('GET', '/api/sows?clientId=' + qRes.data.client_id + '&status=Active');
-      sowRes.data.forEach(function (s) {
-        sowSel.innerHTML += '<option value="' + s.id + '">' + escapeHtml(s.sow_number) + '</option>';
-      });
-    } catch (e) { /* ignore */ }
-    openModal('convertPoModal');
+    openModal('convertSowModal');
   };
 
   document.getElementById('quoteForm').addEventListener('submit', async function (e) {
@@ -227,21 +216,18 @@
     } catch (err) { showToast(err.message, 'danger'); }
   });
 
-  document.getElementById('convertPoForm').addEventListener('submit', async function (e) {
+  document.getElementById('convertSowForm').addEventListener('submit', async function (e) {
     e.preventDefault();
     var quoteId = document.getElementById('convertQuoteId').value;
-    var convertSowVal = document.getElementById('convertSowId').value;
-    if (!convertSowVal) { showToast('SOW is required when converting a quote to PO', 'danger'); return; }
     try {
-      await apiCall('POST', '/api/quotes/' + quoteId + '/convert-to-po', {
-        po_number: document.getElementById('convertPoNumber').value.trim(),
-        po_date: document.getElementById('convertPoDate').value,
-        start_date: document.getElementById('convertStartDate').value,
-        end_date: document.getElementById('convertEndDate').value,
-        sow_id: convertSowVal ? parseInt(convertSowVal, 10) : null,
+      await apiCall('POST', '/api/quotes/' + quoteId + '/convert-to-sow', {
+        sow_date: document.getElementById('convertSowDate').value,
+        effective_start: document.getElementById('convertEffectiveStart').value,
+        effective_end: document.getElementById('convertEffectiveEnd').value,
+        notes: document.getElementById('convertSowNotes').value.trim() || null,
       });
-      showToast('Purchase Order created!', 'success');
-      closeConvertPoModal();
+      showToast('Statement of Work created!', 'success');
+      closeConvertSowModal();
       loadQuotes();
     } catch (err) { showToast(err.message, 'danger'); }
   });

@@ -37,16 +37,16 @@ router.get('/rate-card', async (_req, res) => {
       { header: 'monthly_rate', key: 'monthly_rate', width: 15 },
       { header: 'leaves_allowed', key: 'leaves_allowed', width: 16 },
       { header: 'po_number', key: 'po_number', width: 18 },
-      { header: 'date_of_reporting', key: 'date_of_reporting', width: 18 },
+      { header: 'charging_date', key: 'charging_date', width: 18 },
     ];
 
     // Sample data (po_number must match an Active PO for the client to link)
     const rows = [
-      { client_name: 'Acme Corp', emp_code: 'EMP001', emp_name: 'Alice Johnson', doj: '2023-01-15', reporting_manager: 'Bob Smith', monthly_rate: 50000, leaves_allowed: 2, po_number: 'PO-2025-001', date_of_reporting: '2023-01-15' },
-      { client_name: 'Acme Corp', emp_code: 'EMP002', emp_name: 'Charlie Brown', doj: '2023-03-20', reporting_manager: 'Bob Smith', monthly_rate: 60000, leaves_allowed: 1, po_number: 'PO-2025-001', date_of_reporting: '2023-03-20' },
-      { client_name: 'Acme Corp', emp_code: 'EMP003', emp_name: 'Diana Prince', doj: '2024-06-01', reporting_manager: 'Alice Johnson', monthly_rate: 45000, leaves_allowed: 2, po_number: '', date_of_reporting: '2024-06-01' },
-      { client_name: 'Acme Corp', emp_code: 'EMP004', emp_name: 'Edward Norton', doj: '2022-11-10', reporting_manager: 'Bob Smith', monthly_rate: 70000, leaves_allowed: 3, po_number: 'PO-2025-002', date_of_reporting: '2022-11-10' },
-      { client_name: 'Acme Corp', emp_code: 'EMP005', emp_name: 'Fiona Apple', doj: '2024-01-05', reporting_manager: 'Alice Johnson', monthly_rate: 55000, leaves_allowed: 2, po_number: '', date_of_reporting: '2024-01-05' },
+      { client_name: 'Acme Corp', emp_code: 'EMP001', emp_name: 'Alice Johnson', doj: '2023-01-15', reporting_manager: 'Bob Smith', monthly_rate: 50000, leaves_allowed: 2, po_number: 'PO-2025-001', charging_date: '2023-01-15' },
+      { client_name: 'Acme Corp', emp_code: 'EMP002', emp_name: 'Charlie Brown', doj: '2023-03-20', reporting_manager: 'Bob Smith', monthly_rate: 60000, leaves_allowed: 1, po_number: 'PO-2025-001', charging_date: '2023-03-20' },
+      { client_name: 'Acme Corp', emp_code: 'EMP003', emp_name: 'Diana Prince', doj: '2024-06-01', reporting_manager: 'Alice Johnson', monthly_rate: 45000, leaves_allowed: 2, po_number: '', charging_date: '2024-06-01' },
+      { client_name: 'Acme Corp', emp_code: 'EMP004', emp_name: 'Edward Norton', doj: '2022-11-10', reporting_manager: 'Bob Smith', monthly_rate: 70000, leaves_allowed: 3, po_number: 'PO-2025-002', charging_date: '2022-11-10' },
+      { client_name: 'Acme Corp', emp_code: 'EMP005', emp_name: 'Fiona Apple', doj: '2024-01-05', reporting_manager: 'Alice Johnson', monthly_rate: 55000, leaves_allowed: 2, po_number: '', charging_date: '2024-01-05' },
     ];
 
     ws.addRows(rows);

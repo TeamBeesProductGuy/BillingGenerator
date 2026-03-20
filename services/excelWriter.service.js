@@ -25,7 +25,7 @@ async function generateBillingExcel(billingItems, errors, billingMonth) {
     { header: 'Reporting Manager', key: 'reporting_manager', width: 20 },
     { header: 'Emp Code', key: 'emp_code', width: 15 },
     { header: 'Emp Name', key: 'emp_name', width: 20 },
-    { header: 'Date of Reporting', key: 'date_of_reporting', width: 18 },
+    { header: 'Charging Date', key: 'charging_date', width: 18 },
     { header: 'Monthly Rate', key: 'monthly_rate', width: 15 },
     { header: 'Allowed Leaves', key: 'allowed_leaves', width: 15 },
     { header: 'Leaves Taken', key: 'leaves_taken', width: 15 },

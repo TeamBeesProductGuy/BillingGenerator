@@ -1,7 +1,6 @@
 const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
 const QuoteModel = require('../models/quote.model');
-const POModel = require('../models/purchaseOrder.model');
 const SOWModel = require('../models/sow.model');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
@@ -177,33 +176,27 @@ const quoteController = {
     doc.end();
   }),
 
-  convertToPO: catchAsync(async (req, res) => {
+  convertToSOW: catchAsync(async (req, res) => {
     const quoteId = parseInt(req.params.id, 10);
     const quote = await QuoteModel.findById(quoteId);
     if (!quote) throw new AppError(404, 'Quote not found');
-    if (quote.status !== 'Accepted') throw new AppError(400, 'Only accepted quotes can be converted to PO');
+    if (quote.status !== 'Accepted') throw new AppError(400, 'Only accepted quotes can be converted to SOW');
 
-    const { po_number, po_date, start_date, end_date, alert_threshold, sow_id } = req.body;
+    const { sow_date, effective_start, effective_end, notes } = req.body;
 
-    // Validate SOW exists, belongs to quote's client, and is Active
-    const sow = await SOWModel.findById(sow_id);
-    if (!sow) throw new AppError(404, 'SOW not found');
-    if (sow.client_id !== quote.client_id) throw new AppError(400, 'SOW belongs to a different client than the quote');
-    if (sow.status !== 'Active') throw new AppError(400, 'SOW must be Active to link a PO. Current status: ' + sow.status);
+    // Map quote items to SOW items (description → role_position)
+    const sowItems = quote.items.map((item) => ({
+      role_position: item.description,
+      quantity: item.quantity,
+      amount: item.amount,
+    }));
 
-    const poId = await POModel.create({
-      po_number,
-      client_id: quote.client_id,
-      quote_id: quoteId,
-      po_date,
-      start_date,
-      end_date,
-      po_value: quote.total_amount,
-      alert_threshold: alert_threshold || 80,
-      sow_id,
-    });
+    const result = await SOWModel.create(
+      { client_id: quote.client_id, quote_id: quoteId, sow_date, effective_start, effective_end, notes },
+      sowItems
+    );
 
-    res.status(201).json({ success: true, data: { poId, po_number } });
+    res.status(201).json({ success: true, data: result });
   }),
 };
 
