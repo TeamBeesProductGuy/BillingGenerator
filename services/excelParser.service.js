@@ -13,8 +13,9 @@ const RATE_CARD_ALIASES = {
   reporting_manager: ['reporting_manager', 'reportingmanager', 'manager', 'rm'],
   monthly_rate: ['monthly_rate', 'monthlyrate', 'rate', 'billing_rate', 'billingrate'],
   leaves_allowed: ['leaves_allowed', 'leavesallowed', 'allowed_leaves', 'allowedleaves', 'leaves'],
+  sow_number: ['sow_number', 'sow', 'sow_id', 'sowid'],
   po_number: ['po_number', 'ponumber', 'po', 'purchase_order', 'purchaseorder', 'po_no'],
-  charging_date: ['charging_date', 'chargingdate', 'date_of_reporting', 'dateofreporting', 'reporting_date', 'reportingdate'],
+  charging_date: ['charging_date', 'chargingdate', 'date_of_reporting', 'dateofreporting', 'reporting_date', 'reportingdate', 'date_of_reporting'],
 };
 
 const ATTENDANCE_ALIASES = {
@@ -57,7 +58,7 @@ async function parseRateCard(filePath) {
     }
   });
 
-  const requiredFields = ['emp_code', 'emp_name', 'monthly_rate', 'leaves_allowed', 'po_number'];
+  const requiredFields = ['emp_code', 'emp_name', 'monthly_rate', 'leaves_allowed', 'sow_number'];
   const missingFields = requiredFields.filter((f) => !(f in columnMap));
   if (missingFields.length > 0) {
     errors.push({
@@ -108,11 +109,12 @@ async function parseRateCard(filePath) {
       continue;
     }
 
-    const poNumber = String(getValue('po_number') || '').trim();
-    if (!poNumber) {
-      errors.push({ emp_code: empCodeStr, error_message: 'Missing po_number. A PO is required for every employee.' });
+    const sowNumber = String(getValue('sow_number') || '').trim();
+    if (!sowNumber) {
+      errors.push({ emp_code: empCodeStr, error_message: 'Missing sow_number. A SOW is required for every employee.' });
       continue;
     }
+    const poNumber = String(getValue('po_number') || '').trim();
 
     let doj = getValue('doj');
     if (doj instanceof Date) {
@@ -136,6 +138,7 @@ async function parseRateCard(filePath) {
       reporting_manager: String(getValue('reporting_manager') || '').trim(),
       monthly_rate: monthlyRate,
       leaves_allowed: leavesAllowed,
+      sow_number: sowNumber,
       po_number: poNumber,
       charging_date: chargingDate || null,
     });

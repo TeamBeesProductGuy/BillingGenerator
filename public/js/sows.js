@@ -13,7 +13,7 @@
   window.closeSOWModal = function () { closeModal('sowModal'); };
 
   var statusBadge = function (s) {
-    var map = { Draft: 'badge-processing', Active: 'badge-success', Expired: 'badge-warning', Terminated: 'badge-error' };
+    var map = { Draft: 'badge-processing', Signed: 'badge-success', Expired: 'badge-warning', Terminated: 'badge-error' };
     return '<span class="' + (map[s] || 'badge-processing') + '">' + s + '</span>';
   };
 
@@ -58,8 +58,8 @@
         tbody.innerHTML = '<tr><td colspan="8" class="text-center text-on-surface-variant py-8">No SOWs found</td></tr>';
       } else {
         tbody.innerHTML = res.data.map(function (s) {
-          var VALID_TRANSITIONS = { Draft: ['Active'], Active: ['Expired', 'Terminated'], Expired: [], Terminated: [] };
-          var STATUS_LABELS = { Active: 'Activate', Expired: 'Mark Expired', Terminated: 'Terminate', Draft: 'Revert to Draft' };
+          var VALID_TRANSITIONS = { Draft: ['Signed'], Signed: ['Expired', 'Terminated'], Expired: [], Terminated: [] };
+          var STATUS_LABELS = { Signed: 'Mark Signed', Expired: 'Mark Expired', Terminated: 'Terminate', Draft: 'Revert to Draft' };
           var allowed = VALID_TRANSITIONS[s.status] || [];
 
           var actionsHtml = '<div class="inline-flex items-center gap-1">';
@@ -140,6 +140,7 @@
       window.sowEdit = id;
       document.getElementById('sowModalTitle').textContent = 'Edit SOW';
       document.getElementById('sowId').value = id;
+      document.getElementById('sowNumber').value = s.base_sow_number || s.sow_number;
       document.getElementById('sowClient').value = s.client_id;
       await loadQuotesForClient(s.client_id);
       document.getElementById('sowQuote').value = s.quote_id || '';
@@ -161,6 +162,7 @@
       document.getElementById('sowDetailTitle').textContent = 'SOW: ' + s.sow_number;
       var html = '<div class="space-y-4">';
       html += '<div class="grid grid-cols-2 gap-4 text-sm">';
+      html += '<div><span class="text-on-surface-variant">SOW ID:</span> <strong>' + escapeHtml(s.sow_number) + '</strong></div>';
       html += '<div><span class="text-on-surface-variant">Client:</span> <strong>' + escapeHtml(s.client_name) + '</strong></div>';
       html += '<div><span class="text-on-surface-variant">Status:</span> ' + statusBadge(s.status) + '</div>';
       html += '<div><span class="text-on-surface-variant">SOW Date:</span> ' + formatDate(s.sow_date) + '</div>';
@@ -212,6 +214,7 @@
       });
     });
     var data = {
+      sow_number: document.getElementById('sowNumber').value.trim(),
       client_id: parseInt(document.getElementById('sowClient').value, 10),
       quote_id: document.getElementById('sowQuote').value ? parseInt(document.getElementById('sowQuote').value, 10) : null,
       sow_date: document.getElementById('sowDate').value,
@@ -223,7 +226,7 @@
     try {
       if (window.sowEdit) {
         await apiCall('PUT', '/api/sows/' + window.sowEdit, data);
-        showToast('SOW updated', 'success');
+        showToast('New SOW version created', 'success');
       } else {
         await apiCall('POST', '/api/sows', data);
         showToast('SOW created', 'success');

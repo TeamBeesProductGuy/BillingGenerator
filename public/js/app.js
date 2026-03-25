@@ -1,5 +1,5 @@
 /* ============================================================
-   TeamBees Billing Engine - Client-Side Router & Shared Utilities
+   TeamBees Service Request Engine - Client-Side Router & Shared Utilities
    Stitch Design System (Tailwind + Material Symbols)
    ============================================================ */
 
@@ -32,7 +32,7 @@
 
     var PAGE_TITLES = {
         "dashboard": "Dashboard",
-        "billing": "Billing",
+        "billing": "Service Requests",
         "clients": "Clients",
         "rate-cards": "Rate Cards",
         "attendance": "Attendance",

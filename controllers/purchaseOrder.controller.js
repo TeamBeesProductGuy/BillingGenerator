@@ -4,6 +4,10 @@ const SOWModel = require('../models/sow.model');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
 
+function isLinkableSowStatus(status) {
+  return status === 'Signed' || status === 'Active';
+}
+
 const poController = {
   list: catchAsync(async (req, res) => {
     const { clientId, status } = req.query;
@@ -29,11 +33,13 @@ const poController = {
   create: catchAsync(async (req, res) => {
     const { po_number, client_id, po_date, start_date, end_date, po_value, alert_threshold, sow_id, notes } = req.body;
 
-    // Validate SOW exists, belongs to same client, and is Active
+    // Validate SOW exists, belongs to same client, and is Signed
     const sow = await SOWModel.findById(sow_id);
     if (!sow) throw new AppError(404, 'SOW not found');
     if (sow.client_id !== client_id) throw new AppError(400, 'SOW belongs to a different client');
-    if (sow.status !== 'Active') throw new AppError(400, 'SOW must be Active to link a PO. Current status: ' + sow.status);
+    if (!isLinkableSowStatus(sow.status)) {
+      throw new AppError(400, 'SOW must be Signed to link a PO. Current status: ' + sow.status);
+    }
 
     try {
       const id = await POModel.create({ po_number, client_id, po_date, start_date, end_date, po_value, alert_threshold, sow_id, notes });
@@ -56,7 +62,9 @@ const poController = {
       const sow = await SOWModel.findById(req.body.sow_id);
       if (!sow) throw new AppError(404, 'SOW not found');
       if (sow.client_id !== req.body.client_id) throw new AppError(400, 'SOW belongs to a different client');
-      if (sow.status !== 'Active') throw new AppError(400, 'SOW must be Active to link a PO. Current status: ' + sow.status);
+      if (!isLinkableSowStatus(sow.status)) {
+        throw new AppError(400, 'SOW must be Signed to link a PO. Current status: ' + sow.status);
+      }
     }
 
     await POModel.update(id, req.body);

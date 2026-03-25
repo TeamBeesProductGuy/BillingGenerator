@@ -30,8 +30,8 @@ const quoteController = {
     if (!existing) throw new AppError(404, 'Quote not found');
     if (existing.status !== 'Draft') throw new AppError(400, 'Only draft quotes can be edited');
     const { client_id, quote_date, valid_until, notes, items } = req.body;
-    await QuoteModel.update(id, { client_id, quote_date, valid_until, notes }, items || []);
-    res.json({ success: true, data: { id } });
+    const result = await QuoteModel.update(id, { client_id, quote_date, valid_until, notes }, items || []);
+    res.json({ success: true, data: { id: result.id, quote_number: result.quote_number, replaced_quote_id: id } });
   }),
 
   updateStatus: catchAsync(async (req, res) => {
@@ -182,9 +182,23 @@ const quoteController = {
     if (!quote) throw new AppError(404, 'Quote not found');
     if (quote.status !== 'Accepted') throw new AppError(400, 'Only accepted quotes can be converted to SOW');
 
-    const { sow_date, effective_start, effective_end, notes } = req.body;
+    const { mode, sow_id, sow_number, sow_date, effective_start, effective_end, notes } = req.body;
 
-    // Map quote items to SOW items (description → role_position)
+    if (mode === 'existing') {
+      if (!sow_id) throw new AppError(400, 'SOW selection is required to link an existing SOW');
+      const existingSow = await SOWModel.findById(sow_id);
+      if (!existingSow) throw new AppError(404, 'SOW not found');
+      if (existingSow.client_id !== quote.client_id) {
+        throw new AppError(400, 'Selected SOW belongs to a different client');
+      }
+      await SOWModel.linkQuote(sow_id, quoteId);
+      return res.json({ success: true, data: { id: sow_id, sow_number: existingSow.sow_number, linked: true } });
+    }
+
+    if (!sow_number || !sow_date || !effective_start || !effective_end) {
+      throw new AppError(400, 'SOW ID, SOW date, effective start, and effective end are required to create a new SOW');
+    }
+
     const sowItems = quote.items.map((item) => ({
       role_position: item.description,
       quantity: item.quantity,
@@ -192,7 +206,7 @@ const quoteController = {
     }));
 
     const result = await SOWModel.create(
-      { client_id: quote.client_id, quote_id: quoteId, sow_date, effective_start, effective_end, notes },
+      { sow_number, client_id: quote.client_id, quote_id: quoteId, sow_date, effective_start, effective_end, notes },
       sowItems
     );
 

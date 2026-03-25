@@ -46,13 +46,14 @@
             <th class="sortable" data-sort-key="4">Manager</th>
             <th class="sortable text-right" data-sort-key="5" data-sort-type="currency">Monthly Rate</th>
             <th class="sortable text-center" data-sort-key="6" data-sort-type="number">Leaves</th>
-            <th class="sortable" data-sort-key="7" data-sort-type="date">Charging Date</th>
-            <th class="sortable" data-sort-key="8">PO#</th>
+            <th class="sortable" data-sort-key="7">SOW#</th>
+            <th class="sortable" data-sort-key="8" data-sort-type="date">Date of Reporting</th>
+            <th class="sortable" data-sort-key="9">PO#</th>
             <th class="text-center">Actions</th>
           </tr>
         </thead>
         <tbody id="rcBody">
-          <tr><td colspan="10"><div class="loading-spinner"></div></td></tr>
+          <tr><td colspan="11"><div class="loading-spinner"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -87,6 +88,10 @@
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">SOW *</label>
+            <select id="rcSOW" required><option value="">Select SOW</option></select>
+          </div>
+          <div>
             <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">DOJ</label>
             <input type="date" id="rcDoj">
           </div>
@@ -106,12 +111,16 @@
           </div>
         </div>
         <div>
-          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Charging Date</label>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Date of Reporting</label>
           <input type="date" id="rcChargingDate">
         </div>
         <div>
-          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Purchase Order *</label>
-          <select id="rcPO" required><option value="">Select PO</option></select>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Purchase Order</label>
+          <select id="rcPO"><option value="">Select PO</option></select>
+        </div>
+        <div id="rcSowPreview" class="hidden rounded-xl border border-outline-variant/15 bg-surface-container p-4">
+          <h6 class="section-label mb-3">SOW Preview</h6>
+          <div id="rcSowPreviewContent" class="text-sm text-on-surface-variant"></div>
         </div>
       </div>
       <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">

@@ -33,6 +33,25 @@
     } catch (e) { /* ignore */ }
   }
 
+  async function loadSowsForClient(clientId) {
+    var sel = document.getElementById('convertExistingSowId');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Select SOW</option>';
+    if (!clientId) return;
+    try {
+      var res = await apiCall('GET', '/api/sows?clientId=' + clientId);
+      res.data.forEach(function (s) {
+        sel.innerHTML += '<option value="' + s.id + '">' + escapeHtml(s.sow_number) + ' (' + escapeHtml(s.status) + ')</option>';
+      });
+    } catch (e) { /* ignore */ }
+  }
+
+  function syncConvertSowMode() {
+    var mode = document.getElementById('convertSowMode').value;
+    document.getElementById('convertExistingSowSection').classList.toggle('hidden', mode !== 'existing');
+    document.getElementById('convertNewSowSection').classList.toggle('hidden', mode !== 'new');
+  }
+
   async function loadQuotes() {
     var tbody = document.getElementById('quotesBody');
     showLoading(tbody);
@@ -181,6 +200,12 @@
   window.convertToSOW = async function (id) {
     document.getElementById('convertSowForm').reset();
     document.getElementById('convertQuoteId').value = id;
+    document.getElementById('convertSowMode').value = 'new';
+    syncConvertSowMode();
+    try {
+      var res = await apiCall('GET', '/api/quotes/' + id);
+      await loadSowsForClient(res.data.client_id);
+    } catch (e) { /* ignore */ }
     openModal('convertSowModal');
   };
 
@@ -206,7 +231,7 @@
     try {
       if (window.quoteEdit) {
         await apiCall('PUT', '/api/quotes/' + window.quoteEdit, data);
-        showToast('Quote updated', 'success');
+        showToast('New quote version created', 'success');
       } else {
         await apiCall('POST', '/api/quotes', data);
         showToast('Quote created', 'success');
@@ -219,19 +244,25 @@
   document.getElementById('convertSowForm').addEventListener('submit', async function (e) {
     e.preventDefault();
     var quoteId = document.getElementById('convertQuoteId').value;
+    var mode = document.getElementById('convertSowMode').value;
+    var payload = {
+      mode: mode,
+      sow_id: document.getElementById('convertExistingSowId').value ? parseInt(document.getElementById('convertExistingSowId').value, 10) : null,
+      sow_number: document.getElementById('convertSowNumber').value.trim() || null,
+      sow_date: document.getElementById('convertSowDate').value || null,
+      effective_start: document.getElementById('convertEffectiveStart').value || null,
+      effective_end: document.getElementById('convertEffectiveEnd').value || null,
+      notes: document.getElementById('convertSowNotes').value.trim() || null,
+    };
     try {
-      await apiCall('POST', '/api/quotes/' + quoteId + '/convert-to-sow', {
-        sow_date: document.getElementById('convertSowDate').value,
-        effective_start: document.getElementById('convertEffectiveStart').value,
-        effective_end: document.getElementById('convertEffectiveEnd').value,
-        notes: document.getElementById('convertSowNotes').value.trim() || null,
-      });
-      showToast('Statement of Work created!', 'success');
+      await apiCall('POST', '/api/quotes/' + quoteId + '/convert-to-sow', payload);
+      showToast(mode === 'existing' ? 'Quote linked to existing SOW' : 'Statement of Work created!', 'success');
       closeConvertSowModal();
       loadQuotes();
     } catch (err) { showToast(err.message, 'danger'); }
   });
 
+  document.getElementById('convertSowMode').addEventListener('change', syncConvertSowMode);
   document.getElementById('btnAddQuoteItem').addEventListener('click', function () { addItemRow(); });
   document.getElementById('quoteFilterClient').addEventListener('change', loadQuotes);
   document.getElementById('quoteFilterStatus').addEventListener('change', loadQuotes);

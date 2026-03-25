@@ -38,14 +38,23 @@ const createRateCard = Joi.object({
   charging_date: Joi.string()
     .allow('', null),
 
-  po_id: Joi.number()
+  sow_id: Joi.number()
     .integer()
     .positive()
     .required()
-    .messages({ 'any.required': 'Purchase Order is required. A Rate Card must be assigned to a PO.' })
+    .messages({ 'any.required': 'SOW is required. A Rate Card must be linked to a SOW.' }),
+
+  po_id: Joi.number()
+    .integer()
+    .positive()
+    .allow(null)
 });
 
 const updateRateCard = Joi.object({
+  client_id: Joi.number()
+    .integer()
+    .positive(),
+
   emp_name: Joi.string()
     .trim()
     .min(1)
@@ -69,11 +78,16 @@ const updateRateCard = Joi.object({
   charging_date: Joi.string()
     .allow('', null),
 
-  po_id: Joi.number()
+  sow_id: Joi.number()
     .integer()
     .positive()
     .required()
-    .messages({ 'any.required': 'Purchase Order is required. A Rate Card must be assigned to a PO.' })
+    .messages({ 'any.required': 'SOW is required. A Rate Card must be linked to a SOW.' }),
+
+  po_id: Joi.number()
+    .integer()
+    .positive()
+    .allow(null)
 });
 
 module.exports = { createRateCard, updateRateCard };

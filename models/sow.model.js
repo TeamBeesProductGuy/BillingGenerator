@@ -1,14 +1,46 @@
 const { supabase } = require('../config/database');
 
+function buildSowRevisionNumber(baseSowNumber, versionNumber) {
+  return `${baseSowNumber} A(${versionNumber})`;
+}
+
+function normalizeSowStatus(row) {
+  if (!row) return row;
+  if (Array.isArray(row)) return row.map(normalizeSowStatus);
+  return {
+    ...row,
+    status: row.status === 'Active' ? 'Signed' : row.status,
+  };
+}
+
+function toDatabaseSowStatus(status) {
+  return status === 'Signed' ? 'Active' : status;
+}
+
+function isMissingColumnError(error, columnName) {
+  return Boolean(error && error.message && error.message.includes(`column`) && error.message.includes(columnName));
+}
+
 const SOWModel = {
   async findAll(clientId, status) {
-    let query = supabase.from('sows_view').select('*');
+    let query = supabase.from('sows_view').select('*').eq('is_latest', true);
     if (clientId) query = query.eq('client_id', clientId);
-    if (status) query = query.eq('status', status);
+    if (status) query = query.eq('status', toDatabaseSowStatus(status));
     query = query.order('created_at', { ascending: false });
-    const { data, error } = await query;
+    let { data, error } = await query;
+
+    if (isMissingColumnError(error, 'is_latest')) {
+      let fallbackQuery = supabase.from('sows_view').select('*');
+      if (clientId) fallbackQuery = fallbackQuery.eq('client_id', clientId);
+      if (status) fallbackQuery = fallbackQuery.eq('status', toDatabaseSowStatus(status));
+      fallbackQuery = fallbackQuery.order('created_at', { ascending: false });
+      const fallback = await fallbackQuery;
+      data = fallback.data;
+      error = fallback.error;
+    }
+
     if (error) throw new Error(error.message);
-    return data;
+    return normalizeSowStatus(data);
   },
 
   async findById(id) {
@@ -27,36 +59,30 @@ const SOWModel = {
       .order('id');
     if (iErr) throw new Error(iErr.message);
 
-    return { ...sow, items };
-  },
-
-  async generateSowNumber() {
-    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    const pattern = `SOW-${today}-%`;
-    const { count, error } = await supabase
-      .from('sows')
-      .select('*', { count: 'exact', head: true })
-      .like('sow_number', pattern);
-    if (error) throw new Error(error.message);
-    const seq = String((count || 0) + 1).padStart(3, '0');
-    return `SOW-${today}-${seq}`;
+    return normalizeSowStatus({ ...sow, items });
   },
 
   async create(sow, items) {
-    const sowNumber = await SOWModel.generateSowNumber();
+    const sowNumber = sow.sow_number;
     const totalValue = items.reduce((sum, item) => sum + item.amount, 0);
+    const baseSowNumber = sow.base_sow_number || sowNumber;
+    const versionNumber = sow.version_number || 0;
 
     const { data: row, error: sErr } = await supabase
       .from('sows')
       .insert({
         sow_number: sowNumber,
+        base_sow_number: baseSowNumber,
+        version_number: versionNumber,
+        parent_sow_id: sow.parent_sow_id || null,
+        is_latest: sow.is_latest !== false,
         client_id: sow.client_id,
         quote_id: sow.quote_id || null,
         sow_date: sow.sow_date,
         effective_start: sow.effective_start,
         effective_end: sow.effective_end,
         total_value: totalValue,
-        status: 'Draft',
+        status: toDatabaseSowStatus(sow.status || 'Draft'),
         notes: sow.notes || null,
       })
       .select('id')
@@ -79,43 +105,51 @@ const SOWModel = {
   },
 
   async update(id, sow, items) {
-    const totalValue = items.reduce((sum, item) => sum + item.amount, 0);
+    const existing = await SOWModel.findById(id);
+    if (!existing) throw new Error('SOW not found');
 
-    const { error: sErr } = await supabase
+    const baseSowNumber = existing.base_sow_number || existing.sow_number;
+    const versionNumber = (existing.version_number || 0) + 1;
+    const sowNumber = buildSowRevisionNumber(baseSowNumber, versionNumber);
+
+    const created = await SOWModel.create({
+      sow_number: sowNumber,
+      base_sow_number: baseSowNumber,
+      version_number: versionNumber,
+      parent_sow_id: id,
+      client_id: sow.client_id,
+      quote_id: sow.quote_id || null,
+      sow_date: sow.sow_date,
+      effective_start: sow.effective_start,
+      effective_end: sow.effective_end,
+      notes: sow.notes || null,
+      status: 'Draft',
+    }, items);
+
+    const { error: archiveErr } = await supabase
       .from('sows')
       .update({
-        client_id: sow.client_id,
-        quote_id: sow.quote_id || null,
-        sow_date: sow.sow_date,
-        effective_start: sow.effective_start,
-        effective_end: sow.effective_end,
-        total_value: totalValue,
-        notes: sow.notes || null,
+        is_latest: false,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id);
-    if (sErr) throw new Error(sErr.message);
+    if (archiveErr) throw new Error(archiveErr.message);
 
-    // Delete old items and insert new ones
-    const { error: dErr } = await supabase.from('sow_items').delete().eq('sow_id', id);
-    if (dErr) throw new Error(dErr.message);
+    return created;
+  },
 
-    if (items.length > 0) {
-      const itemRows = items.map((item) => ({
-        sow_id: id,
-        role_position: item.role_position,
-        quantity: item.quantity,
-        amount: item.amount,
-      }));
-      const { error: iErr } = await supabase.from('sow_items').insert(itemRows);
-      if (iErr) throw new Error(iErr.message);
-    }
+  async linkQuote(id, quoteId) {
+    const { error } = await supabase
+      .from('sows')
+      .update({ quote_id: quoteId, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw new Error(error.message);
   },
 
   async updateStatus(id, status) {
     const { error } = await supabase
       .from('sows')
-      .update({ status, updated_at: new Date().toISOString() })
+      .update({ status: toDatabaseSowStatus(status), updated_at: new Date().toISOString() })
       .eq('id', id);
     if (error) throw new Error(error.message);
   },

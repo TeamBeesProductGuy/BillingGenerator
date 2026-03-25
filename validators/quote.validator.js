@@ -60,14 +60,27 @@ const updateStatus = Joi.object({
 });
 
 const convertToSOW = Joi.object({
-  sow_date: Joi.string()
+  mode: Joi.string()
+    .valid('existing', 'new')
     .required(),
+
+  sow_id: Joi.number()
+    .integer()
+    .positive()
+    .allow(null),
+
+  sow_number: Joi.string()
+    .trim()
+    .allow('', null),
+
+  sow_date: Joi.string()
+    .allow('', null),
 
   effective_start: Joi.string()
-    .required(),
+    .allow('', null),
 
   effective_end: Joi.string()
-    .required(),
+    .allow('', null),
 
   notes: Joi.string()
     .trim()

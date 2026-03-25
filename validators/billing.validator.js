@@ -13,4 +13,17 @@ const generateFromDb = Joi.object({
 
 const previewBilling = generateFromDb;
 
-module.exports = { generateFromDb, previewBilling };
+const decideRun = Joi.object({
+  decision: Joi.string()
+    .valid('Accepted', 'Rejected')
+    .required(),
+
+  poAssignments: Joi.array()
+    .items(Joi.object({
+      emp_code: Joi.string().trim().required(),
+      po_number: Joi.string().trim().min(1).required(),
+    }))
+    .default([]),
+});
+
+module.exports = { generateFromDb, previewBilling, decideRun };

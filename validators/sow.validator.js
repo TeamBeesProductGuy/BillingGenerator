@@ -17,6 +17,11 @@ const sowItem = Joi.object({
 });
 
 const createSOW = Joi.object({
+  sow_number: Joi.string()
+    .trim()
+    .min(1)
+    .required(),
+
   client_id: Joi.number()
     .integer()
     .positive()
@@ -50,7 +55,7 @@ const updateSOW = createSOW;
 
 const updateSOWStatus = Joi.object({
   status: Joi.string()
-    .valid('Draft', 'Active', 'Expired', 'Terminated')
+    .valid('Draft', 'Active', 'Signed', 'Expired', 'Terminated')
     .required()
 });
 

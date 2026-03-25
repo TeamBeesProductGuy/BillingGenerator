@@ -4,7 +4,7 @@
   window.openPOModal = function () {
     document.getElementById('poForm').reset();
     document.getElementById('poId').value = '';
-    document.getElementById('poModalTitle').textContent = 'Create Purchase Order';
+    document.getElementById('poModalTitle').textContent = 'Link Purchase Order';
     document.getElementById('poSOW').innerHTML = '<option value="">Select SOW</option>';
     window.poEdit = null;
     openModal('poModal');
@@ -47,9 +47,11 @@
     sel.innerHTML = '<option value="">Select SOW</option>';
     if (!clientId) return;
     try {
-      var res = await apiCall('GET', '/api/sows?clientId=' + clientId + '&status=Active');
+      var res = await apiCall('GET', '/api/sows?clientId=' + clientId);
       res.data.forEach(function (s) {
-        sel.innerHTML += '<option value="' + s.id + '">' + escapeHtml(s.sow_number) + ' (' + formatCurrency(s.total_value) + ')</option>';
+        if (s.status === 'Signed' || s.status === 'Active') {
+          sel.innerHTML += '<option value="' + s.id + '">' + escapeHtml(s.sow_number) + ' (' + escapeHtml(s.status) + ')</option>';
+        }
       });
     } catch (e) { /* ignore */ }
   }
@@ -176,7 +178,7 @@
       var res = await apiCall('GET', '/api/purchase-orders/' + id);
       var po = res.data;
       window.poEdit = id;
-      document.getElementById('poModalTitle').textContent = 'Edit Purchase Order';
+      document.getElementById('poModalTitle').textContent = 'Edit Linked PO';
       document.getElementById('poId').value = id;
       document.getElementById('poNumber').value = po.po_number;
       document.getElementById('poClient').value = po.client_id;
@@ -227,7 +229,7 @@
         showToast('PO updated', 'success');
       } else {
         await apiCall('POST', '/api/purchase-orders', data);
-        showToast('PO created', 'success');
+        showToast('PO linked', 'success');
       }
       closePOModal();
       loadPOs();

@@ -63,6 +63,40 @@ async function autoConsumePOs(billingItems, billingMonth, runId) {
   return poConsumption;
 }
 
+async function createStoredRun({
+  clientId = null,
+  billingMonth,
+  billingItems,
+  allErrors,
+  summary,
+}) {
+  const { filePath, filename } = await generateBillingExcel(billingItems, allErrors, billingMonth);
+
+  const runId = await BillingModel.createRun({
+    billing_month: billingMonth,
+    client_id: clientId,
+    total_employees: summary.totalEmployees,
+    total_amount: summary.totalAmount,
+    error_count: allErrors.length,
+    output_file: filePath,
+    request_status: 'Pending',
+  });
+
+  if (billingItems.length > 0) await BillingModel.addItems(runId, billingItems);
+  if (allErrors.length > 0) await BillingModel.addErrors(runId, allErrors);
+
+  return {
+    billingRunId: runId,
+    summary,
+    errors: allErrors,
+    billingItems,
+    downloadUrl: `/api/billing/runs/${runId}/download`,
+    filename,
+    requestStatus: 'Pending',
+    poConsumption: [],
+  };
+}
+
 const billingController = {
   generateFromFiles: catchAsync(async (req, res) => {
     const billingMonth = req.body.billingMonth;
@@ -99,35 +133,14 @@ const billingController = {
 
       const result = calculateBilling(rateCardResult.records, attendanceResult.records, billingMonth);
       allErrors.push(...result.errors);
-
-      const { filePath, filename } = await generateBillingExcel(result.billingItems, allErrors, billingMonth);
-
-      const runId = await BillingModel.createRun({
-        billing_month: billingMonth,
-        total_employees: result.summary.totalEmployees,
-        total_amount: result.summary.totalAmount,
-        error_count: allErrors.length,
-        output_file: filePath,
+      const responseData = await createStoredRun({
+        billingMonth,
+        billingItems: result.billingItems,
+        allErrors,
+        summary: result.summary,
       });
 
-      if (result.billingItems.length > 0) await BillingModel.addItems(runId, result.billingItems);
-      if (allErrors.length > 0) await BillingModel.addErrors(runId, allErrors);
-
-      // Auto-consume from POs linked via rate cards
-      const poConsumption = await autoConsumePOs(result.billingItems, billingMonth, runId);
-
-      res.json({
-        success: true,
-        data: {
-          billingRunId: runId,
-          summary: result.summary,
-          errors: allErrors,
-          billingItems: result.billingItems,
-          downloadUrl: `/api/billing/runs/${runId}/download`,
-          filename,
-          poConsumption,
-        },
-      });
+      res.json({ success: true, data: responseData });
     } finally {
       try { fs.unlinkSync(rateCardPath); } catch (e) { /* ignore */ }
       try { fs.unlinkSync(attendancePath); } catch (e) { /* ignore */ }
@@ -169,36 +182,15 @@ const billingController = {
 
     const result = calculateBilling(rateCards, attendanceRecords, billingMonth);
     allErrors.push(...result.errors);
-
-    const { filePath, filename } = await generateBillingExcel(result.billingItems, allErrors, billingMonth);
-
-    const runId = await BillingModel.createRun({
-      billing_month: billingMonth,
-      client_id: clientId || null,
-      total_employees: result.summary.totalEmployees,
-      total_amount: result.summary.totalAmount,
-      error_count: allErrors.length,
-      output_file: filePath,
+    const responseData = await createStoredRun({
+      clientId: clientId || null,
+      billingMonth,
+      billingItems: result.billingItems,
+      allErrors,
+      summary: result.summary,
     });
 
-    if (result.billingItems.length > 0) await BillingModel.addItems(runId, result.billingItems);
-    if (allErrors.length > 0) await BillingModel.addErrors(runId, allErrors);
-
-    // Auto-consume from POs linked via rate cards
-    const poConsumption = await autoConsumePOs(result.billingItems, billingMonth, runId);
-
-    res.json({
-      success: true,
-      data: {
-        billingRunId: runId,
-        summary: result.summary,
-        errors: allErrors,
-        billingItems: result.billingItems,
-        downloadUrl: `/api/billing/runs/${runId}/download`,
-        filename,
-        poConsumption,
-      },
-    });
+    res.json({ success: true, data: responseData });
   }),
 
   listRuns: catchAsync(async (req, res) => {
@@ -212,6 +204,59 @@ const billingController = {
     const run = await BillingModel.findRunById(parseInt(req.params.id, 10));
     if (!run) throw new AppError(404, 'Billing run not found');
     res.json({ success: true, data: run });
+  }),
+
+  decideRun: catchAsync(async (req, res) => {
+    const runId = parseInt(req.params.id, 10);
+    const { decision, poAssignments = [] } = req.body;
+    const run = await BillingModel.findRunById(runId);
+    if (!run) throw new AppError(404, 'Billing run not found');
+    if (run.request_status && run.request_status !== 'Pending') {
+      throw new AppError(400, `This service request is already ${run.request_status.toLowerCase()}`);
+    }
+
+    if (decision === 'Rejected') {
+      await BillingModel.updateRunStatus(runId, 'Rejected');
+      return res.json({ success: true, data: { billingRunId: runId, requestStatus: 'Rejected', poConsumption: [] } });
+    }
+
+    const missingItems = run.items.filter((item) => !item.po_id);
+    if (missingItems.length > 0) {
+      const assignmentMap = new Map(poAssignments.map((entry) => [entry.emp_code, entry.po_number]));
+      const resolvedAssignments = [];
+
+      for (const item of missingItems) {
+        const poNumber = assignmentMap.get(item.emp_code);
+        if (!poNumber) {
+          throw new AppError(400, `PO number is required for ${item.emp_code} before acceptance`);
+        }
+        const po = await POModel.findByNumber(poNumber);
+        if (!po) {
+          throw new AppError(404, `PO number "${poNumber}" not found`);
+        }
+        if (po.status !== 'Active') {
+          throw new AppError(400, `PO number "${poNumber}" is not Active`);
+        }
+        resolvedAssignments.push({ emp_code: item.emp_code, po_id: po.id });
+        item.po_id = po.id;
+      }
+
+      if (resolvedAssignments.length > 0) {
+        await BillingModel.assignMissingPOs(runId, resolvedAssignments);
+      }
+    }
+
+    const poConsumption = await autoConsumePOs(run.items, run.billing_month, runId);
+    await BillingModel.updateRunStatus(runId, 'Accepted');
+
+    res.json({
+      success: true,
+      data: {
+        billingRunId: runId,
+        requestStatus: 'Accepted',
+        poConsumption,
+      },
+    });
   }),
 
   downloadFile: catchAsync(async (req, res) => {

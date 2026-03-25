@@ -11,6 +11,7 @@ const BillingModel = {
         total_amount: data.total_amount,
         error_count: data.error_count,
         output_file: data.output_file,
+        request_status: data.request_status || 'Pending',
       })
       .select('id')
       .single();
@@ -29,8 +30,11 @@ const BillingModel = {
       leaves_allowed: item.allowed_leaves,
       leaves_taken: item.leaves_taken,
       days_in_month: item.days_in_month,
+      effective_days: item.effective_days,
+      charging_date: item.charging_date,
       chargeable_days: item.chargeable_days,
       invoice_amount: item.invoice_amount,
+      po_id: item.po_id || null,
     }));
     const { error } = await supabase.from('billing_items').insert(rows);
     if (error) throw new Error(error.message);
@@ -49,7 +53,7 @@ const BillingModel = {
   async findRuns(limit = 20, offset = 0) {
     const { data, error } = await supabase
       .from('billing_runs')
-      .select('id, billing_month, total_employees, total_amount, error_count, output_file, created_at')
+      .select('id, billing_month, total_employees, total_amount, error_count, output_file, request_status, consumption_applied_at, created_at')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
     if (error) throw new Error(error.message);
@@ -73,6 +77,29 @@ const BillingModel = {
     if (errorsResult.error) throw new Error(errorsResult.error.message);
 
     return { ...run, items: itemsResult.data, errors: errorsResult.data };
+  },
+
+  async updateRunStatus(id, requestStatus) {
+    const payload = {
+      request_status: requestStatus,
+      decision_at: new Date().toISOString(),
+    };
+    if (requestStatus === 'Accepted') {
+      payload.consumption_applied_at = new Date().toISOString();
+    }
+    const { error } = await supabase.from('billing_runs').update(payload).eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+
+  async assignMissingPOs(runId, assignments) {
+    for (const assignment of assignments) {
+      const { error } = await supabase
+        .from('billing_items')
+        .update({ po_id: assignment.po_id })
+        .eq('billing_run_id', runId)
+        .eq('emp_code', assignment.emp_code);
+      if (error) throw new Error(error.message);
+    }
   },
 };
 

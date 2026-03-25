@@ -16,8 +16,8 @@ const sowController = {
   }),
 
   create: catchAsync(async (req, res) => {
-    const { client_id, quote_id, sow_date, effective_start, effective_end, notes, items } = req.body;
-    const result = await SOWModel.create({ client_id, quote_id, sow_date, effective_start, effective_end, notes }, items);
+    const { sow_number, client_id, quote_id, sow_date, effective_start, effective_end, notes, items } = req.body;
+    const result = await SOWModel.create({ sow_number, client_id, quote_id, sow_date, effective_start, effective_end, notes }, items);
     res.status(201).json({ success: true, data: result });
   }),
 
@@ -27,8 +27,8 @@ const sowController = {
     if (!existing) throw new AppError(404, 'SOW not found');
     if (existing.status !== 'Draft') throw new AppError(400, 'Only draft SOWs can be edited');
     const { client_id, quote_id, sow_date, effective_start, effective_end, notes, items } = req.body;
-    await SOWModel.update(id, { client_id, quote_id, sow_date, effective_start, effective_end, notes }, items || []);
-    res.json({ success: true, data: { id } });
+    const result = await SOWModel.update(id, { client_id, quote_id, sow_date, effective_start, effective_end, notes }, items || []);
+    res.json({ success: true, data: { id: result.id, sow_number: result.sow_number, replaced_sow_id: id } });
   }),
 
   updateStatus: catchAsync(async (req, res) => {
@@ -38,8 +38,8 @@ const sowController = {
     if (!existing) throw new AppError(404, 'SOW not found');
 
     const VALID_TRANSITIONS = {
-      Draft: ['Active'],
-      Active: ['Expired', 'Terminated'],
+      Draft: ['Signed'],
+      Signed: ['Expired', 'Terminated'],
       Expired: [],
       Terminated: [],
     };

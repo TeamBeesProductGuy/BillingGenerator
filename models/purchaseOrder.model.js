@@ -39,6 +39,16 @@ const POModel = {
     return { ...po, consumptionLog: logResult.data, linkedEmployees: empResult.data };
   },
 
+  async findByNumber(poNumber) {
+    const { data, error } = await supabase
+      .from('purchase_orders_view')
+      .select('*')
+      .eq('po_number', poNumber)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
   async create(data) {
     const { data: row, error } = await supabase
       .from('purchase_orders')

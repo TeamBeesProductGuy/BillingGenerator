@@ -47,6 +47,7 @@ const RateCardModel = {
         monthly_rate: data.monthly_rate,
         leaves_allowed: data.leaves_allowed || 0,
         charging_date: data.charging_date || null,
+        sow_id: data.sow_id,
         po_id: data.po_id || null,
       })
       .select('id')
@@ -65,6 +66,7 @@ const RateCardModel = {
       monthly_rate: data.monthly_rate,
       leaves_allowed: data.leaves_allowed || 0,
       charging_date: data.charging_date || null,
+      sow_id: data.sow_id,
       po_id: data.po_id || null,
       is_active: true,
       updated_at: new Date().toISOString(),
@@ -87,6 +89,7 @@ const RateCardModel = {
         monthly_rate: data.monthly_rate,
         leaves_allowed: data.leaves_allowed || 0,
         charging_date: data.charging_date || null,
+        sow_id: data.sow_id,
         po_id: data.po_id !== undefined ? (data.po_id || null) : undefined,
         updated_at: new Date().toISOString(),
       })

@@ -1,12 +1,31 @@
 const { supabase } = require('../config/database');
 
+function buildQuoteRevisionNumber(baseQuoteNumber, versionNumber) {
+  return `${baseQuoteNumber} R(${versionNumber})`;
+}
+
+function isMissingColumnError(error, columnName) {
+  return Boolean(error && error.message && error.message.includes('column') && error.message.includes(columnName));
+}
+
 const QuoteModel = {
   async findAll(clientId, status) {
-    let query = supabase.from('quotes_view').select('*');
+    let query = supabase.from('quotes_view').select('*').eq('is_latest', true);
     if (clientId) query = query.eq('client_id', clientId);
     if (status) query = query.eq('status', status);
     query = query.order('created_at', { ascending: false });
-    const { data, error } = await query;
+    let { data, error } = await query;
+
+    if (isMissingColumnError(error, 'is_latest')) {
+      let fallbackQuery = supabase.from('quotes_view').select('*');
+      if (clientId) fallbackQuery = fallbackQuery.eq('client_id', clientId);
+      if (status) fallbackQuery = fallbackQuery.eq('status', status);
+      fallbackQuery = fallbackQuery.order('created_at', { ascending: false });
+      const fallback = await fallbackQuery;
+      data = fallback.data;
+      error = fallback.error;
+    }
+
     if (error) throw new Error(error.message);
     return data;
   },
@@ -43,17 +62,23 @@ const QuoteModel = {
   },
 
   async create(quote, items) {
-    const quoteNumber = await QuoteModel.generateQuoteNumber();
+    const quoteNumber = quote.quote_number || await QuoteModel.generateQuoteNumber();
     const totalAmount = Math.round(items.reduce((sum, item) => sum + item.amount, 0) * 100) / 100;
+    const baseQuoteNumber = quote.base_quote_number || quoteNumber;
+    const versionNumber = quote.version_number || 0;
 
     const { data: row, error: qErr } = await supabase
       .from('quotes')
       .insert({
         quote_number: quoteNumber,
+        base_quote_number: baseQuoteNumber,
+        version_number: versionNumber,
+        parent_quote_id: quote.parent_quote_id || null,
+        is_latest: quote.is_latest !== false,
         client_id: quote.client_id,
         quote_date: quote.quote_date,
         valid_until: quote.valid_until,
-        status: 'Draft',
+        status: quote.status || 'Draft',
         total_amount: totalAmount,
         notes: quote.notes || null,
       })
@@ -80,38 +105,35 @@ const QuoteModel = {
   },
 
   async update(id, quote, items) {
-    const totalAmount = Math.round(items.reduce((sum, item) => sum + item.amount, 0) * 100) / 100;
+    const existing = await QuoteModel.findById(id);
+    if (!existing) throw new Error('Quote not found');
 
-    const { error: qErr } = await supabase
+    const baseQuoteNumber = existing.base_quote_number || existing.quote_number;
+    const versionNumber = (existing.version_number || 0) + 1;
+    const quoteNumber = buildQuoteRevisionNumber(baseQuoteNumber, versionNumber);
+
+    const created = await QuoteModel.create({
+      client_id: quote.client_id,
+      quote_date: quote.quote_date,
+      valid_until: quote.valid_until,
+      notes: quote.notes,
+      quote_number: quoteNumber,
+      base_quote_number: baseQuoteNumber,
+      version_number: versionNumber,
+      parent_quote_id: id,
+      status: 'Draft',
+    }, items);
+
+    const { error: archiveErr } = await supabase
       .from('quotes')
       .update({
-        client_id: quote.client_id,
-        quote_date: quote.quote_date,
-        valid_until: quote.valid_until,
-        total_amount: totalAmount,
-        notes: quote.notes || null,
+        is_latest: false,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id);
-    if (qErr) throw new Error(qErr.message);
+    if (archiveErr) throw new Error(archiveErr.message);
 
-    // Delete old items and insert new ones
-    const { error: dErr } = await supabase.from('quote_items').delete().eq('quote_id', id);
-    if (dErr) throw new Error(dErr.message);
-
-    if (items.length > 0) {
-      const itemRows = items.map((item) => ({
-        quote_id: id,
-        description: item.description,
-        quantity: item.quantity,
-        unit_rate: item.unit_rate,
-        amount: item.amount,
-        emp_code: item.emp_code || null,
-        location: item.location || null,
-      }));
-      const { error: iErr } = await supabase.from('quote_items').insert(itemRows);
-      if (iErr) throw new Error(iErr.message);
-    }
+    return created;
   },
 
   async updateStatus(id, status) {

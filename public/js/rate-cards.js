@@ -5,7 +5,10 @@
     document.getElementById('rcForm').reset();
     document.getElementById('rcId').value = '';
     document.getElementById('rcModalTitle').textContent = 'Add Rate Card';
+    document.getElementById('rcSOW').innerHTML = '<option value="">Select SOW</option>';
     document.getElementById('rcPO').innerHTML = '<option value="">Select PO</option>';
+    document.getElementById('rcSowPreview').classList.add('hidden');
+    document.getElementById('rcSowPreviewContent').innerHTML = '';
     window.rcEdit = null;
     openModal('rcModal');
   };
@@ -14,7 +17,10 @@
     document.getElementById('rcForm').reset();
     document.getElementById('rcId').value = '';
     document.getElementById('rcModalTitle').textContent = 'Add Rate Card';
+    document.getElementById('rcSOW').innerHTML = '<option value="">Select SOW</option>';
     document.getElementById('rcPO').innerHTML = '<option value="">Select PO</option>';
+    document.getElementById('rcSowPreview').classList.add('hidden');
+    document.getElementById('rcSowPreviewContent').innerHTML = '';
     window.rcEdit = null;
   };
   window.openUploadRCModal = function () {
@@ -53,6 +59,53 @@
     } catch (e) { /* ignore */ }
   }
 
+  async function loadSOWsForClient(clientId) {
+    var sel = document.getElementById('rcSOW');
+    sel.innerHTML = '<option value="">Select SOW</option>';
+    if (!clientId) return;
+    try {
+      var res = await apiCall('GET', '/api/sows?clientId=' + clientId);
+      res.data.forEach(function (sow) {
+        sel.innerHTML += '<option value="' + sow.id + '">' + escapeHtml(sow.sow_number) + ' (' + escapeHtml(sow.status) + ')</option>';
+      });
+    } catch (e) { /* ignore */ }
+  }
+
+  async function renderSowPreview(sowId) {
+    var preview = document.getElementById('rcSowPreview');
+    var content = document.getElementById('rcSowPreviewContent');
+    if (!sowId) {
+      preview.classList.add('hidden');
+      content.innerHTML = '';
+      return;
+    }
+    try {
+      var res = await apiCall('GET', '/api/sows/' + sowId);
+      var sow = res.data;
+      var html = '<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">';
+      html += '<div><span class="text-on-surface-variant">SOW ID:</span> <strong>' + escapeHtml(sow.sow_number) + '</strong></div>';
+      html += '<div><span class="text-on-surface-variant">Status:</span> <strong>' + escapeHtml(sow.status) + '</strong></div>';
+      html += '<div><span class="text-on-surface-variant">Client:</span> <strong>' + escapeHtml(sow.client_name) + '</strong></div>';
+      html += '<div><span class="text-on-surface-variant">Total Value:</span> <strong>' + formatCurrency(sow.total_value) + '</strong></div>';
+      html += '</div>';
+      if (sow.items && sow.items.length > 0) {
+        html += '<div class="mt-3 space-y-1">';
+        sow.items.forEach(function (item) {
+          html += '<div class="rounded-lg bg-surface-container-high p-3">' +
+            '<div><strong>' + escapeHtml(item.role_position) + '</strong></div>' +
+            '<div class="text-xs text-on-surface-variant">Qty: ' + item.quantity + ' | Amount: ' + formatCurrency(item.amount) + '</div>' +
+          '</div>';
+        });
+        html += '</div>';
+      }
+      content.innerHTML = html;
+      preview.classList.remove('hidden');
+    } catch (e) {
+      preview.classList.add('hidden');
+      content.innerHTML = '';
+    }
+  }
+
   async function loadRateCards() {
     var tbody = document.getElementById('rcBody');
     showLoading(tbody);
@@ -61,7 +114,7 @@
       var url = clientId ? '/api/rate-cards?clientId=' + clientId : '/api/rate-cards';
       var res = await apiCall('GET', url);
       if (res.data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-on-surface-variant py-8">No rate cards found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center text-on-surface-variant py-8">No rate cards found</td></tr>';
       } else {
         tbody.innerHTML = res.data.map(function (r) {
           return '<tr>' +
@@ -72,6 +125,7 @@
             '<td>' + escapeHtml(r.reporting_manager || '') + '</td>' +
             '<td class="text-right">' + formatCurrency(r.monthly_rate) + '</td>' +
             '<td class="text-center">' + r.leaves_allowed + '</td>' +
+            '<td>' + escapeHtml(r.sow_number || '---') + '</td>' +
             '<td>' + (r.charging_date ? formatDate(r.charging_date) : '') + '</td>' +
             '<td>' + escapeHtml(r.po_number || '---') + '</td>' +
             '<td class="text-center">' +
@@ -93,7 +147,9 @@
       var r = res.data;
       document.getElementById('rcId').value = r.id;
       document.getElementById('rcClient').value = r.client_id;
+      await loadSOWsForClient(r.client_id);
       await loadPOsForClient(r.client_id);
+      document.getElementById('rcSOW').value = r.sow_id || '';
       document.getElementById('rcPO').value = r.po_id || '';
       document.getElementById('rcEmpCode').value = r.emp_code;
       document.getElementById('rcEmpName').value = r.emp_name;
@@ -104,6 +160,7 @@
       document.getElementById('rcChargingDate').value = r.charging_date || '';
       document.getElementById('rcModalTitle').textContent = 'Edit Rate Card';
       window.rcEdit = r.id;
+      await renderSowPreview(r.sow_id || '');
       openModal('rcModal');
     } catch (err) { showToast(err.message, 'danger'); }
   };
@@ -121,7 +178,6 @@
   document.getElementById('rcForm').addEventListener('submit', async function (e) {
     e.preventDefault();
     var poVal = document.getElementById('rcPO').value;
-    if (!poVal) { showToast('Purchase Order is required', 'danger'); return; }
     var data = {
       client_id: parseInt(document.getElementById('rcClient').value, 10),
       emp_code: document.getElementById('rcEmpCode').value.trim(),
@@ -131,6 +187,7 @@
       monthly_rate: parseFloat(document.getElementById('rcRate').value),
       leaves_allowed: parseInt(document.getElementById('rcLeaves').value, 10) || 0,
       charging_date: document.getElementById('rcChargingDate').value || null,
+      sow_id: parseInt(document.getElementById('rcSOW').value, 10),
       po_id: poVal ? parseInt(poVal, 10) : null,
     };
     try {
@@ -163,7 +220,12 @@
 
   // Load POs when client changes in the form
   document.getElementById('rcClient').addEventListener('change', function () {
+    loadSOWsForClient(this.value);
     loadPOsForClient(this.value);
+  });
+
+  document.getElementById('rcSOW').addEventListener('change', function () {
+    renderSowPreview(this.value);
   });
 
   // Initialize search
