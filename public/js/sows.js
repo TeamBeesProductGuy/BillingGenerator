@@ -7,13 +7,14 @@
     document.getElementById('sowModalTitle').textContent = 'Create SOW';
     document.getElementById('sowId').value = '';
     window.sowEdit = null;
+    window.sowAmend = null;
     addSowItemRow();
     openModal('sowModal');
   };
   window.closeSOWModal = function () { closeModal('sowModal'); };
 
   var statusBadge = function (s) {
-    var map = { Draft: 'badge-processing', Signed: 'badge-success', Expired: 'badge-warning', Terminated: 'badge-error' };
+    var map = { Draft: 'badge-processing', 'Amendment Draft': 'badge-processing', Signed: 'badge-success', Expired: 'badge-warning', Terminated: 'badge-error' };
     return '<span class="' + (map[s] || 'badge-processing') + '">' + s + '</span>';
   };
 
@@ -58,25 +59,29 @@
         tbody.innerHTML = '<tr><td colspan="8" class="text-center text-on-surface-variant py-8">No SOWs found</td></tr>';
       } else {
         tbody.innerHTML = res.data.map(function (s) {
-          var VALID_TRANSITIONS = { Draft: ['Signed'], Signed: ['Expired', 'Terminated'], Expired: [], Terminated: [] };
+          var VALID_TRANSITIONS = { Draft: ['Signed'], 'Amendment Draft': ['Signed'], Signed: ['Expired', 'Terminated'], Expired: [], Terminated: [] };
           var STATUS_LABELS = { Signed: 'Mark Signed', Expired: 'Mark Expired', Terminated: 'Terminate', Draft: 'Revert to Draft' };
           var allowed = VALID_TRANSITIONS[s.status] || [];
 
           var actionsHtml = '<div class="inline-flex items-center gap-1">';
-          if (s.status === 'Draft') {
+          if (s.status === 'Draft' || s.status === 'Amendment Draft') {
             actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="editSOW(' + s.id + ')" title="Edit"><span class="material-symbols-outlined text-base">edit</span></button>';
           }
           actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="viewSOW(' + s.id + ')" title="View"><span class="material-symbols-outlined text-base">visibility</span></button>';
 
           // Status menu
-          if (allowed.length > 0 || s.status === 'Draft') {
+          if (allowed.length > 0 || s.status === 'Draft' || s.status === 'Amendment Draft' || s.status === 'Signed') {
             actionsHtml += '<div class="relative inline-block" id="sowMenu' + s.id + '">';
             actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="toggleSowMenu(' + s.id + ')" title="More"><span class="material-symbols-outlined text-base">more_vert</span></button>';
             actionsHtml += '<div class="sow-dropdown hidden absolute right-0 top-full mt-1 bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-2xl py-1 z-50 min-w-[160px]">';
             allowed.forEach(function (st) {
               actionsHtml += '<a href="#" class="block px-4 py-2 text-sm text-on-surface hover:bg-surface-container-highest transition-colors no-underline" onclick="event.preventDefault();changeSOWStatus(' + s.id + ',\'' + st + '\')">' + (STATUS_LABELS[st] || st) + '</a>';
             });
-            if (s.status === 'Draft') {
+            if (s.status === 'Signed') {
+              actionsHtml += '<div class="border-t border-outline-variant/10 my-1"></div>';
+              actionsHtml += '<a href="#" class="block px-4 py-2 text-sm text-on-surface hover:bg-surface-container-highest transition-colors no-underline" onclick="event.preventDefault();makeSOWAmendment(' + s.id + ')">Make Amendment</a>';
+            }
+            if (s.status === 'Draft' || s.status === 'Amendment Draft') {
               actionsHtml += '<div class="border-t border-outline-variant/10 my-1"></div>';
               actionsHtml += '<a href="#" class="block px-4 py-2 text-sm text-error hover:bg-surface-container-highest transition-colors no-underline" onclick="event.preventDefault();deleteSOW(' + s.id + ')">Delete</a>';
             }
@@ -138,8 +143,32 @@
       var res = await apiCall('GET', '/api/sows/' + id);
       var s = res.data;
       window.sowEdit = id;
+      window.sowAmend = null;
       document.getElementById('sowModalTitle').textContent = 'Edit SOW';
       document.getElementById('sowId').value = id;
+      document.getElementById('sowNumber').value = s.base_sow_number || s.sow_number;
+      document.getElementById('sowClient').value = s.client_id;
+      await loadQuotesForClient(s.client_id);
+      document.getElementById('sowQuote').value = s.quote_id || '';
+      document.getElementById('sowDate').value = s.sow_date;
+      document.getElementById('sowStart').value = s.effective_start;
+      document.getElementById('sowEnd').value = s.effective_end;
+      document.getElementById('sowNotes').value = s.notes || '';
+      document.getElementById('sowItemsBody').innerHTML = '';
+      s.items.forEach(function (item) { addSowItemRow(item); });
+      recalcSOW();
+      openModal('sowModal');
+    } catch (err) { showToast(err.message, 'danger'); }
+  };
+
+  window.makeSOWAmendment = async function (id) {
+    try {
+      var res = await apiCall('GET', '/api/sows/' + id);
+      var s = res.data;
+      window.sowEdit = null;
+      window.sowAmend = id;
+      document.getElementById('sowModalTitle').textContent = 'Make Amendment';
+      document.getElementById('sowId').value = '';
       document.getElementById('sowNumber').value = s.base_sow_number || s.sow_number;
       document.getElementById('sowClient').value = s.client_id;
       await loadQuotesForClient(s.client_id);
@@ -224,7 +253,10 @@
       items: items,
     };
     try {
-      if (window.sowEdit) {
+      if (window.sowAmend) {
+        await apiCall('POST', '/api/sows/' + window.sowAmend + '/amend', data);
+        showToast('Amendment draft created', 'success');
+      } else if (window.sowEdit) {
         await apiCall('PUT', '/api/sows/' + window.sowEdit, data);
         showToast('New SOW version created', 'success');
       } else {

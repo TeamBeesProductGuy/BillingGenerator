@@ -1,11 +1,52 @@
 (function () {
   // openModal / closeModal provided by app.js (with scroll lock + Escape + backdrop)
+  var quoteSideNoteMarker = '\n\n---SIDE_NOTE---\n';
+
+  var quoteNotesTemplate = [
+    'Subject: [Write subject here]',
+    '',
+    'Dear [Write recipient name here],',
+    '',
+    'Please refer to the following quote with best fitment to the requirements:',
+    '1. Cost of resource (per man month):',
+    '[Quote table will be inserted automatically in the Word document]',
+    '2. Prevailing taxes, GST extra as applicable',
+    '3. Location: [Write location here]',
+    '',
+    'Kindly issue the Purchase Order (PO).',
+    'Regards',
+    '[Write sender name here]'
+  ].join('\n');
+
+  function splitStoredQuoteNotes(notes) {
+    var raw = String(notes || '');
+    var markerIndex = raw.indexOf(quoteSideNoteMarker);
+    if (markerIndex === -1) {
+      return {
+        mailFormat: raw || quoteNotesTemplate,
+        sideNote: '',
+      };
+    }
+    return {
+      mailFormat: raw.slice(0, markerIndex).trim() || quoteNotesTemplate,
+      sideNote: raw.slice(markerIndex + quoteSideNoteMarker.length).trim(),
+    };
+  }
+
+  function buildStoredQuoteNotes(mailFormat, sideNote) {
+    var mail = String(mailFormat || '').trim();
+    var side = String(sideNote || '').trim();
+    if (!side) return mail;
+    return mail + quoteSideNoteMarker + side;
+  }
 
   window.openQuoteModal = function () {
     document.getElementById('quoteForm').reset();
     document.getElementById('quoteItemsBody').innerHTML = '';
     document.getElementById('quoteModalTitle').textContent = 'Create Quote';
     document.getElementById('quoteId').value = '';
+    document.getElementById('quoteMailFormat').value = quoteNotesTemplate;
+    document.getElementById('quoteSideNote').value = '';
     window.quoteEdit = null;
     addItemRow();
     openModal('quoteModal');
@@ -70,8 +111,8 @@
           if (q.status === 'Draft') {
             actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="editQuote(' + q.id + ')" title="Edit"><span class="material-symbols-outlined text-base">edit</span></button>';
           }
-          actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="downloadFile(\'/api/quotes/' + q.id + '/download\')" title="Download Excel"><span class="material-symbols-outlined text-base">download</span></button>';
-          actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="downloadFile(\'/api/quotes/' + q.id + '/pdf\')" title="Download PDF"><span class="material-symbols-outlined text-base">picture_as_pdf</span></button>';
+          actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="viewQuote(' + q.id + ')" title="View"><span class="material-symbols-outlined text-base">visibility</span></button>';
+          actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="downloadFile(\'/api/quotes/' + q.id + '/download\')" title="Download Word"><span class="material-symbols-outlined text-base">download</span></button>';
 
           // Status actions — show only valid transitions
           var VALID_TRANSITIONS = {
@@ -171,11 +212,57 @@
       document.getElementById('quoteClient').value = q.client_id;
       document.getElementById('quoteDate').value = q.quote_date;
       document.getElementById('quoteValidUntil').value = q.valid_until;
-      document.getElementById('quoteNotes').value = q.notes || '';
+      var parsedNotes = splitStoredQuoteNotes(q.notes || '');
+      document.getElementById('quoteMailFormat').value = parsedNotes.mailFormat;
+      document.getElementById('quoteSideNote').value = parsedNotes.sideNote;
       document.getElementById('quoteItemsBody').innerHTML = '';
       q.items.forEach(function (item) { addItemRow(item); });
       recalcQuote();
       openModal('quoteModal');
+    } catch (err) { showToast(err.message, 'danger'); }
+  };
+
+  window.viewQuote = async function (id) {
+    try {
+      var res = await apiCall('GET', '/api/quotes/' + id);
+      var q = res.data;
+      var parsedNotes = splitStoredQuoteNotes(q.notes || '');
+      document.getElementById('quoteDetailTitle').textContent = 'Quote: ' + q.quote_number;
+
+      var html = '<div class="space-y-4">';
+      html += '<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">';
+      html += '<div><span class="text-on-surface-variant">Quote #:</span> <strong>' + escapeHtml(q.quote_number) + '</strong></div>';
+      html += '<div><span class="text-on-surface-variant">Client:</span> <strong>' + escapeHtml(q.client_name) + '</strong></div>';
+      html += '<div><span class="text-on-surface-variant">Quote Date:</span> ' + formatDate(q.quote_date) + '</div>';
+      html += '<div><span class="text-on-surface-variant">Valid Until:</span> ' + formatDate(q.valid_until) + '</div>';
+      html += '<div><span class="text-on-surface-variant">Status:</span> ' + statusBadge(q.status) + '</div>';
+      html += '<div><span class="text-on-surface-variant">Total:</span> <strong>' + formatCurrency(q.total_amount) + '</strong></div>';
+      html += '</div>';
+
+      html += '<h6 class="text-sm font-bold uppercase tracking-[0.2em] text-on-surface-variant pt-2">Line Items</h6>';
+      html += '<table class="stitch-table"><thead><tr><th>Description</th><th>Location</th><th class="text-center">Qty</th><th class="text-right">Unit Rate</th><th class="text-right">Amount</th></tr></thead><tbody>';
+      q.items.forEach(function (item) {
+        html += '<tr>' +
+          '<td>' + escapeHtml(item.description) + '</td>' +
+          '<td>' + escapeHtml(item.location || '') + '</td>' +
+          '<td class="text-center">' + item.quantity + '</td>' +
+          '<td class="text-right">' + formatCurrency(item.unit_rate) + '</td>' +
+          '<td class="text-right">' + formatCurrency(item.amount) + '</td>' +
+          '</tr>';
+      });
+      html += '<tr><td colspan="4" class="text-right font-bold">Total</td><td class="text-right font-bold">' + formatCurrency(q.total_amount) + '</td></tr>';
+      html += '</tbody></table>';
+
+      html += '<div class="grid grid-cols-1 gap-4 pt-2">';
+      html += '<div><h6 class="text-sm font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-2">Mail Format</h6><div class="rounded-xl bg-surface-container-high p-4 text-sm whitespace-pre-wrap">' + escapeHtml(parsedNotes.mailFormat || '') + '</div></div>';
+      if (parsedNotes.sideNote) {
+        html += '<div><h6 class="text-sm font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-2">Side Note</h6><div class="rounded-xl bg-surface-container-high p-4 text-sm whitespace-pre-wrap">' + escapeHtml(parsedNotes.sideNote) + '</div></div>';
+      }
+      html += '</div>';
+      html += '</div>';
+
+      document.getElementById('quoteDetailContent').innerHTML = html;
+      openModal('quoteDetailModal');
     } catch (err) { showToast(err.message, 'danger'); }
   };
 
@@ -225,7 +312,10 @@
       client_id: parseInt(document.getElementById('quoteClient').value, 10),
       quote_date: document.getElementById('quoteDate').value,
       valid_until: document.getElementById('quoteValidUntil').value,
-      notes: document.getElementById('quoteNotes').value.trim(),
+      notes: buildStoredQuoteNotes(
+        document.getElementById('quoteMailFormat').value,
+        document.getElementById('quoteSideNote').value
+      ),
       items: items,
     };
     try {

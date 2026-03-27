@@ -1,6 +1,39 @@
 (function () {
   // openModal / closeModal provided by app.js (with scroll lock + Escape + backdrop)
 
+  function toggleRateMode(mode) {
+    var monthlySection = document.getElementById('rcMonthlyRateSection');
+    var hourlySection = document.getElementById('rcHourlyRateSection');
+    var computedSection = document.getElementById('rcHourlyComputedSection');
+    var monthlyInput = document.getElementById('rcRate');
+    var hourlyRateInput = document.getElementById('rcHourlyRate');
+    var hoursWorkedInput = document.getElementById('rcHoursWorked');
+
+    var isHourly = mode === 'hourly';
+    monthlySection.classList.toggle('hidden', isHourly);
+    hourlySection.classList.toggle('hidden', !isHourly);
+    computedSection.classList.toggle('hidden', !isHourly);
+    monthlyInput.required = !isHourly;
+    hourlyRateInput.required = isHourly;
+    hoursWorkedInput.required = isHourly;
+
+    if (!isHourly) {
+      hourlyRateInput.value = '';
+      hoursWorkedInput.value = '';
+      document.getElementById('rcComputedMonthlyRate').textContent = formatCurrency(parseFloat(monthlyInput.value) || 0);
+    } else {
+      recalcHourlyMonthlyRate();
+    }
+  }
+
+  function recalcHourlyMonthlyRate() {
+    var hourlyRate = parseFloat(document.getElementById('rcHourlyRate').value) || 0;
+    var hoursWorked = parseFloat(document.getElementById('rcHoursWorked').value) || 0;
+    var monthlyRate = Math.round(hourlyRate * hoursWorked * 100) / 100;
+    document.getElementById('rcComputedMonthlyRate').textContent = formatCurrency(monthlyRate);
+    return monthlyRate;
+  }
+
   window.openRCModal = function () {
     document.getElementById('rcForm').reset();
     document.getElementById('rcId').value = '';
@@ -9,6 +42,11 @@
     document.getElementById('rcPO').innerHTML = '<option value="">Select PO</option>';
     document.getElementById('rcSowPreview').classList.add('hidden');
     document.getElementById('rcSowPreviewContent').innerHTML = '';
+    document.getElementById('rcRateMode').value = 'monthly';
+    document.getElementById('rcHourlyRate').value = '';
+    document.getElementById('rcHoursWorked').value = '';
+    document.getElementById('rcComputedMonthlyRate').textContent = formatCurrency(0);
+    toggleRateMode('monthly');
     window.rcEdit = null;
     openModal('rcModal');
   };
@@ -21,6 +59,11 @@
     document.getElementById('rcPO').innerHTML = '<option value="">Select PO</option>';
     document.getElementById('rcSowPreview').classList.add('hidden');
     document.getElementById('rcSowPreviewContent').innerHTML = '';
+    document.getElementById('rcRateMode').value = 'monthly';
+    document.getElementById('rcHourlyRate').value = '';
+    document.getElementById('rcHoursWorked').value = '';
+    document.getElementById('rcComputedMonthlyRate').textContent = formatCurrency(0);
+    toggleRateMode('monthly');
     window.rcEdit = null;
   };
   window.openUploadRCModal = function () {
@@ -156,6 +199,11 @@
       document.getElementById('rcDoj').value = r.doj || '';
       document.getElementById('rcManager').value = r.reporting_manager || '';
       document.getElementById('rcRate').value = r.monthly_rate;
+      document.getElementById('rcRateMode').value = 'monthly';
+      document.getElementById('rcHourlyRate').value = '';
+      document.getElementById('rcHoursWorked').value = '';
+      document.getElementById('rcComputedMonthlyRate').textContent = formatCurrency(r.monthly_rate || 0);
+      toggleRateMode('monthly');
       document.getElementById('rcLeaves').value = r.leaves_allowed;
       document.getElementById('rcChargingDate').value = r.charging_date || '';
       document.getElementById('rcModalTitle').textContent = 'Edit Rate Card';
@@ -178,13 +226,23 @@
   document.getElementById('rcForm').addEventListener('submit', async function (e) {
     e.preventDefault();
     var poVal = document.getElementById('rcPO').value;
+    var rateMode = document.getElementById('rcRateMode').value;
+    var monthlyRate = rateMode === 'hourly'
+      ? recalcHourlyMonthlyRate()
+      : parseFloat(document.getElementById('rcRate').value);
+
+    if (!monthlyRate || monthlyRate <= 0) {
+      showToast(rateMode === 'hourly' ? 'Enter valid hourly rate and hours worked' : 'Enter a valid monthly rate', 'danger');
+      return;
+    }
+
     var data = {
       client_id: parseInt(document.getElementById('rcClient').value, 10),
       emp_code: document.getElementById('rcEmpCode').value.trim(),
       emp_name: document.getElementById('rcEmpName').value.trim(),
       doj: document.getElementById('rcDoj').value || null,
       reporting_manager: document.getElementById('rcManager').value.trim(),
-      monthly_rate: parseFloat(document.getElementById('rcRate').value),
+      monthly_rate: monthlyRate,
       leaves_allowed: parseInt(document.getElementById('rcLeaves').value, 10) || 0,
       charging_date: document.getElementById('rcChargingDate').value || null,
       sow_id: parseInt(document.getElementById('rcSOW').value, 10),
@@ -217,6 +275,11 @@
   });
 
   document.getElementById('rcFilterClient').addEventListener('change', loadRateCards);
+  document.getElementById('rcRateMode').addEventListener('change', function () {
+    toggleRateMode(this.value);
+  });
+  document.getElementById('rcHourlyRate').addEventListener('input', recalcHourlyMonthlyRate);
+  document.getElementById('rcHoursWorked').addEventListener('input', recalcHourlyMonthlyRate);
 
   // Load POs when client changes in the form
   document.getElementById('rcClient').addEventListener('change', function () {

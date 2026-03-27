@@ -1,6 +1,22 @@
 const { supabase } = require('../config/database');
 
+function isMissingFunctionError(error, functionName) {
+  return Boolean(error && error.message && error.message.toLowerCase().includes(functionName.toLowerCase()));
+}
+
 const POModel = {
+  async generatePONumber() {
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const pattern = `PO-${today}-%`;
+    const { count, error } = await supabase
+      .from('purchase_orders')
+      .select('*', { count: 'exact', head: true })
+      .like('po_number', pattern);
+    if (error) throw new Error(error.message);
+    const seq = String((count || 0) + 1).padStart(3, '0');
+    return `PO-${today}-${seq}`;
+  },
+
   async findAll(clientId, status) {
     let query = supabase.from('purchase_orders_view').select('*');
     if (clientId) query = query.eq('client_id', clientId);
@@ -50,10 +66,11 @@ const POModel = {
   },
 
   async create(data) {
+    const poNumber = data.po_number || await POModel.generatePONumber();
     const { data: row, error } = await supabase
       .from('purchase_orders')
       .insert({
-        po_number: data.po_number,
+        po_number: poNumber,
         client_id: data.client_id,
         quote_id: data.quote_id || null,
         po_date: data.po_date,
@@ -67,35 +84,70 @@ const POModel = {
       .select('id')
       .single();
     if (error) throw new Error(error.message);
-    return row.id;
+    return { id: row.id, po_number: poNumber };
   },
 
   async update(id, data) {
+    const payload = {
+      client_id: data.client_id,
+      po_date: data.po_date,
+      start_date: data.start_date,
+      end_date: data.end_date,
+      po_value: data.po_value,
+      alert_threshold: data.alert_threshold || 80,
+      sow_id: data.sow_id || null,
+      notes: data.notes || null,
+      updated_at: new Date().toISOString(),
+    };
+    if (data.po_number) payload.po_number = data.po_number;
+
     const { error } = await supabase
       .from('purchase_orders')
-      .update({
-        po_number: data.po_number,
-        client_id: data.client_id,
-        po_date: data.po_date,
-        start_date: data.start_date,
-        end_date: data.end_date,
-        po_value: data.po_value,
-        alert_threshold: data.alert_threshold || 80,
-        sow_id: data.sow_id || null,
-        notes: data.notes || null,
-        updated_at: new Date().toISOString(),
-      })
+      .update(payload)
       .eq('id', id);
     if (error) throw new Error(error.message);
   },
 
   async addConsumption(poId, amount, description, billingRunId) {
-    const { error } = await supabase.rpc('consume_po', {
+    let { error } = await supabase.rpc('consume_po', {
       p_po_id: poId,
       p_amount: amount,
       p_description: description || null,
       p_billing_run_id: billingRunId || null,
     });
+    if (error && isMissingFunctionError(error, 'consume_po')) {
+      const po = await this.findById(poId);
+      if (!po) throw new Error(`PO ${poId} not found`);
+
+      const [logResult, poResult] = await Promise.all([
+        supabase.from('po_consumption_log').insert({
+          po_id: poId,
+          billing_run_id: billingRunId || null,
+          amount,
+          description: description || null,
+        }),
+        supabase
+          .from('purchase_orders')
+          .update({
+            consumed_value: Number(po.consumed_value || 0) + Number(amount || 0),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', poId),
+      ]);
+
+      if (logResult.error) throw new Error(logResult.error.message);
+      if (poResult.error) throw new Error(poResult.error.message);
+
+      const updatedPo = await this.findById(poId);
+      if (updatedPo && Number(updatedPo.consumed_value || 0) >= Number(updatedPo.po_value || 0)) {
+        const { error: exhaustError } = await supabase
+          .from('purchase_orders')
+          .update({ status: 'Exhausted', updated_at: new Date().toISOString() })
+          .eq('id', poId);
+        if (exhaustError) throw new Error(exhaustError.message);
+      }
+      return;
+    }
     if (error) throw new Error(error.message);
   },
 

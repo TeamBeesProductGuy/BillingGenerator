@@ -130,7 +130,7 @@ CREATE TABLE IF NOT EXISTS sows (
     effective_start TEXT NOT NULL,
     effective_end   TEXT NOT NULL,
     total_value     NUMERIC(15,2) NOT NULL DEFAULT 0,
-    status          TEXT NOT NULL DEFAULT 'Draft' CHECK(status IN ('Draft', 'Active', 'Expired', 'Terminated')),
+    status          TEXT NOT NULL DEFAULT 'Draft' CHECK(status IN ('Draft', 'Active', 'Expired', 'Terminated', 'Amendment Draft')),
     notes           TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()

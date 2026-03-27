@@ -42,8 +42,8 @@ const poController = {
     }
 
     try {
-      const id = await POModel.create({ po_number, client_id, po_date, start_date, end_date, po_value, alert_threshold, sow_id, notes });
-      res.status(201).json({ success: true, data: { id, po_number } });
+      const result = await POModel.create({ po_number, client_id, po_date, start_date, end_date, po_value, alert_threshold, sow_id, notes });
+      res.status(201).json({ success: true, data: { id: result.id, po_number: result.po_number } });
     } catch (err) {
       if (err.message && (err.message.includes('UNIQUE') || err.message.includes('duplicate key'))) {
         throw new AppError(409, 'PO number already exists');

@@ -52,6 +52,19 @@
   </div>
 </div>
 
+<!-- Quote Detail Modal -->
+<div id="quoteDetailModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-3xl mx-4 border border-outline-variant/15 shadow-2xl max-h-[90vh] overflow-y-auto styled-scrollbar">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8 sticky top-0 bg-surface-container-high z-10">
+      <h5 class="font-headline font-bold text-lg text-on-surface" id="quoteDetailTitle">Quote Details</h5>
+      <button type="button" onclick="closeModal('quoteDetailModal')" class="text-on-surface-variant hover:text-on-surface transition-colors">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="p-6" id="quoteDetailContent"></div>
+  </div>
+</div>
+
 <!-- Quote Modal -->
 <div id="quoteModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
   <div class="bg-surface-container-high rounded-2xl w-full max-w-3xl mx-4 border border-outline-variant/15 shadow-2xl max-h-[90vh] overflow-y-auto styled-scrollbar">
@@ -79,8 +92,14 @@
           </div>
         </div>
         <div>
-          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Notes</label>
-          <textarea id="quoteNotes" rows="2"></textarea>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Mail Format</label>
+          <textarea id="quoteMailFormat" rows="12" placeholder="Subject: [Write subject here]&#10;&#10;Dear [Write recipient name here],&#10;&#10;Please refer to the following quote with best fitment to the requirements:&#10;1. Cost of resource (per man month):&#10;[Quote table will be inserted automatically in the Word document]&#10;2. Prevailing taxes, GST extra as applicable&#10;3. Location: [Write location here]&#10;&#10;Kindly issue the Purchase Order (PO).&#10;Regards&#10;[Write sender name here]"></textarea>
+          <p class="mt-2 text-xs text-on-surface-variant">Use this format so the same content prints correctly in the downloaded Word document.</p>
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Side Note</label>
+          <textarea id="quoteSideNote" rows="4" placeholder="Reference note for internal use only. This will not be included in the downloaded document."></textarea>
+          <p class="mt-2 text-xs text-on-surface-variant">Stored for reference only and excluded from the exported quote document.</p>
         </div>
 
         <h6 class="section-label pt-2">Line Items</h6>

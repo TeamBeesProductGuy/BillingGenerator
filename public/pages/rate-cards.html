@@ -102,13 +102,34 @@
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Monthly Rate *</label>
-            <input type="number" id="rcRate" step="0.01" min="0.01" required>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Rate Entry Mode</label>
+            <select id="rcRateMode">
+              <option value="monthly">Monthly Rate</option>
+              <option value="hourly">Hourly Rate</option>
+            </select>
           </div>
           <div>
             <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Leaves Allowed</label>
             <input type="number" id="rcLeaves" value="0" min="0">
           </div>
+        </div>
+        <div id="rcMonthlyRateSection">
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Monthly Rate *</label>
+          <input type="number" id="rcRate" step="0.01" min="0.01" required>
+        </div>
+        <div id="rcHourlyRateSection" class="hidden grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Hourly Rate *</label>
+            <input type="number" id="rcHourlyRate" step="0.01" min="0.01">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Hours Worked In Month *</label>
+            <input type="number" id="rcHoursWorked" step="0.01" min="0.01">
+          </div>
+        </div>
+        <div id="rcHourlyComputedSection" class="hidden rounded-xl border border-outline-variant/15 bg-surface-container p-4">
+          <div class="text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1">Computed Monthly Rate</div>
+          <div id="rcComputedMonthlyRate" class="text-lg font-bold text-on-surface">&#8377;0.00</div>
         </div>
         <div>
           <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Date of Reporting</label>

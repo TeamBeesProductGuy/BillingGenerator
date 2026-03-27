@@ -1,5 +1,9 @@
 const { supabase } = require('../config/database');
 
+function isMissingColumnError(error, columnName) {
+  return Boolean(error && error.message && error.message.includes('column') && error.message.includes(columnName));
+}
+
 const RateCardModel = {
   async findAll(clientId) {
     let query = supabase
@@ -36,7 +40,7 @@ const RateCardModel = {
   },
 
   async create(data) {
-    const { data: row, error } = await supabase
+    let { data: row, error } = await supabase
       .from('rate_cards')
       .insert({
         client_id: data.client_id,
@@ -52,6 +56,24 @@ const RateCardModel = {
       })
       .select('id')
       .single();
+
+    if (isMissingColumnError(error, 'sow_id')) {
+      ({ data: row, error } = await supabase
+        .from('rate_cards')
+        .insert({
+          client_id: data.client_id,
+          emp_code: data.emp_code,
+          emp_name: data.emp_name,
+          doj: data.doj || null,
+          reporting_manager: data.reporting_manager || null,
+          monthly_rate: data.monthly_rate,
+          leaves_allowed: data.leaves_allowed || 0,
+          charging_date: data.charging_date || null,
+          po_id: data.po_id || null,
+        })
+        .select('id')
+        .single());
+    }
     if (error) throw new Error(error.message);
     return row.id;
   },
@@ -71,16 +93,37 @@ const RateCardModel = {
       is_active: true,
       updated_at: new Date().toISOString(),
     }));
-    const { data, error } = await supabase
+    let result = await supabase
       .from('rate_cards')
       .upsert(rows, { onConflict: 'client_id,emp_code' })
       .select('id');
-    if (error) throw new Error(error.message);
-    return data.map((r) => r.id);
+
+    if (isMissingColumnError(result.error, 'sow_id')) {
+      const fallbackRows = records.map((data) => ({
+        client_id: data.client_id,
+        emp_code: data.emp_code,
+        emp_name: data.emp_name,
+        doj: data.doj || null,
+        reporting_manager: data.reporting_manager || null,
+        monthly_rate: data.monthly_rate,
+        leaves_allowed: data.leaves_allowed || 0,
+        charging_date: data.charging_date || null,
+        po_id: data.po_id || null,
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      }));
+      result = await supabase
+        .from('rate_cards')
+        .upsert(fallbackRows, { onConflict: 'client_id,emp_code' })
+        .select('id');
+    }
+
+    if (result.error) throw new Error(result.error.message);
+    return result.data.map((r) => r.id);
   },
 
   async update(id, data) {
-    const { error } = await supabase
+    let { error } = await supabase
       .from('rate_cards')
       .update({
         emp_name: data.emp_name,
@@ -94,6 +137,22 @@ const RateCardModel = {
         updated_at: new Date().toISOString(),
       })
       .eq('id', id);
+
+    if (isMissingColumnError(error, 'sow_id')) {
+      ({ error } = await supabase
+        .from('rate_cards')
+        .update({
+          emp_name: data.emp_name,
+          doj: data.doj || null,
+          reporting_manager: data.reporting_manager || null,
+          monthly_rate: data.monthly_rate,
+          leaves_allowed: data.leaves_allowed || 0,
+          charging_date: data.charging_date || null,
+          po_id: data.po_id !== undefined ? (data.po_id || null) : undefined,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id));
+    }
     if (error) throw new Error(error.message);
   },
 

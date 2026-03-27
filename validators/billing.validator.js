@@ -21,8 +21,9 @@ const decideRun = Joi.object({
   poAssignments: Joi.array()
     .items(Joi.object({
       emp_code: Joi.string().trim().required(),
-      po_number: Joi.string().trim().min(1).required(),
-    }))
+      po_id: Joi.number().integer().positive(),
+      po_number: Joi.string().trim().min(1),
+    }).or('po_id', 'po_number'))
     .default([]),
 });
 

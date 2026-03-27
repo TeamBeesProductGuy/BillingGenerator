@@ -144,10 +144,19 @@
       </div>
     </div>
 
-    <!-- Download Button -->
-    <div>
+    <!-- Download Buttons -->
+    <div class="flex flex-wrap gap-2">
       <button id="downloadLink" class="btn-primary inline-flex items-center gap-2" onclick="downloadFile(this.getAttribute('data-url'))">
-        <span class="material-symbols-outlined">download</span>Download Invoice
+        <span class="material-symbols-outlined">download</span>Download Full Excel
+      </button>
+      <button id="downloadBillingWorkingBtn" class="btn-secondary inline-flex items-center gap-2" onclick="downloadFile(this.getAttribute('data-url'))">
+        <span class="material-symbols-outlined">table_view</span>Billing Working
+      </button>
+      <button id="downloadManagerSummaryBtn" class="btn-secondary inline-flex items-center gap-2" onclick="downloadFile(this.getAttribute('data-url'))">
+        <span class="material-symbols-outlined">table_chart</span>Manager Summary
+      </button>
+      <button id="downloadErrorReportBtn" class="btn-secondary inline-flex items-center gap-2" onclick="downloadFile(this.getAttribute('data-url'))">
+        <span class="material-symbols-outlined">warning</span>Error Report
       </button>
     </div>
 
@@ -155,12 +164,13 @@
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h5 class="section-label">Service Request Decision</h5>
-          <p class="text-sm text-on-surface-variant">Accept to store PO consumption. Reject to keep the request downloadable without consuming the PO.</p>
+          <p id="decisionHelpText" class="text-sm text-on-surface-variant">Accept to store PO consumption. Reject to keep the request downloadable without consuming the PO.</p>
         </div>
-        <div class="inline-flex items-center gap-2">
+        <div id="decisionActions" class="inline-flex items-center gap-2">
           <button id="rejectRequestBtn" type="button" class="btn-secondary">Reject</button>
           <button id="acceptRequestBtn" type="button" class="btn-primary">Accept</button>
         </div>
+        <div id="decisionStatusMessage" class="hidden text-sm font-semibold"></div>
       </div>
       <div id="missingPoSection" class="hidden space-y-3">
         <h6 class="text-sm font-semibold text-on-surface">Missing PO Numbers</h6>

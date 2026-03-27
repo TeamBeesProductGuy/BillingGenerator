@@ -13,10 +13,16 @@ function styleHeader(row, bgColor) {
   row.alignment = { horizontal: 'center' };
 }
 
-async function generateBillingExcel(billingItems, errors, billingMonth) {
-  const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'Billing Engine';
-  workbook.created = new Date();
+function normalizeBillingItemsForExport(billingItems) {
+  return (billingItems || []).map((item) => ({
+    ...item,
+    allowed_leaves: item.allowed_leaves !== undefined ? item.allowed_leaves : item.leaves_allowed,
+    effective_days: item.effective_days !== undefined ? item.effective_days : item.days_in_month,
+  }));
+}
+
+function populateBillingWorkbook(workbook, billingItems, errors) {
+  const normalizedItems = normalizeBillingItemsForExport(billingItems);
 
   // Sheet 1: Billing_Working
   const billingSheet = workbook.addWorksheet('Billing_Working');
@@ -36,21 +42,18 @@ async function generateBillingExcel(billingItems, errors, billingMonth) {
 
   styleHeader(billingSheet.getRow(1), 'FF2F5496');
 
-  for (const item of billingItems) {
+  for (const item of normalizedItems) {
     billingSheet.addRow(item);
   }
 
-  // Format currency columns
   billingSheet.getColumn('monthly_rate').numFmt = '#,##0.00';
   billingSheet.getColumn('invoice_amount').numFmt = '#,##0.00';
 
-  // Auto-filter
   billingSheet.autoFilter = {
     from: { row: 1, column: 1 },
     to: { row: billingItems.length + 1, column: 11 },
   };
 
-  // Add totals row
   if (billingItems.length > 0) {
     const totalInvoice = billingItems.reduce((sum, item) => sum + item.invoice_amount, 0);
     const totalRow = billingSheet.addRow({
@@ -72,9 +75,8 @@ async function generateBillingExcel(billingItems, errors, billingMonth) {
 
   styleHeader(managerSheet.getRow(1), 'FF2F5496');
 
-  // Group billing items by reporting_manager
   const managerMap = new Map();
-  for (const item of billingItems) {
+  for (const item of normalizedItems) {
     const mgr = item.reporting_manager || 'Unassigned';
     if (!managerMap.has(mgr)) {
       managerMap.set(mgr, { employee_count: 0, total_monthly_rate: 0, total_invoice_amount: 0 });
@@ -85,7 +87,6 @@ async function generateBillingExcel(billingItems, errors, billingMonth) {
     entry.total_invoice_amount += item.invoice_amount;
   }
 
-  // Sort by manager name and add rows
   const sortedManagers = [...managerMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   for (const [mgr, data] of sortedManagers) {
     managerSheet.addRow({
@@ -99,11 +100,10 @@ async function generateBillingExcel(billingItems, errors, billingMonth) {
   managerSheet.getColumn('total_monthly_rate').numFmt = '#,##0.00';
   managerSheet.getColumn('total_invoice_amount').numFmt = '#,##0.00';
 
-  // Totals row for manager summary
   if (sortedManagers.length > 0) {
-    const grandEmpCount = billingItems.length;
-    const grandMonthlyRate = billingItems.reduce((sum, item) => sum + item.monthly_rate, 0);
-    const grandInvoice = billingItems.reduce((sum, item) => sum + item.invoice_amount, 0);
+    const grandEmpCount = normalizedItems.length;
+    const grandMonthlyRate = normalizedItems.reduce((sum, item) => sum + item.monthly_rate, 0);
+    const grandInvoice = normalizedItems.reduce((sum, item) => sum + item.invoice_amount, 0);
     const totalRow = managerSheet.addRow({
       reporting_manager: 'TOTAL',
       employee_count: grandEmpCount,
@@ -129,6 +129,13 @@ async function generateBillingExcel(billingItems, errors, billingMonth) {
   if (errors.length === 0) {
     errorSheet.addRow({ emp_code: '-', error_message: 'No errors found' });
   }
+}
+
+async function generateBillingExcel(billingItems, errors, billingMonth) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'Billing Engine';
+  workbook.created = new Date();
+  populateBillingWorkbook(workbook, billingItems, errors);
 
   const filename = `Billing_Working_For_${billingMonth}.xlsx`;
   const filePath = path.join(env.outputDir, filename);
@@ -137,4 +144,27 @@ async function generateBillingExcel(billingItems, errors, billingMonth) {
   return { filePath, filename };
 }
 
-module.exports = { generateBillingExcel };
+async function generateBillingWorksheetBuffer(billingItems, errors, worksheetKey) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'Billing Engine';
+  workbook.created = new Date();
+  populateBillingWorkbook(workbook, billingItems, errors);
+
+  const sheetMap = {
+    billing_working: 'Billing_Working',
+    manager_summary: 'Manager_Summary',
+    error_report: 'Error_Report',
+  };
+  const keepSheet = sheetMap[worksheetKey];
+  if (!keepSheet) {
+    throw new Error('Unknown worksheet requested');
+  }
+
+  workbook.worksheets.slice().forEach(function (sheet) {
+    if (sheet.name !== keepSheet) workbook.removeWorksheet(sheet.id);
+  });
+
+  return workbook.xlsx.writeBuffer();
+}
+
+module.exports = { generateBillingExcel, generateBillingWorksheetBuffer };

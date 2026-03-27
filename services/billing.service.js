@@ -51,7 +51,10 @@ function calculateBilling(rateCards, attendanceRecords, billingMonth) {
     const invoiceAmount = Math.round((chargeableDays / divisor) * rc.monthly_rate * 100) / 100;
 
     billingItems.push({
+      client_id: rc.client_id || null,
       client_name: rc.client_name,
+      sow_id: rc.sow_id || null,
+      sow_number: rc.sow_number || null,
       reporting_manager: rc.reporting_manager || attendance.reporting_manager,
       emp_code: rc.emp_code,
       emp_name: rc.emp_name,

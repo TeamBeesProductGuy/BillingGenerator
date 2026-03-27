@@ -1,7 +1,8 @@
-const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
 const QuoteModel = require('../models/quote.model');
+const ClientModel = require('../models/client.model');
 const SOWModel = require('../models/sow.model');
+const { generateQuoteDocxBuffer } = require('../services/quoteDocx.service');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
 
@@ -69,51 +70,12 @@ const quoteController = {
   download: catchAsync(async (req, res) => {
     const quote = await QuoteModel.findById(parseInt(req.params.id, 10));
     if (!quote) throw new AppError(404, 'Quote not found');
+    const client = await ClientModel.findById(quote.client_id);
+    const buffer = await generateQuoteDocxBuffer(quote, client);
 
-    const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet('Quote');
-
-    sheet.mergeCells('A1:E1');
-    sheet.getCell('A1').value = `Quote: ${quote.quote_number}`;
-    sheet.getCell('A1').font = { size: 16, bold: true };
-
-    sheet.getCell('A3').value = 'Client:'; sheet.getCell('B3').value = quote.client_name;
-    sheet.getCell('A4').value = 'Date:'; sheet.getCell('B4').value = quote.quote_date;
-    sheet.getCell('A5').value = 'Valid Until:'; sheet.getCell('B5').value = quote.valid_until;
-    sheet.getCell('A6').value = 'Status:'; sheet.getCell('B6').value = quote.status;
-
-    const tableStart = 8;
-    const headers = ['Description', 'Location', 'Quantity', 'Unit Rate', 'Amount'];
-    headers.forEach((h, i) => {
-      const cell = sheet.getCell(tableStart, i + 1);
-      cell.value = h;
-      cell.font = { bold: true };
-    });
-
-    quote.items.forEach((item, idx) => {
-      const row = tableStart + 1 + idx;
-      sheet.getCell(row, 1).value = item.description;
-      sheet.getCell(row, 2).value = item.location || '';
-      sheet.getCell(row, 3).value = item.quantity;
-      sheet.getCell(row, 4).value = item.unit_rate;
-      sheet.getCell(row, 5).value = item.amount;
-    });
-
-    const summaryRow = tableStart + 1 + quote.items.length + 1;
-    sheet.getCell(summaryRow, 4).value = 'Total:';
-    sheet.getCell(summaryRow, 4).font = { bold: true };
-    sheet.getCell(summaryRow, 5).value = quote.total_amount;
-    sheet.getCell(summaryRow, 5).font = { bold: true };
-
-    sheet.getColumn(1).width = 30;
-    sheet.getColumn(2).width = 18;
-    sheet.getColumn(3).width = 12;
-    sheet.getColumn(4).width = 15;
-    sheet.getColumn(5).width = 15;
-
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename=Quote_${quote.quote_number}.xlsx`);
-    await workbook.xlsx.write(res);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', `attachment; filename=Quote_${quote.quote_number}.docx`);
+    res.send(buffer);
   }),
 
   downloadPDF: catchAsync(async (req, res) => {

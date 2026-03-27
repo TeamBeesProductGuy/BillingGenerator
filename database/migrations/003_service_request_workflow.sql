@@ -37,7 +37,7 @@ WHERE status = 'Active';
 
 ALTER TABLE sows DROP CONSTRAINT IF EXISTS sows_status_check;
 ALTER TABLE sows
-  ADD CONSTRAINT sows_status_check CHECK (status IN ('Draft', 'Signed', 'Expired', 'Terminated'));
+  ADD CONSTRAINT sows_status_check CHECK (status IN ('Draft', 'Signed', 'Expired', 'Terminated', 'Amendment Draft'));
 
 ALTER TABLE billing_runs DROP CONSTRAINT IF EXISTS billing_runs_request_status_check;
 ALTER TABLE billing_runs

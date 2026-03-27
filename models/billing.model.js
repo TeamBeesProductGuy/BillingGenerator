@@ -1,8 +1,12 @@
 const { supabase } = require('../config/database');
 
+function isMissingColumnError(error, columnName) {
+  return Boolean(error && error.message && error.message.includes('column') && error.message.includes(columnName));
+}
+
 const BillingModel = {
   async createRun(data) {
-    const { data: row, error } = await supabase
+    let { data: row, error } = await supabase
       .from('billing_runs')
       .insert({
         billing_month: data.billing_month,
@@ -15,6 +19,21 @@ const BillingModel = {
       })
       .select('id')
       .single();
+
+    if (isMissingColumnError(error, 'request_status')) {
+      ({ data: row, error } = await supabase
+        .from('billing_runs')
+        .insert({
+          billing_month: data.billing_month,
+          client_id: data.client_id || null,
+          total_employees: data.total_employees,
+          total_amount: data.total_amount,
+          error_count: data.error_count,
+          output_file: data.output_file,
+        })
+        .select('id')
+        .single());
+    }
     if (error) throw new Error(error.message);
     return row.id;
   },
@@ -22,7 +41,10 @@ const BillingModel = {
   async addItems(runId, items) {
     const rows = items.map((item) => ({
       billing_run_id: runId,
+      client_id: item.client_id || null,
       client_name: item.client_name,
+      sow_id: item.sow_id || null,
+      sow_number: item.sow_number || null,
       emp_code: item.emp_code,
       emp_name: item.emp_name,
       reporting_manager: item.reporting_manager,
@@ -36,7 +58,29 @@ const BillingModel = {
       invoice_amount: item.invoice_amount,
       po_id: item.po_id || null,
     }));
-    const { error } = await supabase.from('billing_items').insert(rows);
+    let { error } = await supabase.from('billing_items').insert(rows);
+
+    if (isMissingColumnError(error, 'client_id')
+      || isMissingColumnError(error, 'sow_id')
+      || isMissingColumnError(error, 'sow_number')
+      || isMissingColumnError(error, 'effective_days')
+      || isMissingColumnError(error, 'charging_date')
+      || isMissingColumnError(error, 'po_id')) {
+      const fallbackRows = items.map((item) => ({
+        billing_run_id: runId,
+        client_name: item.client_name,
+        emp_code: item.emp_code,
+        emp_name: item.emp_name,
+        reporting_manager: item.reporting_manager,
+        monthly_rate: item.monthly_rate,
+        leaves_allowed: item.allowed_leaves,
+        leaves_taken: item.leaves_taken,
+        days_in_month: item.days_in_month,
+        chargeable_days: item.chargeable_days,
+        invoice_amount: item.invoice_amount,
+      }));
+      ({ error } = await supabase.from('billing_items').insert(fallbackRows));
+    }
     if (error) throw new Error(error.message);
   },
 
@@ -51,11 +95,26 @@ const BillingModel = {
   },
 
   async findRuns(limit = 20, offset = 0) {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('billing_runs')
       .select('id, billing_month, total_employees, total_amount, error_count, output_file, request_status, consumption_applied_at, created_at')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
+
+    if (isMissingColumnError(error, 'request_status') || isMissingColumnError(error, 'consumption_applied_at')) {
+      ({ data, error } = await supabase
+        .from('billing_runs')
+        .select('id, billing_month, total_employees, total_amount, error_count, output_file, created_at')
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1));
+      if (!error && Array.isArray(data)) {
+        data = data.map((row) => ({
+          ...row,
+          request_status: 'Pending',
+          consumption_applied_at: null,
+        }));
+      }
+    }
     if (error) throw new Error(error.message);
     return data;
   },
@@ -87,17 +146,35 @@ const BillingModel = {
     if (requestStatus === 'Accepted') {
       payload.consumption_applied_at = new Date().toISOString();
     }
-    const { error } = await supabase.from('billing_runs').update(payload).eq('id', id);
+    let { error } = await supabase.from('billing_runs').update(payload).eq('id', id);
+
+    if (isMissingColumnError(error, 'request_status')
+      || isMissingColumnError(error, 'decision_at')
+      || isMissingColumnError(error, 'consumption_applied_at')) {
+      return;
+    }
     if (error) throw new Error(error.message);
+  },
+
+  async hasConsumptionForRun(runId) {
+    const { count, error } = await supabase
+      .from('po_consumption_log')
+      .select('*', { count: 'exact', head: true })
+      .eq('billing_run_id', runId);
+    if (error) throw new Error(error.message);
+    return (count || 0) > 0;
   },
 
   async assignMissingPOs(runId, assignments) {
     for (const assignment of assignments) {
-      const { error } = await supabase
+      let { error } = await supabase
         .from('billing_items')
         .update({ po_id: assignment.po_id })
         .eq('billing_run_id', runId)
         .eq('emp_code', assignment.emp_code);
+      if (isMissingColumnError(error, 'po_id')) {
+        return;
+      }
       if (error) throw new Error(error.message);
     }
   },

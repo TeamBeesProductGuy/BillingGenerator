@@ -18,5 +18,6 @@ router.get('/runs', billingController.listRuns);
 router.get('/runs/:id', billingController.getRunDetails);
 router.post('/runs/:id/decision', validate(decideRun), billingController.decideRun);
 router.get('/runs/:id/download', billingController.downloadFile);
+router.get('/runs/:id/download/:worksheet', billingController.downloadWorksheet);
 
 module.exports = router;
