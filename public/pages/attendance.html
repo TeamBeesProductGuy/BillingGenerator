@@ -21,18 +21,22 @@
     <div class="att-tab-pane" id="tab-manual">
       <div class="stat-card !p-6">
         <form id="attManualForm">
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <div>
               <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Emp Code *</label>
               <input type="text" id="attEmpCode" required>
             </div>
             <div>
               <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Emp Name</label>
-              <input type="text" id="attEmpName">
+              <input type="text" id="attEmpName" readonly>
             </div>
             <div>
               <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Reporting Manager</label>
-              <input type="text" id="attManager">
+              <input type="text" id="attManager" readonly>
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Client</label>
+              <input type="text" id="attClient" readonly>
             </div>
             <div>
               <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Billing Month *</label>

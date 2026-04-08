@@ -227,6 +227,7 @@ async function createStoredRun({
   billingItems,
   allErrors,
   summary,
+  blockedByErrors = false,
 }) {
   const { filePath, filename } = await generateBillingExcel(billingItems, allErrors, billingMonth);
 
@@ -253,6 +254,8 @@ async function createStoredRun({
     requestStatus: 'Pending',
     poConsumption: [],
     poCandidatesByEmp: await buildPoCandidates(billingItems),
+    blockedByErrors,
+    message: blockedByErrors ? 'Errors found. Service request was not generated. Please check the error report before proceeding.' : null,
   };
 }
 
@@ -307,8 +310,42 @@ const billingController = {
         allErrors.push(...crossErrors);
       }
 
+      if (allErrors.length > 0) {
+        const blockedSummary = {
+          totalEmployees: 0,
+          totalAmount: 0,
+          errorCount: allErrors.length,
+          daysInMonth: attendanceResult.records[0] && attendanceResult.records[0].days ? Object.keys(attendanceResult.records[0].days).length : 0,
+          billingMonth,
+        };
+        const responseData = await createStoredRun({
+          billingMonth,
+          billingItems: [],
+          allErrors,
+          summary: blockedSummary,
+          blockedByErrors: true,
+        });
+        return res.json({ success: true, data: responseData });
+      }
+
       const result = calculateBilling(rateCardResult.records, attendanceResult.records, billingMonth);
       allErrors.push(...result.errors);
+      if (allErrors.length > 0) {
+        const blockedSummary = {
+          ...result.summary,
+          totalEmployees: 0,
+          totalAmount: 0,
+          errorCount: allErrors.length,
+        };
+        const responseData = await createStoredRun({
+          billingMonth,
+          billingItems: [],
+          allErrors,
+          summary: blockedSummary,
+          blockedByErrors: true,
+        });
+        return res.json({ success: true, data: responseData });
+      }
       const responseData = await createStoredRun({
         billingMonth,
         billingItems: result.billingItems,
@@ -337,14 +374,17 @@ const billingController = {
     await resolvePoFromSow(rateCards);
 
     const attendanceSummary = await AttendanceModel.getSummary(billingMonth);
+    const allowedEmpCodes = new Set(rateCards.map((rc) => String(rc.emp_code || '').trim()));
 
-    const attendanceRecords = attendanceSummary.map((a) => ({
-      emp_code: a.emp_code,
-      emp_name: a.emp_name,
-      reporting_manager: a.reporting_manager,
-      leaves_taken: Number(a.leaves_taken),
-      days: {},
-    }));
+    const attendanceRecords = attendanceSummary
+      .filter((a) => allowedEmpCodes.has(String(a.emp_code || '').trim()))
+      .map((a) => ({
+        emp_code: a.emp_code,
+        emp_name: a.emp_name,
+        reporting_manager: a.reporting_manager,
+        leaves_taken: Number(a.leaves_taken),
+        days: {},
+      }));
 
     const allErrors = [];
 
@@ -358,8 +398,42 @@ const billingController = {
     const crossErrors = crossValidate(rateCards, attendanceRecords);
     allErrors.push(...crossErrors);
 
+    if (allErrors.length > 0) {
+      const responseData = await createStoredRun({
+        clientId: clientId || null,
+        billingMonth,
+        billingItems: [],
+        allErrors,
+        summary: {
+          totalEmployees: 0,
+          totalAmount: 0,
+          errorCount: allErrors.length,
+          daysInMonth: attendanceRecords.length > 0 ? (new Date(parseInt(billingMonth.substring(0, 4), 10), parseInt(billingMonth.substring(4, 6), 10), 0)).getDate() : 0,
+          billingMonth,
+        },
+        blockedByErrors: true,
+      });
+      return res.json({ success: true, data: responseData });
+    }
+
     const result = calculateBilling(rateCards, attendanceRecords, billingMonth);
     allErrors.push(...result.errors);
+    if (allErrors.length > 0) {
+      const responseData = await createStoredRun({
+        clientId: clientId || null,
+        billingMonth,
+        billingItems: [],
+        allErrors,
+        summary: {
+          ...result.summary,
+          totalEmployees: 0,
+          totalAmount: 0,
+          errorCount: allErrors.length,
+        },
+        blockedByErrors: true,
+      });
+      return res.json({ success: true, data: responseData });
+    }
     const responseData = await createStoredRun({
       clientId: clientId || null,
       billingMonth,

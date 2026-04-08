@@ -537,6 +537,17 @@
         return div.innerHTML;
     };
 
+    window.getClientDisplayName = function (client) {
+        if (!client) return "";
+        var abbreviation = String(client.abbreviation || "").trim();
+        var clientName = String(client.client_name || "").trim();
+        var address = String(client.address || "").trim();
+        if (abbreviation) {
+            return address ? abbreviation + " (" + address + ")" : abbreviation;
+        }
+        return address ? clientName + " (" + address + ")" : clientName;
+    };
+
     // -----------------------------------------------------------
     //  Cache & Reload Helpers
     // -----------------------------------------------------------

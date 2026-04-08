@@ -29,6 +29,29 @@
   }
   autoFillMonthInputs();
 
+  function clearAttendanceEmployeeDetails() {
+    document.getElementById('attEmpName').value = '';
+    document.getElementById('attManager').value = '';
+    document.getElementById('attClient').value = '';
+  }
+
+  async function lookupAttendanceEmployee() {
+    var empCode = document.getElementById('attEmpCode').value.trim();
+    if (!empCode) {
+      clearAttendanceEmployeeDetails();
+      return;
+    }
+    try {
+      var res = await apiCall('GET', '/api/attendance/employee/' + encodeURIComponent(empCode));
+      document.getElementById('attEmpName').value = res.data.emp_name || '';
+      document.getElementById('attManager').value = res.data.reporting_manager || '';
+      document.getElementById('attClient').value = res.data.client_name || '';
+    } catch (err) {
+      clearAttendanceEmployeeDetails();
+      showToast(err.message, 'danger');
+    }
+  }
+
   // Manual entry
   document.getElementById('attManualForm').addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -50,6 +73,14 @@
     }
 
     try {
+      if (!empName || !document.getElementById('attClient').value.trim()) {
+        await lookupAttendanceEmployee();
+        empName = document.getElementById('attEmpName').value.trim();
+        manager = document.getElementById('attManager').value.trim();
+      }
+      if (!empName || !document.getElementById('attClient').value.trim()) {
+        throw new Error('Employee details could not be resolved from the employee code');
+      }
       await apiCall('POST', '/api/attendance/bulk', {
         emp_code: empCode, emp_name: empName, reporting_manager: manager,
         billing_month: month, leaves: leaves,
@@ -109,4 +140,6 @@
 
   // Initialize search for summary table
   initTableSearch('attSummarySearch', 'summaryBody');
+  document.getElementById('attEmpCode').addEventListener('blur', lookupAttendanceEmployee);
+  document.getElementById('attEmpCode').addEventListener('change', lookupAttendanceEmployee);
 })();

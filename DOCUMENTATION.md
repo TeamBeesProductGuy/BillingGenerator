@@ -7,14 +7,14 @@ A Node.js/Express-based billing engine that automates monthly invoice calculatio
 ### Key Features
 - **Excel-based Billing Generation** - Upload Rate Card + Attendance Excel files to generate billing output
 - **Database-driven Billing** - Generate billing from stored rate cards and attendance data
-- **Rate Card Management** - CRUD storage for employee rate cards with Excel import/export and PO linkage
+- **Rate Card Management** - CRUD storage for employee rate cards with Excel import/export, mandatory SOW linkage, optional PO linkage, and frontend-only hourly-to-monthly entry support with optional cap hours
 - **Attendance Management** - Manual entry per employee or bulk Excel upload
-- **Quote Generation** - Create, manage, track client quotes with line items, PDF export, and status workflow
-- **Statement of Work (SOW)** - Full lifecycle management with auto-generated SOW numbers and items
-- **Purchase Order Management** - PO tracking with automatic billing consumption, threshold alerts, renewal, and SOW linkage
-- **Auto PO Consumption** - When billing is generated, invoice amounts are automatically deducted from linked POs
+- **Quote Generation** - Create, preview, manage, and export client quotes as branded Word `.docx` documents with structured mail-format fields, FY-based quote numbering, SOW linking, and terminate workflow
+- **Statement of Work (SOW)** - Full lifecycle management with amendment support, plus linked-document library (upload/list/search/download/delete)
+- **Purchase Order Management** - PO tracking with optional manual PO numbering, threshold alerts, renewal, and SOW linkage
+- **Controlled PO Consumption** - Billing generates a pending service request first; PO consumption happens only once the client accepts it
 - **Authentication** - Supabase Auth with JWT-based API protection
-- **Downloadable Output** - Generated billing Excel files with Billing_Working, Manager_Summary, and Error_Report sheets
+- **Downloadable Output** - Generated billing workbooks plus separate worksheet downloads for Billing_Working, Manager_Summary, and Error_Report
 - **Strict Workflow Enforcement** - Client → SOW → PO → Rate Card → Billing (each step requires the previous)
 
 ---
@@ -53,7 +53,7 @@ npm run dev
 npm start
 ```
 
-The application starts at **http://localhost:3000**
+The application starts at `http://localhost:<PORT>`. If `PORT` is not set, the default is **3000**.
 
 ### Environment Variables (.env)
 | Variable | Default | Description |
@@ -82,7 +82,8 @@ The application starts at **http://localhost:3000**
 | Database | Supabase (PostgreSQL) | Managed PostgreSQL with views, RPC functions, triggers |
 | Auth | Supabase Auth | JWT-based authentication |
 | Excel | ExcelJS | Full-featured Excel read/write with styles |
-| PDF | PDFKit | Quote PDF generation |
+| Document Export | JSZip + OpenXML | Native `.docx` quote generation |
+| PDF | PDFKit | Internal/legacy quote PDF generation route (UI currently exposes DOCX download only) |
 | Upload | Multer | Multipart file upload handling |
 | Validation | Joi | Declarative schema validation |
 | Security | Helmet + CORS + express-rate-limit | HTTP headers, CORS, rate limiting |
@@ -97,7 +98,7 @@ The application starts at **http://localhost:3000**
 3. **Service Layer Pattern** - Business logic isolated in services, separate from controllers (HTTP handling) and models (data access).
 4. **Error Collection over Error Throwing** - Billing errors are collected and reported (in Error_Report sheet), not thrown. The system produces output even when some employees have issues.
 5. **SPA with Hash Routing** - Single `index.html` with hash-based client-side routing. No build tools, instantly servable by Express.
-6. **Auto PO Consumption** - Billing generation automatically deducts invoice amounts from linked POs via the `consume_po` database function, ensuring PO values stay in sync.
+6. **Decision-based PO Consumption** - Billing generation creates a reviewable service request first. Linked PO values are consumed only after the request is explicitly accepted, preventing accidental double-consumption.
 
 ### Project Structure
 ```
@@ -136,8 +137,9 @@ billing-engine/
 │
 ├── services/                    # Business logic layer
 │   ├── excelParser.service.js   # Parse Rate Card & Attendance Excel files
-│   ├── excelWriter.service.js   # Generate output billing Excel
+│   ├── excelWriter.service.js   # Generate billing Excel workbooks + single-sheet downloads
 │   ├── billing.service.js       # Core billing calculation engine
+│   ├── quoteDocx.service.js     # Native .docx quote generation
 │   ├── validation.service.js    # Business rule validations
 │   └── poTracker.service.js     # PO consumption & expiry alert logic
 │
@@ -151,11 +153,11 @@ billing-engine/
 │   └── sow.validator.js         # SOW request schemas
 │
 ├── controllers/                 # HTTP request handlers
-│   ├── billing.controller.js    # Billing generation + PO auto-consumption
+│   ├── billing.controller.js    # Billing generation + service-request decision flow
 │   ├── client.controller.js     # Client management
 │   ├── rateCard.controller.js   # Rate card management + Excel upload/export
 │   ├── attendance.controller.js # Attendance management
-│   ├── quote.controller.js      # Quote management + PDF export
+│   ├── quote.controller.js      # Quote management + DOCX/PDF export
 │   ├── purchaseOrder.controller.js # PO management + consumption + renewal
 │   └── sow.controller.js        # SOW management
 │
@@ -229,34 +231,36 @@ Users authenticate via the Supabase Auth UI. The frontend calls `supabase.auth.s
 4. po_number strings from Excel are resolved to po_id integers via DB lookup
 5. validation.service cross-validates emp_codes between files
 6. billing.service calculates billing (pro-rata for mid-month reporting, cap at 30 days)
-7. excelWriter.service generates Billing_Working_For_YYYYMM.xlsx (3 sheets: Billing, Manager Summary, Errors)
+7. excelWriter.service generates Billing_Working_For_YYYYMM.xlsx (3 sheets: Billing_Working, Manager_Summary, Error_Report)
 8. billing.model saves run + items + errors to database
-9. autoConsumePOs() deducts invoice amounts from linked POs
-10. Response includes summary, items, errors, download URL, and PO consumption results
+9. A pending billing/service request is stored for review
+10. Response includes summary, items, errors, download URL, request status, and any PO-assignment suggestions
 11. Uploaded files are cleaned up
 ```
 
 ### Billing Generation (from database)
 ```
 1. User selects client (optional) + billing month
-2. Rate cards fetched from rate_cards_view (includes po_id from DB)
+2. Rate cards fetched from rate_cards_view (includes SOW and optional PO linkage from DB)
 3. Attendance fetched from attendance table (aggregated via RPC)
-4. Same calculation → Excel generation → DB save → PO consumption flow
+4. Same calculation → Excel generation → DB save as Pending service request
 ```
 
-### PO Auto-Consumption Pipeline
+### Service Request Decision Pipeline
 ```
 Billing Generated (file upload or DB)
     ↓
 calculateBilling() → billingItems with po_id on each item
     ↓
-autoConsumePOs() → groups amounts by po_id
+billing_runs row created with request_status = "Pending"
     ↓
-consume_po RPC → inserts po_consumption_log + increments consumed_value
+Client reviews run in UI
     ↓
-Auto-marks PO as "Exhausted" if consumed_value >= po_value
+Accept or Reject exactly once
     ↓
-PO page reflects updated consumption_pct, remaining_value, progress bar
+If Accepted: consume_po RPC inserts po_consumption_log + updates consumed_value
+If Rejected: run remains downloadable but no PO value is consumed
+Both outcomes are then locked in the UI
 ```
 
 ---
@@ -266,7 +270,7 @@ PO page reflects updated consumption_pct, remaining_value, progress bar
 ### Formula
 ```
 DaysInMonth    = actual calendar days in YYYYMM (e.g., Feb 2026 = 28)
-EffectiveDays  = DaysInMonth (or pro-rated if date_of_reporting falls in billing month)
+EffectiveDays  = DaysInMonth (or pro-rated if charging_date / date_of_reporting falls in billing month)
 LeavesTaken    = count of "L" in attendance (days 1..DaysInMonth only)
 ChargeableDays = min(EffectiveDays - LeavesTaken + LeavesAllowed, 30)   // capped at 30, min 0
 InvoiceAmount  = (ChargeableDays / Divisor) × MonthlyRate
@@ -277,10 +281,10 @@ The **Divisor** is configurable via the `BILLING_DIVISOR` environment variable:
 - `30` — always divides by 30 (fixed billing month assumption)
 
 ### Date of Reporting (Pro-rata)
-If an employee's `date_of_reporting` falls within the billing month, billing is pro-rated:
+If an employee's `charging_date` (also accepted from uploads as `date_of_reporting`) falls within the billing month, billing is pro-rated:
 - **EffectiveDays** = DaysInMonth - ReportingDay + 1 (bill from reporting date to month-end)
-- If `date_of_reporting` is **after** the billing month, the employee is skipped entirely with an error
-- If `date_of_reporting` is **before** the billing month (or not set), full month is billed
+- If that date is **after** the billing month, the employee is skipped entirely with an error
+- If that date is **before** the billing month (or not set), full month is billed
 
 ### Chargeable Days Cap
 - Maximum chargeable days is **30** (hard cap)
@@ -288,7 +292,7 @@ If an employee's `date_of_reporting` falls within the billing month, billing is 
 
 ### Example 1: Normal (EMP001, Feb 2026, Divisor = 30)
 ```
-DaysInMonth = 28, EffectiveDays = 28 (no date_of_reporting)
+DaysInMonth = 28, EffectiveDays = 28 (no charging_date)
 LeavesTaken = 2, LeavesAllowed = 2
 ChargeableDays = min(28 - 2 + 2, 30) = 28
 InvoiceAmount = (28 / 30) × 50,000 = 46,666.67
@@ -316,7 +320,7 @@ InvoiceAmount = (30 / 30) × 180,000 = 180,000.00
 - `ChargeableDays` is capped at 30 and cannot go negative
 - `EffectiveDays` reflects pro-rata when an employee joins mid-month
 - Monetary values are rounded to 2 decimal places
-- Invoice amounts are automatically deducted from linked POs when billing is generated
+- Invoice amounts are only deducted from linked POs when the generated service request is accepted
 
 ---
 
@@ -332,10 +336,11 @@ InvoiceAmount = (30 / 30) × 180,000 = 180,000.00
 | reporting_manager | Text | No | Manager name |
 | monthly_rate | Number | Yes | Monthly billing rate (positive) |
 | leaves_allowed | Number | Yes | Leaves per month (non-negative) |
-| po_number | Text | Yes | PO number (resolved to po_id for auto-consumption) |
-| date_of_reporting | Date/Text | No | Employee reporting date |
+| sow_number | Text | Yes | Existing SOW number used to resolve `sow_id` |
+| po_number | Text | No | Optional PO number (resolved to `po_id` if it matches an active PO) |
+| charging_date | Date/Text | No | Employee reporting / charging start date |
 
-Column names are matched case-insensitively with alias support (e.g., "Employee Code" maps to "emp_code", "PO" maps to "po_number").
+Column names are matched case-insensitively with alias support (e.g., "Employee Code" maps to "emp_code", "PO" maps to "po_number", "date_of_reporting" maps to "charging_date").
 
 ### Attendance Excel (Sheet1)
 | Column | Type | Required | Description |
@@ -362,7 +367,7 @@ Days beyond the actual month length are ignored.
 | Leaves Taken | Counted from attendance |
 | Effective Days | Billable days (pro-rated if mid-month reporting) |
 | Chargeable Days | Calculated (capped at 30, min 0) |
-| Invoice Amount | Calculated (also consumed from linked PO) |
+| Invoice Amount | Calculated amount; consumed from linked PO only if the service request is later accepted |
 
 Includes a TOTAL row at the bottom and auto-filter on all columns.
 
@@ -395,7 +400,11 @@ All API routes require authentication via `Authorization: Bearer <token>` header
 | POST | `/api/billing/generate-from-db` | Generate from stored data (JSON body: `{clientId?, billingMonth}`) |
 | GET | `/api/billing/runs` | List billing run history (`?limit=&offset=`) |
 | GET | `/api/billing/runs/:id` | Get run details with items + errors |
-| GET | `/api/billing/runs/:id/download` | Download generated Excel file |
+| POST | `/api/billing/runs/:id/decision` | Accept or reject a pending service request |
+| GET | `/api/billing/runs/:id/download` | Download generated Excel workbook |
+| GET | `/api/billing/runs/:id/download/billing_working` | Download only the `Billing_Working` worksheet as Excel |
+| GET | `/api/billing/runs/:id/download/manager_summary` | Download only the `Manager_Summary` worksheet as Excel |
+| GET | `/api/billing/runs/:id/download/error_report` | Download only the `Error_Report` worksheet as Excel |
 
 ### Clients
 | Method | Endpoint | Description |
@@ -411,7 +420,7 @@ All API routes require authentication via `Authorization: Bearer <token>` header
 |--------|----------|-------------|
 | GET | `/api/rate-cards` | List rate cards (`?clientId=`) |
 | GET | `/api/rate-cards/:id` | Get single rate card |
-| POST | `/api/rate-cards` | Create rate card (includes `po_id`, `date_of_reporting`) |
+| POST | `/api/rate-cards` | Create rate card (requires `sow_id`, optional `po_id`, stores `monthly_rate`) |
 | PUT | `/api/rate-cards/:id` | Update rate card |
 | DELETE | `/api/rate-cards/:id` | Soft-delete rate card |
 | POST | `/api/rate-cards/upload` | Bulk upload from Excel |
@@ -436,9 +445,9 @@ All API routes require authentication via `Authorization: Bearer <token>` header
 | PUT | `/api/quotes/:id` | Update draft quote |
 | PATCH | `/api/quotes/:id/status` | Change status (enforced transitions) |
 | DELETE | `/api/quotes/:id` | Delete draft quote |
-| GET | `/api/quotes/:id/download` | Download quote as Excel |
-| GET | `/api/quotes/:id/pdf` | Download quote as PDF |
-| POST | `/api/quotes/:id/convert-to-po` | Create PO from accepted quote (required `sow_id`) |
+| GET | `/api/quotes/:id/download` | Download quote as branded Word `.docx` |
+| GET | `/api/quotes/:id/pdf` | PDF export route (backend available; current UI uses DOCX download) |
+| POST | `/api/quotes/:id/convert-to-sow` | Create or link a SOW from an accepted quote |
 
 #### Quote Status Transitions
 ```
@@ -447,27 +456,68 @@ Draft → Sent → Accepted
 Any status → Expired
 ```
 
+- In the Quotes UI, accepted quotes expose a **Terminate** action.
+- Terminate is implemented as a status update to `Expired` (no DB schema change required).
+- When terminate is used from `Accepted`, the linked SOW document folder is also deleted (if present).
+
+#### Quote Notes / Mail Format
+- The UI exposes structured quote-mail fields for **Subject**, **Candidate Name**, **Dear / Recipient**, **Mail Body**, **Regards / Sender**, **Designation**, plus an internal **Side Note** field.
+- Both values are stored inside the existing `quotes.notes` column using an internal marker, so no schema change is required.
+- Only the structured **Mail Format** content is included in the exported documents; **Side Note** is for internal reference only.
+- The exported document includes the TeamBees logo, quote number, quote date, client name, client address, structured subject line, mail body, quote item table, structured signoff, and footer block.
+- Quote DOCX download filename format is:
+  `<client_abbreviation>_<first_line_item_description>_<candidate_name>_<quote_date_YYYYMMDD>.docx`
+- If **Candidate Name** is provided, the exported subject line is rendered as `Subject: <subject> ("<candidate>")`.
+- If **Designation** is provided, it is rendered on the next line below the sender as `(<designation>)`.
+- The body template includes:
+  `1. Cost of resource (per man month):`
+  `2. Prevailing taxes, GST extra as applicable`
+  `3. Location: ...`
+  `4. This Quote is valid till <N days>`
+- The frontend keeps `valid_until` defaulted to **quote date + 10 days**, but users can edit it manually; the mail body validity line is updated accordingly.
+
+#### Quote Numbering
+- New quote numbers follow the format `TBC-<financial-year>-<serial>`.
+- Financial year is April to March.
+- Example: a quote created on **2026-04-07** is numbered `TBC-2627-001`.
+- The serial resets for each financial year.
+- Quote revisions continue to use the base quote number with the existing revision suffix format `R(<n>)`.
+
 ### Statements of Work (SOW)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/sows` | List SOWs (`?clientId=&status=`) |
 | GET | `/api/sows/:id` | Get SOW with items |
 | POST | `/api/sows` | Create SOW (auto-generated number: `SOW-YYYYMMDD-NNN`) |
-| PUT | `/api/sows/:id` | Update SOW |
+| POST | `/api/sows/:id/amend` | Create an amendment draft from a signed SOW |
+| PUT | `/api/sows/:id` | Update Draft or Amendment Draft SOW |
 | PATCH | `/api/sows/:id/status` | Change SOW status |
-| DELETE | `/api/sows/:id` | Delete SOW |
+| DELETE | `/api/sows/:id` | Delete Draft or Amendment Draft SOW |
+| GET | `/api/sows/documents` | List linked-document folders and files |
+| POST | `/api/sows/documents/upload` | Upload SOW doc (PDF/DOC/DOCX) and store generated quote DOCX in the same folder |
+| GET | `/api/sows/documents/download?folder=&file=` | Download a file from a linked-document folder |
+| DELETE | `/api/sows/documents?folder=` | Delete a linked-document folder |
 
 #### SOW Status Transitions
 ```
-Draft → Active → Expired / Terminated
+Draft → Signed → Expired / Terminated
+Signed → Make Amendment → Amendment Draft → Signed
 ```
+
+#### SOW Linked Document Library
+- Folder naming format:
+  `<client_abbreviation>_<candidate_name>_<quote_date_YYYYMMDD>`
+- Each folder stores:
+  generated quote DOCX + uploaded SOW file (`.pdf`, `.doc`, or `.docx`)
+- SOW tab includes in-app folder browsing with:
+  search by folder name, per-file download, and folder delete
 
 ### Purchase Orders
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/purchase-orders` | List POs (`?clientId=&status=`) |
 | GET | `/api/purchase-orders/:id` | Get PO with consumption log + linked employees |
-| POST | `/api/purchase-orders` | Create PO (required `sow_id`, optional `quote_id`) |
+| POST | `/api/purchase-orders` | Create PO (required `sow_id`, optional `po_number`, optional `quote_id`) |
 | PUT | `/api/purchase-orders/:id` | Update PO |
 | PATCH | `/api/purchase-orders/:id/consume` | Manual consumption (`{amount, description}`) |
 | GET | `/api/purchase-orders/alerts` | Get POs nearing threshold or expiry |
@@ -510,8 +560,8 @@ All API responses follow this envelope:
 4. **billing_runs** - Audit log of billing generations
 5. **billing_items** - Per-employee calculation results for each run
 6. **billing_errors** - Per-employee errors for each run
-7. **quotes** + **quote_items** - Quote management with line items (includes `location`)
-8. **sows** + **sow_items** - Statement of Work with role/position items
+7. **quotes** + **quote_items** - Quote management with line items; exported primarily as branded `.docx`
+8. **sows** + **sow_items** - Statement of Work with role/position items and amendment draft workflow
 9. **purchase_orders** - PO tracking with value consumption and SOW linkage
 10. **po_consumption_log** - Consumption event history (auto + manual)
 11. **employee_po_history** - Assignment history when employees move between POs
@@ -558,11 +608,13 @@ All API responses follow this envelope:
 ## 10. Validation Rules
 
 ### Rate Card
-- Required columns present: emp_code, emp_name, monthly_rate, leaves_allowed, po_number
+- Required columns present: emp_code, emp_name, monthly_rate, leaves_allowed, sow_number
 - emp_code unique within the file
 - monthly_rate must be a positive number
 - leaves_allowed must be a non-negative integer
-- po_number must match an Active PO for the selected client
+- sow_number must match an existing SOW
+- po_number is optional; if provided, it must match an Active PO for the selected client/SOW context
+- In the manual Rate Card form, users may choose `Hourly Rate` mode; the UI computes `monthly_rate = hourly_rate × min(hours_worked_in_month, cap_hours)`, and only `monthly_rate` is stored
 
 ### Attendance
 - Required columns: emp_code + day number columns
@@ -594,9 +646,9 @@ Errors are categorized and reported:
 | Missing in Attendance | Employee in rate card but not in attendance |
 | File format | Invalid file type or corrupted Excel |
 | Validation | Invalid billing month format |
-| PO consumption | PO not found or consumption failed (logged but non-fatal) |
+| PO consumption | Acceptance-time PO lookup/consumption failed (logged but non-fatal) |
 
-Fatal errors (bad file, missing month) return HTTP 400. Employee-level errors are collected in the Error_Report sheet while valid employees are still processed. PO consumption errors are included in the response but do not prevent billing generation.
+Fatal errors (bad file, missing month) return HTTP 400. Employee-level errors are collected in the Error_Report sheet while valid employees are still processed. PO consumption errors are included during service-request acceptance and do not alter the original generated workbook.
 
 ---
 
@@ -605,18 +657,20 @@ Fatal errors (bad file, missing month) return HTTP 400. Employee-level errors ar
 1. **Variable month lengths** - DaysInMonth dynamically calculated (28/29/30/31)
 2. **Leap years** - February correctly returns 29 days for leap years
 3. **Header name variations** - Case-insensitive matching with aliases ("Employee Code" → emp_code)
-4. **Excel date formats** - Handles both JavaScript Date objects and string dates for DOJ and date_of_reporting
+4. **Excel date formats** - Handles both JavaScript Date objects and string dates for DOJ and charging/reporting dates
 5. **Empty rows** - Skipped during parsing
 6. **Partial data** - Employees with errors are reported; valid employees are still billed
 7. **Excess day columns** - Columns 29-31 ignored for months with fewer days
 8. **PO number resolution** - File-upload billing resolves `po_number` strings to `po_id` integers via database lookup
-9. **PO exhaustion** - Auto-marks PO as "Exhausted" when consumed_value >= po_value
-10. **PO-client integrity** - Database trigger prevents assigning a rate card to a PO from a different client
-11. **SOW-client integrity** - Database trigger prevents linking a PO to a SOW from a different client
-12. **Date of Reporting pro-rata** - Employees reporting mid-month are billed only from their reporting date
-13. **Future reporting date** - Employees whose date_of_reporting is after the billing month are skipped with an error
-14. **Chargeable days cap** - Maximum 30 chargeable days per employee per month
-15. **Negative billing prevention** - Chargeable days cannot go below 0
+9. **Decision locking** - Accepted/rejected service requests cannot be actioned again from the UI
+10. **PO exhaustion** - Auto-marks PO as "Exhausted" when consumed_value >= po_value
+11. **PO-client integrity** - Database trigger prevents assigning a rate card to a PO from a different client
+12. **SOW-client integrity** - Database trigger prevents linking a PO to a SOW from a different client
+13. **Date of Reporting pro-rata** - Employees reporting mid-month are billed only from their reporting date
+14. **Future reporting date** - Employees whose charging/reporting date is after the billing month are skipped with an error
+15. **Chargeable days cap** - Maximum 30 chargeable days per employee per month
+16. **Negative billing prevention** - Chargeable days cannot go below 0
+17. **SOW amendment safety** - Signed SOWs are preserved; amendments create new SOW records with unique numbers and `Amendment Draft` status
 
 ---
 
@@ -641,7 +695,7 @@ Fatal errors (bad file, missing month) return HTTP 400. Employee-level errors ar
 npm run dev
 
 # Open browser
-http://localhost:3000
+http://localhost:<PORT>
 
 # Login with Supabase credentials
 # Navigate to Billing page

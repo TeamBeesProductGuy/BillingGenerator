@@ -1,22 +1,226 @@
 (function () {
   // openModal / closeModal provided by app.js (with scroll lock + Escape + backdrop)
   var quoteSideNoteMarker = '\n\n---SIDE_NOTE---\n';
-
-  var quoteNotesTemplate = [
-    'Subject: [Write subject here]',
-    '',
-    'Dear [Write recipient name here],',
-    '',
+  var quoteMailBodyLines = [
     'Please refer to the following quote with best fitment to the requirements:',
     '1. Cost of resource (per man month):',
     '[Quote table will be inserted automatically in the Word document]',
     '2. Prevailing taxes, GST extra as applicable',
-    '3. Location: [Write location here]',
+    '3. Location: [Auto-filled from line item locations]',
+    '4. This Quote is valid till 10 days',
     '',
-    'Kindly issue the Purchase Order (PO).',
-    'Regards',
-    '[Write sender name here]'
+    'Kindly issue the Purchase Order (PO).'
+  ];
+  var defaultQuoteBody = quoteMailBodyLines.join('\n');
+  var quoteValidUntilTouched = false;
+
+  var quoteNotesTemplate = [
+    'Subject:',
+    '[Write subject here]',
+    '',
+    'Candidate:',
+    '[Write candidate name here]',
+    '',
+    'Dear:',
+    '[Write recipient name here]',
+    '',
+    'Body:',
+    defaultQuoteBody,
+    '',
+    'Regards:',
+    '[Write sender name here]',
+    '',
+    'Designation:',
+    '[Write designation here]'
   ].join('\n');
+
+  function getDefaultQuoteFormFields() {
+    return {
+      subject: '',
+      candidateName: '',
+      recipient: '',
+      body: defaultQuoteBody,
+      sender: '',
+      designation: '',
+    };
+  }
+
+  function escapeRegex(value) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function extractStructuredField(mailText, label, nextLabels) {
+    var lookAhead = nextLabels.map(function (item) {
+      return '\\n' + escapeRegex(item) + ':';
+    }).join('|');
+    var endOfInput = '(?![\\s\\S])';
+    var pattern = new RegExp(
+      '^\\s*' + escapeRegex(label) + ':\\s*\\n?([\\s\\S]*?)(?=' + (lookAhead || endOfInput) + '|' + endOfInput + ')',
+      'im'
+    );
+    var match = String(mailText || '').match(pattern);
+    return match ? match[1].trim() : '';
+  }
+
+  function collectQuoteItemLocations() {
+    var locations = [];
+    document.querySelectorAll('#quoteItemsBody .qi-loc').forEach(function (input) {
+      var value = String(input.value || '').trim();
+      if (!value) return;
+      var exists = locations.some(function (item) { return item.toLowerCase() === value.toLowerCase(); });
+      if (!exists) locations.push(value);
+    });
+    return locations;
+  }
+
+  function toLocalDateInputValue(date) {
+    var year = date.getFullYear();
+    var month = String(date.getMonth() + 1).padStart(2, '0');
+    var day = String(date.getDate()).padStart(2, '0');
+    return year + '-' + month + '-' + day;
+  }
+
+  function addDaysToInputDate(dateValue, days) {
+    if (!dateValue) return '';
+    var parts = String(dateValue).split('-').map(function (item) { return parseInt(item, 10); });
+    if (parts.length !== 3 || parts.some(isNaN)) return '';
+    var date = new Date(parts[0], parts[1] - 1, parts[2]);
+    date.setDate(date.getDate() + days);
+    return toLocalDateInputValue(date);
+  }
+
+  function getValidityDaysText() {
+    var quoteDate = document.getElementById('quoteDate').value;
+    var validUntil = document.getElementById('quoteValidUntil').value;
+    if (!quoteDate || !validUntil) return '10 days';
+    var start = new Date(quoteDate + 'T00:00:00');
+    var end = new Date(validUntil + 'T00:00:00');
+    var diffMs = end.getTime() - start.getTime();
+    var diffDays = Number.isFinite(diffMs) ? Math.round(diffMs / 86400000) : 10;
+    if (diffDays <= 0) return '0 days';
+    return diffDays === 1 ? '1 day' : diffDays + ' days';
+  }
+
+  function updateQuoteValidityLine() {
+    var bodyEl = document.getElementById('quoteBody');
+    if (!bodyEl) return;
+    var lines = String(bodyEl.value || '').split(/\r?\n/);
+    var validityLine = '4. This Quote is valid till ' + getValidityDaysText();
+    var found = false;
+    lines = lines.map(function (line) {
+      if (/^4\.\s*This Quote is valid till\b/i.test(String(line).trim())) {
+        found = true;
+        return validityLine;
+      }
+      return line;
+    });
+    if (!found) {
+      var insertAt = -1;
+      lines.forEach(function (line, index) {
+        if (/^3\.\s*Location\s*:/i.test(String(line).trim())) insertAt = index + 1;
+      });
+      if (insertAt === -1) {
+        lines.push(validityLine);
+      } else {
+        lines.splice(insertAt, 0, validityLine);
+      }
+    }
+    bodyEl.value = lines.join('\n');
+  }
+
+  function syncValidUntilFromQuoteDate(force) {
+    var quoteDate = document.getElementById('quoteDate').value;
+    var validUntilEl = document.getElementById('quoteValidUntil');
+    if (!quoteDate || !validUntilEl) return;
+    if (!force && quoteValidUntilTouched && validUntilEl.value) {
+      updateQuoteValidityLine();
+      return;
+    }
+    validUntilEl.value = addDaysToInputDate(quoteDate, 10);
+    updateQuoteValidityLine();
+  }
+
+  function buildQuoteMailFormat(fields) {
+    var resolved = fields || getDefaultQuoteFormFields();
+    return [
+      'Subject:',
+      resolved.subject || '[Write subject here]',
+      '',
+      'Candidate:',
+      resolved.candidateName || '[Write candidate name here]',
+      '',
+      'Dear:',
+      resolved.recipient || '[Write recipient name here]',
+      '',
+      'Body:',
+      resolved.body || defaultQuoteBody,
+      '',
+      'Regards:',
+      resolved.sender || '[Write sender name here]',
+      '',
+      'Designation:',
+      resolved.designation || '[Write designation here]'
+    ].join('\n');
+  }
+
+  function parseQuoteMailFormat(mailText) {
+    var normalized = String(mailText || '').trim();
+    if (!normalized) return getDefaultQuoteFormFields();
+    var structuredSubject = extractStructuredField(normalized, 'Subject', ['Candidate', 'Dear', 'Body', 'Regards', 'Designation']);
+    var structuredCandidate = extractStructuredField(normalized, 'Candidate', ['Dear', 'Body', 'Regards', 'Designation']);
+    var structuredRecipient = extractStructuredField(normalized, 'Dear', ['Body', 'Regards', 'Designation']);
+    var structuredBody = extractStructuredField(normalized, 'Body', ['Regards', 'Designation']);
+    var structuredSender = extractStructuredField(normalized, 'Regards', ['Designation']);
+    var structuredDesignation = extractStructuredField(normalized, 'Designation', []);
+
+    if (structuredSubject || structuredCandidate || structuredRecipient || structuredBody || structuredSender || structuredDesignation) {
+      return {
+        subject: structuredSubject === '[Write subject here]' ? '' : structuredSubject,
+        candidateName: (structuredCandidate || '') === '[Write candidate name here]'
+          ? ''
+          : structuredCandidate,
+        recipient: structuredRecipient === '[Write recipient name here]' ? '' : structuredRecipient,
+        body: structuredBody || defaultQuoteBody,
+        sender: structuredSender === '[Write sender name here]' ? '' : structuredSender,
+        designation: structuredDesignation === '[Write designation here]' ? '' : structuredDesignation,
+      };
+    }
+
+    return {
+      subject: extractStructuredField(normalized, 'Subject', ['Candidate', 'Dear', 'Body', 'Regards', 'Designation']).replace(/^Subject:\s*/i, '').trim(),
+      candidateName: '',
+      recipient: (function () {
+        var dearLine = String(normalized || '').match(/^\s*Dear\s+(.+)$/im);
+        return dearLine ? dearLine[1].replace(/,\s*$/, '').trim() : '';
+      })(),
+      body: defaultQuoteBody,
+      sender: normalized.split(/\r?\n/).filter(Boolean).slice(-1)[0] === '[Write sender name here]'
+        ? ''
+        : normalized.split(/\r?\n/).filter(Boolean).slice(-1)[0] || '',
+      designation: '',
+    };
+  }
+
+  function setQuoteMailFormFields(fields) {
+    var values = fields || getDefaultQuoteFormFields();
+    document.getElementById('quoteSubject').value = values.subject || '';
+    document.getElementById('quoteCandidateName').value = values.candidateName || '';
+    document.getElementById('quoteRecipient').value = values.recipient || '';
+    document.getElementById('quoteBody').value = values.body || defaultQuoteBody;
+    document.getElementById('quoteSender').value = values.sender || '';
+    document.getElementById('quoteDesignation').value = values.designation || '';
+  }
+
+  function getQuoteMailFormFields() {
+    return {
+      subject: document.getElementById('quoteSubject').value.trim(),
+      candidateName: document.getElementById('quoteCandidateName').value.trim(),
+      recipient: document.getElementById('quoteRecipient').value.trim(),
+      body: document.getElementById('quoteBody').value.trim() || defaultQuoteBody,
+      sender: document.getElementById('quoteSender').value.trim(),
+      designation: document.getElementById('quoteDesignation').value.trim(),
+    };
+  }
 
   function splitStoredQuoteNotes(notes) {
     var raw = String(notes || '');
@@ -45,7 +249,10 @@
     document.getElementById('quoteItemsBody').innerHTML = '';
     document.getElementById('quoteModalTitle').textContent = 'Create Quote';
     document.getElementById('quoteId').value = '';
-    document.getElementById('quoteMailFormat').value = quoteNotesTemplate;
+    quoteValidUntilTouched = false;
+    setQuoteMailFormFields(getDefaultQuoteFormFields());
+    document.getElementById('quoteDate').value = toLocalDateInputValue(new Date());
+    syncValidUntilFromQuoteDate(true);
     document.getElementById('quoteSideNote').value = '';
     window.quoteEdit = null;
     addItemRow();
@@ -68,7 +275,7 @@
         var first = sel.querySelector('option');
         sel.innerHTML = first ? first.outerHTML : '';
         res.data.forEach(function (c) {
-          sel.innerHTML += '<option value="' + c.id + '">' + escapeHtml(c.client_name) + '</option>';
+          sel.innerHTML += '<option value="' + c.id + '">' + escapeHtml(getClientDisplayName(c)) + '</option>';
         });
       });
     } catch (e) { /* ignore */ }
@@ -112,7 +319,7 @@
             actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="editQuote(' + q.id + ')" title="Edit"><span class="material-symbols-outlined text-base">edit</span></button>';
           }
           actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="viewQuote(' + q.id + ')" title="View"><span class="material-symbols-outlined text-base">visibility</span></button>';
-          actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="downloadFile(\'/api/quotes/' + q.id + '/download\')" title="Download Word"><span class="material-symbols-outlined text-base">download</span></button>';
+          actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="downloadFile(\'/api/quotes/' + q.id + '/download\')" title="Download DOCX"><span class="material-symbols-outlined text-base">description</span></button>';
 
           // Status actions — show only valid transitions
           var VALID_TRANSITIONS = {
@@ -122,7 +329,7 @@
             Accepted: [],
             Expired: []
           };
-          var STATUS_LABELS = { Sent: 'Mark Sent', Accepted: 'Accept', Rejected: 'Reject', Draft: 'Revert to Draft' };
+          var STATUS_LABELS = { Sent: 'Mark Sent', Accepted: 'Accept', Rejected: 'Reject', Draft: 'Revert to Draft', Expired: 'Mark Expired' };
           var allowed = VALID_TRANSITIONS[q.status] || [];
 
           actionsHtml += '<div class="relative inline-block" id="quoteMenu' + q.id + '">';
@@ -133,7 +340,8 @@
           });
           if (q.status === 'Accepted') {
             actionsHtml += '<div class="border-t border-outline-variant/10 my-1"></div>';
-            actionsHtml += '<a href="#" class="block px-4 py-2 text-sm text-green-400 hover:bg-surface-container-highest transition-colors no-underline" onclick="event.preventDefault();convertToSOW(' + q.id + ')">Convert to SOW</a>';
+            actionsHtml += '<a href="#" class="block px-4 py-2 text-sm text-error hover:bg-surface-container-highest transition-colors no-underline" onclick="event.preventDefault();terminateQuote(' + q.id + ')">Terminate</a>';
+            actionsHtml += '<a href="#" class="block px-4 py-2 text-sm text-green-400 hover:bg-surface-container-highest transition-colors no-underline" onclick="event.preventDefault();convertToSOW(' + q.id + ')">Link to SOW</a>';
           }
           if (q.status === 'Draft') {
             actionsHtml += '<div class="border-t border-outline-variant/10 my-1"></div>';
@@ -212,8 +420,9 @@
       document.getElementById('quoteClient').value = q.client_id;
       document.getElementById('quoteDate').value = q.quote_date;
       document.getElementById('quoteValidUntil').value = q.valid_until;
+      quoteValidUntilTouched = true;
       var parsedNotes = splitStoredQuoteNotes(q.notes || '');
-      document.getElementById('quoteMailFormat').value = parsedNotes.mailFormat;
+      setQuoteMailFormFields(parseQuoteMailFormat(parsedNotes.mailFormat));
       document.getElementById('quoteSideNote').value = parsedNotes.sideNote;
       document.getElementById('quoteItemsBody').innerHTML = '';
       q.items.forEach(function (item) { addItemRow(item); });
@@ -274,6 +483,16 @@
     } catch (err) { showToast(err.message, 'danger'); }
   };
 
+  window.terminateQuote = async function (id) {
+    var confirmed = await confirmAction('Terminate Quote', 'Are you sure you want to terminate this quote? Its linked document folder will also be deleted.');
+    if (!confirmed) return;
+    try {
+      await apiCall('PATCH', '/api/quotes/' + id + '/status', { status: 'Expired' });
+      showToast('Quote terminated', 'success');
+      loadQuotes();
+    } catch (err) { showToast(err.message, 'danger'); }
+  };
+
   window.deleteQuote = async function (id) {
     var confirmed = await confirmAction('Delete Quote', 'Are you sure you want to delete this quote? This cannot be undone.');
     if (!confirmed) return;
@@ -313,7 +532,7 @@
       quote_date: document.getElementById('quoteDate').value,
       valid_until: document.getElementById('quoteValidUntil').value,
       notes: buildStoredQuoteNotes(
-        document.getElementById('quoteMailFormat').value,
+        buildQuoteMailFormat(getQuoteMailFormFields()),
         document.getElementById('quoteSideNote').value
       ),
       items: items,
@@ -356,9 +575,15 @@
   document.getElementById('btnAddQuoteItem').addEventListener('click', function () { addItemRow(); });
   document.getElementById('quoteFilterClient').addEventListener('change', loadQuotes);
   document.getElementById('quoteFilterStatus').addEventListener('change', loadQuotes);
+  document.getElementById('quoteDate').addEventListener('input', function () {
+    syncValidUntilFromQuoteDate(false);
+  });
+  document.getElementById('quoteValidUntil').addEventListener('input', function () {
+    quoteValidUntilTouched = true;
+    updateQuoteValidityLine();
+  });
 
   // Initialize search
   initTableSearch('quotesSearch', 'quotesBody');
-
   loadClients().then(loadQuotes);
 })();

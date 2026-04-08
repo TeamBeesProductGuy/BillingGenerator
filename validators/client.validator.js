@@ -7,6 +7,11 @@ const createClient = Joi.object({
     .max(200)
     .required(),
 
+  abbreviation: Joi.string()
+    .trim()
+    .max(50)
+    .allow('', null),
+
   contact_person: Joi.string()
     .trim()
     .max(200)
@@ -23,7 +28,7 @@ const createClient = Joi.object({
 
   address: Joi.string()
     .trim()
-    .max(500)
+    .max(200)
     .allow('', null),
 
   industry: Joi.string()

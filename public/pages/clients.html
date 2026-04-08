@@ -23,15 +23,17 @@
         <thead>
           <tr>
             <th class="sortable" data-sort-key="0">Name</th>
-            <th class="sortable" data-sort-key="1">Contact Person</th>
-            <th class="sortable" data-sort-key="2">Email</th>
-            <th class="sortable" data-sort-key="3">Phone</th>
-            <th class="sortable" data-sort-key="4">Industry</th>
+            <th class="sortable" data-sort-key="1">Abbreviation</th>
+            <th class="sortable" data-sort-key="2">Location</th>
+            <th class="sortable" data-sort-key="3">Contact Person</th>
+            <th class="sortable" data-sort-key="4">Email</th>
+            <th class="sortable" data-sort-key="5">Phone</th>
+            <th class="sortable" data-sort-key="6">Industry</th>
             <th class="text-center">Actions</th>
           </tr>
         </thead>
         <tbody id="clientsBody">
-          <tr><td colspan="6"><div class="loading-spinner"></div></td></tr>
+          <tr><td colspan="8"><div class="loading-spinner"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -55,6 +57,10 @@
           <input type="text" id="clientName" required>
         </div>
         <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Abbreviation</label>
+          <input type="text" id="clientAbbreviation" placeholder="e.g. NTT">
+        </div>
+        <div>
           <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Contact Person</label>
           <input type="text" id="contactPerson">
         </div>
@@ -72,8 +78,8 @@
             <input type="text" id="clientIndustry" placeholder="e.g. IT Services, Healthcare...">
           </div>
           <div>
-            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Address</label>
-            <textarea id="clientAddress" rows="2"></textarea>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Location</label>
+            <textarea id="clientAddress" rows="2" placeholder="e.g. Delhi"></textarea>
           </div>
         </div>
       </div>

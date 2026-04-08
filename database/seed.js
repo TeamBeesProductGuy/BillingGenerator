@@ -27,9 +27,9 @@ async function seed() {
 
   // Clients
   const clients = [
-    { client_name: 'Acme Corporation', contact_person: 'John Smith', email: 'john@acme.com', phone: '9876543210', address: 'Mumbai, Maharashtra' },
-    { client_name: 'TechNova Solutions', contact_person: 'Priya Patel', email: 'priya@technova.in', phone: '9876543211', address: 'Bangalore, Karnataka' },
-    { client_name: 'GlobalEdge Consulting', contact_person: 'Rahul Mehta', email: 'rahul@globaledge.com', phone: '9876543212', address: 'Delhi, NCR' },
+    { client_name: 'Acme Corporation', abbreviation: 'ACME', contact_person: 'John Smith', email: 'john@acme.com', phone: '9876543210', address: 'Mumbai, Maharashtra' },
+    { client_name: 'TechNova Solutions', abbreviation: 'TNS', contact_person: 'Priya Patel', email: 'priya@technova.in', phone: '9876543211', address: 'Bangalore, Karnataka' },
+    { client_name: 'GlobalEdge Consulting', abbreviation: 'GEC', contact_person: 'Rahul Mehta', email: 'rahul@globaledge.com', phone: '9876543212', address: 'Delhi, NCR' },
   ];
 
   const { data: insertedClients, error: clientErr } = await supabase

@@ -11,8 +11,8 @@ function validateBillingMonth(billingMonth) {
 
 function crossValidate(rateCards, attendanceRecords) {
   const errors = [];
-  const rateCardEmpCodes = new Set(rateCards.map((r) => r.emp_code));
-  const attendanceEmpCodes = new Set(attendanceRecords.map((a) => a.emp_code));
+  const rateCardEmpCodes = new Set(rateCards.map((r) => String(r.emp_code || '').trim()));
+  const attendanceEmpCodes = new Set(attendanceRecords.map((a) => String(a.emp_code || '').trim()));
 
   for (const rc of rateCards) {
     if (!attendanceEmpCodes.has(rc.emp_code)) {

@@ -4,6 +4,20 @@ function buildQuoteRevisionNumber(baseQuoteNumber, versionNumber) {
   return `${baseQuoteNumber} R(${versionNumber})`;
 }
 
+function normalizeBaseQuoteNumber(value) {
+  return String(value || '').replace(/\s+R\(\d+\)\s*$/i, '').trim();
+}
+
+function getFinancialYearCode(dateValue) {
+  const parsed = new Date(dateValue);
+  const date = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const startYear = month >= 4 ? year : year - 1;
+  const endYear = startYear + 1;
+  return String(startYear).slice(-2) + String(endYear).slice(-2);
+}
+
 function isMissingColumnError(error, columnName) {
   return Boolean(error && error.message && error.message.includes('column') && error.message.includes(columnName));
 }
@@ -65,20 +79,33 @@ const QuoteModel = {
     return { ...quote, items };
   },
 
-  async generateQuoteNumber() {
-    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    const pattern = `Q-${today}-%`;
-    const { count, error } = await supabase
+  async generateQuoteNumber(quoteDate) {
+    const fyCode = getFinancialYearCode(quoteDate);
+    const pattern = `TBC-${fyCode}-%`;
+    let data;
+    let error;
+
+    ({ data, error } = await supabase
       .from('quotes')
-      .select('*', { count: 'exact', head: true })
-      .like('quote_number', pattern);
+      .select('quote_number, base_quote_number')
+      .like('quote_number', pattern));
+
+    if (isMissingColumnError(error, 'base_quote_number')) {
+      ({ data, error } = await supabase
+        .from('quotes')
+        .select('quote_number')
+        .like('quote_number', pattern));
+    }
+
     if (error) throw new Error(error.message);
-    const seq = String((count || 0) + 1).padStart(3, '0');
-    return `Q-${today}-${seq}`;
+
+    const baseNumbers = new Set((data || []).map((row) => normalizeBaseQuoteNumber(row.base_quote_number || row.quote_number)));
+    const seq = String(baseNumbers.size + 1).padStart(3, '0');
+    return `TBC-${fyCode}-${seq}`;
   },
 
   async create(quote, items) {
-    const quoteNumber = quote.quote_number || await QuoteModel.generateQuoteNumber();
+    const quoteNumber = quote.quote_number || await QuoteModel.generateQuoteNumber(quote.quote_date);
     const totalAmount = Math.round(items.reduce((sum, item) => sum + item.amount, 0) * 100) / 100;
     const baseQuoteNumber = quote.base_quote_number || quoteNumber;
     const versionNumber = quote.version_number || 0;

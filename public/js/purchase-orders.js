@@ -36,7 +36,7 @@
         var first = sel.querySelector('option');
         sel.innerHTML = first ? first.outerHTML : '';
         res.data.forEach(function (c) {
-          sel.innerHTML += '<option value="' + c.id + '">' + escapeHtml(c.client_name) + '</option>';
+          sel.innerHTML += '<option value="' + c.id + '">' + escapeHtml(getClientDisplayName(c)) + '</option>';
         });
       });
     } catch (e) { /* ignore */ }

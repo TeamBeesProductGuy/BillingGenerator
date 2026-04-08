@@ -33,11 +33,13 @@
   function renderClients(data) {
     var tbody = document.getElementById('clientsBody');
     if (data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-on-surface-variant py-8">No clients found. Add one!</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center text-on-surface-variant py-8">No clients found. Add one!</td></tr>';
     } else {
       tbody.innerHTML = data.map(function (c) {
         return '<tr>' +
           '<td><strong>' + escapeHtml(c.client_name) + '</strong></td>' +
+          '<td>' + escapeHtml(c.abbreviation || '') + '</td>' +
+          '<td>' + escapeHtml(c.address || '') + '</td>' +
           '<td>' + escapeHtml(c.contact_person || '') + '</td>' +
           '<td>' + escapeHtml(c.email || '') + '</td>' +
           '<td>' + escapeHtml(c.phone || '') + '</td>' +
@@ -60,6 +62,7 @@
       var c = res.data;
       document.getElementById('clientId').value = c.id;
       document.getElementById('clientName').value = c.client_name;
+      document.getElementById('clientAbbreviation').value = c.abbreviation || '';
       document.getElementById('contactPerson').value = c.contact_person || '';
       document.getElementById('clientEmail').value = c.email || '';
       document.getElementById('clientPhone').value = c.phone || '';
@@ -85,6 +88,7 @@
     e.preventDefault();
     var data = {
       client_name: document.getElementById('clientName').value.trim(),
+      abbreviation: document.getElementById('clientAbbreviation').value.trim(),
       contact_person: document.getElementById('contactPerson').value.trim(),
       email: document.getElementById('clientEmail').value.trim(),
       phone: document.getElementById('clientPhone').value.trim(),

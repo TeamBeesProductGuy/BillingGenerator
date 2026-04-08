@@ -1,5 +1,100 @@
 (function () {
   // openModal / closeModal provided by app.js
+  window.openSowDocumentUploadModal = async function () {
+    document.getElementById('sowDocumentUploadForm').reset();
+    await loadAcceptedQuotesForDocumentUpload();
+    openModal('sowDocumentUploadModal');
+  };
+  window.closeSowDocumentUploadModal = function () { closeModal('sowDocumentUploadModal'); };
+
+  function formatFileSize(bytes) {
+    var size = Number(bytes) || 0;
+    if (size < 1024) return size + ' B';
+    if (size < 1024 * 1024) return (size / 1024).toFixed(1).replace(/\.0$/, '') + ' KB';
+    return (size / (1024 * 1024)).toFixed(1).replace(/\.0$/, '') + ' MB';
+  }
+
+  function formatDateTime(value) {
+    if (!value) return '-';
+    var date = new Date(value);
+    if (Number.isNaN(date.getTime())) return escapeHtml(String(value));
+    return date.toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  function buildDocumentLibraryHtml(folders) {
+    if (!folders || folders.length === 0) {
+      return '<div class="rounded-2xl border border-dashed border-outline-variant/20 bg-surface-container-high p-8 text-center text-on-surface-variant">No linked SOW document folders have been created yet.</div>';
+    }
+
+    return '<div class="space-y-4">' + folders.map(function (folder) {
+      var filesHtml = (folder.files || []).length
+        ? folder.files.map(function (file) {
+          var downloadUrl = '/api/sows/documents/download?folder=' + encodeURIComponent(folder.folder_name) + '&file=' + encodeURIComponent(file.name);
+          return '' +
+            '<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-outline-variant/12 bg-surface-container-high p-4">' +
+              '<div class="min-w-0">' +
+                '<div class="font-medium text-on-surface break-all">' + escapeHtml(file.name) + '</div>' +
+                '<div class="text-xs text-on-surface-variant mt-1">Updated ' + formatDateTime(file.modified_at) + ' • ' + formatFileSize(file.size) + '</div>' +
+              '</div>' +
+              '<button type="button" class="btn-secondary btn-sm inline-flex items-center gap-1.5 self-start sm:self-auto" onclick="downloadFile(\'' + downloadUrl + '\')">' +
+                '<span class="material-symbols-outlined text-base">download</span>Download' +
+              '</button>' +
+            '</div>';
+        }).join('')
+        : '<div class="text-sm text-on-surface-variant">This folder is empty.</div>';
+
+      return '' +
+        '<div class="rounded-2xl border border-outline-variant/12 bg-surface p-5">' +
+          '<div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">' +
+            '<div>' +
+              '<div class="text-base font-semibold text-on-surface break-all">' + escapeHtml(folder.folder_name) + '</div>' +
+              '<div class="text-xs text-on-surface-variant mt-1">Last updated ' + formatDateTime(folder.modified_at) + '</div>' +
+            '</div>' +
+            '<div class="flex items-center gap-2 self-start">' +
+              '<div class="text-xs font-semibold uppercase tracking-[0.15em] text-on-surface-variant">' + (folder.files || []).length + ' file' + ((folder.files || []).length === 1 ? '' : 's') + '</div>' +
+              '<button type="button" class="btn-danger btn-sm inline-flex items-center gap-1.5" onclick="deleteLinkedDocumentFolder(\'' + escapeHtml(folder.folder_name).replace(/'/g, "\\'") + '\')">' +
+                '<span class="material-symbols-outlined text-base">delete</span>Delete Folder' +
+              '</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="space-y-3">' + filesHtml + '</div>' +
+        '</div>';
+    }).join('') + '</div>';
+  }
+
+  window.loadLinkedDocumentLibrary = async function () {
+    var container = document.getElementById('sowDocumentLibrary');
+    if (!container) return;
+    container.innerHTML = '<div class="loading-spinner"></div>';
+    try {
+      var res = await apiCall('GET', '/api/sows/documents');
+      var searchValue = String((document.getElementById('sowDocumentSearch') || {}).value || '').trim().toLowerCase();
+      var folders = (res.data || []).filter(function (folder) {
+        return !searchValue || String(folder.folder_name || '').toLowerCase().indexOf(searchValue) !== -1;
+      });
+      container.innerHTML = buildDocumentLibraryHtml(folders);
+    } catch (err) {
+      container.innerHTML = '<div class="rounded-2xl border border-outline-variant/12 bg-surface-container-high p-6 text-sm text-error">Failed to load saved documents: ' + escapeHtml(err.message) + '</div>';
+    }
+  };
+
+  window.deleteLinkedDocumentFolder = async function (folderName) {
+    var confirmed = await confirmAction('Delete Document Folder', 'Are you sure you want to delete this saved document folder? This will remove both the generated quote and uploaded SOW files.');
+    if (!confirmed) return;
+    try {
+      await apiCall('DELETE', '/api/sows/documents?folder=' + encodeURIComponent(folderName));
+      showToast('Document folder deleted', 'success');
+      loadLinkedDocumentLibrary();
+    } catch (err) {
+      showToast(err.message, 'danger');
+    }
+  };
 
   window.openSOWModal = function () {
     document.getElementById('sowForm').reset();
@@ -27,7 +122,7 @@
         var first = sel.querySelector('option');
         sel.innerHTML = first ? first.outerHTML : '';
         res.data.forEach(function (c) {
-          sel.innerHTML += '<option value="' + c.id + '">' + escapeHtml(c.client_name) + '</option>';
+          sel.innerHTML += '<option value="' + c.id + '">' + escapeHtml(getClientDisplayName(c)) + '</option>';
         });
       });
     } catch (e) { /* ignore */ }
@@ -43,6 +138,20 @@
         sel.innerHTML += '<option value="' + q.id + '">' + escapeHtml(q.quote_number) + ' (' + formatCurrency(q.total_amount) + ')</option>';
       });
     } catch (e) { /* ignore */ }
+  }
+
+  async function loadAcceptedQuotesForDocumentUpload() {
+    var sel = document.getElementById('sowDocumentQuote');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Select Accepted Quote</option>';
+    try {
+      var res = await apiCall('GET', '/api/quotes?status=Accepted');
+      res.data.forEach(function (q) {
+        sel.innerHTML += '<option value="' + q.id + '">' + escapeHtml(q.quote_number) + ' - ' + escapeHtml(q.client_name || '') + '</option>';
+      });
+    } catch (err) {
+      showToast(err.message, 'danger');
+    }
   }
 
   async function loadSOWs() {
@@ -268,9 +377,30 @@
     } catch (err) { showToast(err.message, 'danger'); }
   });
 
+  document.getElementById('sowDocumentUploadForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var fileInput = document.getElementById('sowDocumentFile');
+    if (!fileInput.files || !fileInput.files[0]) {
+      showToast('Please choose a SOW file to upload', 'danger');
+      return;
+    }
+    var fd = new FormData();
+    fd.append('quote_id', document.getElementById('sowDocumentQuote').value);
+    fd.append('file', fileInput.files[0]);
+    try {
+      var res = await apiCall('POST', '/api/sows/documents/upload', fd);
+      showToast('Documents saved in folder ' + res.data.folderName, 'success');
+      closeSowDocumentUploadModal();
+      loadLinkedDocumentLibrary();
+    } catch (err) {
+      showToast(err.message, 'danger');
+    }
+  });
+
   document.getElementById('btnAddSowItem').addEventListener('click', function () { addSowItemRow(); });
   document.getElementById('sowFilterClient').addEventListener('change', loadSOWs);
   document.getElementById('sowFilterStatus').addEventListener('change', loadSOWs);
+  document.getElementById('sowDocumentSearch').addEventListener('input', loadLinkedDocumentLibrary);
 
   // Load quotes when client changes
   document.getElementById('sowClient').addEventListener('change', function () {
@@ -280,5 +410,8 @@
   // Initialize search
   initTableSearch('sowsSearch', 'sowsBody');
 
-  loadClients().then(loadSOWs);
+  loadClients().then(function () {
+    loadSOWs();
+    loadLinkedDocumentLibrary();
+  });
 })();

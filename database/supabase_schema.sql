@@ -9,7 +9,8 @@
 
 CREATE TABLE IF NOT EXISTS clients (
     id              SERIAL PRIMARY KEY,
-    client_name     TEXT NOT NULL UNIQUE,
+    client_name     TEXT NOT NULL,
+    abbreviation    TEXT,
     contact_person  TEXT,
     email           TEXT,
     phone           TEXT,
@@ -19,6 +20,10 @@ CREATE TABLE IF NOT EXISTS clients (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_unique_name_location_active
+ON clients (LOWER(client_name), LOWER(COALESCE(address, '')))
+WHERE is_active = TRUE;
 
 CREATE TABLE IF NOT EXISTS rate_cards (
     id                SERIAL PRIMARY KEY,

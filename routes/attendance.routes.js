@@ -6,6 +6,7 @@ const { submitSingle, submitBulk, deleteAttendance, deleteByMonth } = require('.
 
 router.get('/', attendanceController.list);
 router.get('/summary', attendanceController.getSummary);
+router.get('/employee/:empCode', attendanceController.lookupEmployee);
 router.post('/', validate(submitSingle), attendanceController.submitSingle);
 router.post('/bulk', validate(submitBulk), attendanceController.submitBulk);
 router.post('/upload', upload.single('file'), attendanceController.uploadExcel);

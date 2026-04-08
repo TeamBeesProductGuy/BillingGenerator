@@ -22,6 +22,30 @@ const attendanceController = {
     res.json({ success: true, data: summary });
   }),
 
+  lookupEmployee: catchAsync(async (req, res) => {
+    const RateCardModel = require('../models/rateCard.model');
+    const empCode = String(req.params.empCode || '').trim();
+    if (!empCode) throw new AppError(400, 'empCode is required');
+
+    const matches = await RateCardModel.findActiveByEmpCode(empCode);
+    if (matches.length === 0) throw new AppError(404, 'Employee code not found in active rate cards');
+    if (matches.length > 1) {
+      throw new AppError(409, 'Employee code is ambiguous across clients. Please fix the rate cards before entering attendance.');
+    }
+
+    const employee = matches[0];
+    res.json({
+      success: true,
+      data: {
+        emp_code: employee.emp_code,
+        emp_name: employee.emp_name || '',
+        reporting_manager: employee.reporting_manager || '',
+        client_id: employee.client_id,
+        client_name: employee.client_name || '',
+      },
+    });
+  }),
+
   submitSingle: catchAsync(async (req, res) => {
     const { emp_code, emp_name, reporting_manager, billing_month, day_number, status } = req.body;
     await AttendanceModel.bulkUpsert([{ emp_code, emp_name, reporting_manager, billing_month, day_number, status: status.toUpperCase() }]);
@@ -29,9 +53,17 @@ const attendanceController = {
   }),
 
   submitBulk: catchAsync(async (req, res) => {
-    const { emp_code, emp_name, reporting_manager, billing_month, leaves } = req.body;
+    const RateCardModel = require('../models/rateCard.model');
+    const { emp_code, billing_month, leaves } = req.body;
     const monthError = validateBillingMonth(billing_month);
     if (monthError) throw new AppError(400, monthError);
+
+    const matches = await RateCardModel.findActiveByEmpCode(emp_code);
+    if (matches.length === 0) throw new AppError(404, 'Employee code not found in active rate cards');
+    if (matches.length > 1) {
+      throw new AppError(409, 'Employee code is ambiguous across clients. Attendance entry rejected.');
+    }
+    const employee = matches[0];
 
     const daysInMonth = getDaysInMonth(billing_month);
 
@@ -48,8 +80,8 @@ const attendanceController = {
     for (let day = 1; day <= daysInMonth; day++) {
       records.push({
         emp_code,
-        emp_name: emp_name || null,
-        reporting_manager: reporting_manager || null,
+        emp_name: employee.emp_name || null,
+        reporting_manager: employee.reporting_manager || null,
         billing_month,
         day_number: day,
         status: leaveDays.has(day) ? 'L' : 'P',
@@ -59,7 +91,10 @@ const attendanceController = {
     await AttendanceModel.bulkUpsert(records);
     res.json({
       success: true,
-      data: { message: `Attendance recorded for ${daysInMonth} days, ${leaveDays.size} leaves` },
+      data: {
+        message: `Attendance recorded for ${daysInMonth} days, ${leaveDays.size} leaves`,
+        client_name: employee.client_name || '',
+      },
     });
   }),
 

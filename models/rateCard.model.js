@@ -39,6 +39,17 @@ const RateCardModel = {
     return data;
   },
 
+  async findActiveByEmpCode(empCode) {
+    const { data, error } = await supabase
+      .from('rate_cards_view')
+      .select('id, client_id, client_name, emp_code, emp_name, reporting_manager')
+      .eq('emp_code', empCode)
+      .eq('is_active', true)
+      .order('client_name');
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+
   async create(data) {
     let { data: row, error } = await supabase
       .from('rate_cards')

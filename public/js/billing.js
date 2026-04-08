@@ -160,6 +160,7 @@
     currentRunId = data.billingRunId || data.id || null;
     currentRequestStatus = data.requestStatus || data.request_status || 'Pending';
     currentPoCandidatesByEmp = data.poCandidatesByEmp || {};
+    var blockedByErrors = !!data.blockedByErrors;
 
     document.getElementById('resTotalEmp').textContent = data.summary.totalEmployees;
     document.getElementById('resTotalAmount').textContent = formatCurrency(data.summary.totalAmount);
@@ -201,7 +202,17 @@
     }
 
     var decisionCard = document.getElementById('decisionCard');
-    if (currentRequestStatus === 'Pending') {
+    if (blockedByErrors) {
+      decisionCard.classList.remove('hidden');
+      document.getElementById('decisionActions').classList.add('hidden');
+      var message = document.getElementById('decisionStatusMessage');
+      message.classList.remove('hidden');
+      message.className = 'text-sm font-semibold text-red-400';
+      message.textContent = 'Errors found. Please check the error report before generating a service request.';
+      document.getElementById('decisionHelpText').textContent = 'No service request was generated because the validation step found errors.';
+      document.getElementById('missingPoSection').classList.add('hidden');
+      document.getElementById('missingPoBody').innerHTML = '';
+    } else if (currentRequestStatus === 'Pending') {
       decisionCard.classList.remove('hidden');
       updateDecisionPresentation(currentRequestStatus);
       setDecisionButtonsEnabled(true);
@@ -221,7 +232,7 @@
       var sel = document.getElementById('dbClientId');
       if (sel) {
         res.data.forEach(function (c) {
-          sel.innerHTML += '<option value="' + c.id + '">' + escapeHtml(c.client_name) + '</option>';
+          sel.innerHTML += '<option value="' + c.id + '">' + escapeHtml(getClientDisplayName(c)) + '</option>';
         });
       }
     } catch (e) { /* ignore */ }
@@ -288,7 +299,11 @@
 
   async function generateRequest(endpoint, body, isFormData) {
     var res = await apiCall('POST', endpoint, body);
-    showToast('Service request generated successfully!', 'success');
+    if (res.data && res.data.blockedByErrors) {
+      showToast('Errors found. Check the error report before proceeding.', 'warning');
+    } else {
+      showToast('Service request generated successfully!', 'success');
+    }
     showResults(res.data);
     loadHistory();
     return res;

@@ -8,6 +8,7 @@
     var monthlyInput = document.getElementById('rcRate');
     var hourlyRateInput = document.getElementById('rcHourlyRate');
     var hoursWorkedInput = document.getElementById('rcHoursWorked');
+    var capHoursInput = document.getElementById('rcCapHours');
 
     var isHourly = mode === 'hourly';
     monthlySection.classList.toggle('hidden', isHourly);
@@ -16,10 +17,12 @@
     monthlyInput.required = !isHourly;
     hourlyRateInput.required = isHourly;
     hoursWorkedInput.required = isHourly;
+    capHoursInput.required = isHourly;
 
     if (!isHourly) {
       hourlyRateInput.value = '';
       hoursWorkedInput.value = '';
+      capHoursInput.value = '';
       document.getElementById('rcComputedMonthlyRate').textContent = formatCurrency(parseFloat(monthlyInput.value) || 0);
     } else {
       recalcHourlyMonthlyRate();
@@ -29,7 +32,9 @@
   function recalcHourlyMonthlyRate() {
     var hourlyRate = parseFloat(document.getElementById('rcHourlyRate').value) || 0;
     var hoursWorked = parseFloat(document.getElementById('rcHoursWorked').value) || 0;
-    var monthlyRate = Math.round(hourlyRate * hoursWorked * 100) / 100;
+    var capHours = parseFloat(document.getElementById('rcCapHours').value) || 0;
+    var billableHours = Math.min(hoursWorked, capHours);
+    var monthlyRate = Math.round(hourlyRate * billableHours * 100) / 100;
     document.getElementById('rcComputedMonthlyRate').textContent = formatCurrency(monthlyRate);
     return monthlyRate;
   }
@@ -45,6 +50,7 @@
     document.getElementById('rcRateMode').value = 'monthly';
     document.getElementById('rcHourlyRate').value = '';
     document.getElementById('rcHoursWorked').value = '';
+    document.getElementById('rcCapHours').value = '';
     document.getElementById('rcComputedMonthlyRate').textContent = formatCurrency(0);
     toggleRateMode('monthly');
     window.rcEdit = null;
@@ -62,6 +68,7 @@
     document.getElementById('rcRateMode').value = 'monthly';
     document.getElementById('rcHourlyRate').value = '';
     document.getElementById('rcHoursWorked').value = '';
+    document.getElementById('rcCapHours').value = '';
     document.getElementById('rcComputedMonthlyRate').textContent = formatCurrency(0);
     toggleRateMode('monthly');
     window.rcEdit = null;
@@ -83,7 +90,7 @@
         var existing = sel.querySelector('option');
         sel.innerHTML = existing ? existing.outerHTML : '<option value="">All</option>';
         res.data.forEach(function (c) {
-          sel.innerHTML += '<option value="' + c.id + '">' + escapeHtml(c.client_name) + '</option>';
+          sel.innerHTML += '<option value="' + c.id + '">' + escapeHtml(getClientDisplayName(c)) + '</option>';
         });
       });
     } catch (e) { /* ignore */ }
@@ -202,6 +209,7 @@
       document.getElementById('rcRateMode').value = 'monthly';
       document.getElementById('rcHourlyRate').value = '';
       document.getElementById('rcHoursWorked').value = '';
+      document.getElementById('rcCapHours').value = '';
       document.getElementById('rcComputedMonthlyRate').textContent = formatCurrency(r.monthly_rate || 0);
       toggleRateMode('monthly');
       document.getElementById('rcLeaves').value = r.leaves_allowed;
@@ -232,7 +240,7 @@
       : parseFloat(document.getElementById('rcRate').value);
 
     if (!monthlyRate || monthlyRate <= 0) {
-      showToast(rateMode === 'hourly' ? 'Enter valid hourly rate and hours worked' : 'Enter a valid monthly rate', 'danger');
+      showToast(rateMode === 'hourly' ? 'Enter valid hourly rate, hours worked, and cap hours' : 'Enter a valid monthly rate', 'danger');
       return;
     }
 
@@ -280,6 +288,7 @@
   });
   document.getElementById('rcHourlyRate').addEventListener('input', recalcHourlyMonthlyRate);
   document.getElementById('rcHoursWorked').addEventListener('input', recalcHourlyMonthlyRate);
+  document.getElementById('rcCapHours').addEventListener('input', recalcHourlyMonthlyRate);
 
   // Load POs when client changes in the form
   document.getElementById('rcClient').addEventListener('change', function () {

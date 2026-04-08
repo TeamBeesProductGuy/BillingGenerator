@@ -2,7 +2,8 @@
 
 CREATE TABLE IF NOT EXISTS clients (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    client_name     TEXT NOT NULL UNIQUE,
+    client_name     TEXT NOT NULL,
+    abbreviation    TEXT,
     contact_person  TEXT,
     email           TEXT,
     phone           TEXT,
@@ -11,6 +12,10 @@ CREATE TABLE IF NOT EXISTS clients (
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_unique_name_location_active
+ON clients (LOWER(client_name), LOWER(COALESCE(address, '')))
+WHERE is_active = 1;
 
 CREATE TABLE IF NOT EXISTS rate_cards (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
