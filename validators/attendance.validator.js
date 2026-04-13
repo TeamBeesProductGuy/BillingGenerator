@@ -47,15 +47,29 @@ const submitBulk = Joi.object({
 
   leaves: Joi.alternatives().try(
     Joi.number()
-      .integer()
-      .min(0),
+      .min(0)
+      .precision(1)
+      .multiple(0.5),
     Joi.array().items(
       Joi.number()
         .integer()
         .min(1)
         .max(31)
     )
-  )
+  ),
+
+  leave_entries: Joi.array().items(
+    Joi.object({
+      day_number: Joi.number()
+        .integer()
+        .min(1)
+        .max(31)
+        .required(),
+      leave_units: Joi.number()
+        .valid(0.5, 1)
+        .required(),
+    })
+  ).optional()
 });
 
 const deleteAttendance = Joi.object({

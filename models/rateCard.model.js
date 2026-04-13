@@ -4,6 +4,10 @@ function isMissingColumnError(error, columnName) {
   return Boolean(error && error.message && error.message.includes('column') && error.message.includes(columnName));
 }
 
+function throwSowMigrationError() {
+  throw new Error('Rate card SOW linkage requires DB migration: run database/migrations/003_service_request_workflow.sql in Supabase SQL Editor (adds rate_cards.sow_id and updates rate_cards_view).');
+}
+
 const RateCardModel = {
   async findAll(clientId) {
     let query = supabase
@@ -69,21 +73,7 @@ const RateCardModel = {
       .single();
 
     if (isMissingColumnError(error, 'sow_id')) {
-      ({ data: row, error } = await supabase
-        .from('rate_cards')
-        .insert({
-          client_id: data.client_id,
-          emp_code: data.emp_code,
-          emp_name: data.emp_name,
-          doj: data.doj || null,
-          reporting_manager: data.reporting_manager || null,
-          monthly_rate: data.monthly_rate,
-          leaves_allowed: data.leaves_allowed || 0,
-          charging_date: data.charging_date || null,
-          po_id: data.po_id || null,
-        })
-        .select('id')
-        .single());
+      throwSowMigrationError();
     }
     if (error) throw new Error(error.message);
     return row.id;
@@ -110,23 +100,7 @@ const RateCardModel = {
       .select('id');
 
     if (isMissingColumnError(result.error, 'sow_id')) {
-      const fallbackRows = records.map((data) => ({
-        client_id: data.client_id,
-        emp_code: data.emp_code,
-        emp_name: data.emp_name,
-        doj: data.doj || null,
-        reporting_manager: data.reporting_manager || null,
-        monthly_rate: data.monthly_rate,
-        leaves_allowed: data.leaves_allowed || 0,
-        charging_date: data.charging_date || null,
-        po_id: data.po_id || null,
-        is_active: true,
-        updated_at: new Date().toISOString(),
-      }));
-      result = await supabase
-        .from('rate_cards')
-        .upsert(fallbackRows, { onConflict: 'client_id,emp_code' })
-        .select('id');
+      throwSowMigrationError();
     }
 
     if (result.error) throw new Error(result.error.message);
@@ -150,19 +124,7 @@ const RateCardModel = {
       .eq('id', id);
 
     if (isMissingColumnError(error, 'sow_id')) {
-      ({ error } = await supabase
-        .from('rate_cards')
-        .update({
-          emp_name: data.emp_name,
-          doj: data.doj || null,
-          reporting_manager: data.reporting_manager || null,
-          monthly_rate: data.monthly_rate,
-          leaves_allowed: data.leaves_allowed || 0,
-          charging_date: data.charging_date || null,
-          po_id: data.po_id !== undefined ? (data.po_id || null) : undefined,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', id));
+      throwSowMigrationError();
     }
     if (error) throw new Error(error.message);
   },

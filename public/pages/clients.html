@@ -70,7 +70,17 @@
         </div>
         <div>
           <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Phone</label>
-          <input type="text" id="clientPhone">
+          <div class="grid grid-cols-3 gap-2">
+            <select id="clientPhoneCountryCode">
+              <option value="+91">+91 (India)</option>
+              <option value="+1">+1 (US/CA)</option>
+              <option value="+44">+44 (UK)</option>
+              <option value="+61">+61 (Australia)</option>
+              <option value="+65">+65 (Singapore)</option>
+              <option value="+971">+971 (UAE)</option>
+            </select>
+            <input type="text" id="clientPhone" class="col-span-2" placeholder="Phone number">
+          </div>
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>

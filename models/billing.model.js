@@ -81,6 +81,17 @@ const BillingModel = {
       }));
       ({ error } = await supabase.from('billing_items').insert(fallbackRows));
     }
+
+    // Backward compatibility: legacy DBs may still have billing_items.leaves_taken as INTEGER.
+    // If half-day leaves produce fractional values, retry with rounded leaves_taken so billing run can still be stored.
+    const hasFractionalLeaves = rows.some((row) => !Number.isInteger(Number(row.leaves_taken || 0)));
+    if (error && error.message && error.message.includes('invalid input syntax for type integer') && hasFractionalLeaves) {
+      const legacyRows = rows.map((row) => ({
+        ...row,
+        leaves_taken: Math.round(Number(row.leaves_taken || 0)),
+      }));
+      ({ error } = await supabase.from('billing_items').insert(legacyRows));
+    }
     if (error) throw new Error(error.message);
   },
 

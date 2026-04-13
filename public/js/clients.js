@@ -1,4 +1,44 @@
 (function () {
+  var PHONE_RULES = {
+    '+91': { min: 10, max: 10 },
+    '+1': { min: 10, max: 10 },
+    '+44': { min: 10, max: 10 },
+    '+61': { min: 9, max: 9 },
+    '+65': { min: 8, max: 8 },
+    '+971': { min: 9, max: 9 },
+  };
+
+  function splitPhone(fullPhone) {
+    var raw = String(fullPhone || '').trim();
+    if (!raw) return { code: '+91', number: '' };
+    for (var code in PHONE_RULES) {
+      if (raw.indexOf(code) === 0) {
+        return { code: code, number: raw.slice(code.length).replace(/\D/g, '') };
+      }
+    }
+    return { code: '+91', number: raw.replace(/\D/g, '') };
+  }
+
+  function buildPhone(code, number) {
+    var num = String(number || '').replace(/\D/g, '');
+    if (!num) return '';
+    return String(code || '+91') + num;
+  }
+
+  function validatePhone(code, number) {
+    var num = String(number || '').replace(/\D/g, '');
+    if (!num) return null;
+    var rule = PHONE_RULES[code];
+    if (!rule) return 'Please select a valid country code';
+    if (num.length < rule.min || num.length > rule.max) {
+      if (rule.min === rule.max) {
+        return 'Phone number must be exactly ' + rule.min + ' digits for ' + code;
+      }
+      return 'Phone number must be between ' + rule.min + ' and ' + rule.max + ' digits for ' + code;
+    }
+    return null;
+  }
+
   // Store loaded data for search/sort
   var clientsData = [];
 
@@ -65,7 +105,9 @@
       document.getElementById('clientAbbreviation').value = c.abbreviation || '';
       document.getElementById('contactPerson').value = c.contact_person || '';
       document.getElementById('clientEmail').value = c.email || '';
-      document.getElementById('clientPhone').value = c.phone || '';
+      var phoneParts = splitPhone(c.phone || '');
+      document.getElementById('clientPhoneCountryCode').value = phoneParts.code;
+      document.getElementById('clientPhone').value = phoneParts.number;
       document.getElementById('clientAddress').value = c.address || '';
       document.getElementById('clientIndustry').value = c.industry || '';
       document.getElementById('clientModalTitle').textContent = 'Edit Client';
@@ -86,12 +128,19 @@
 
   document.getElementById('clientForm').addEventListener('submit', async function (e) {
     e.preventDefault();
+    var phoneCountryCode = document.getElementById('clientPhoneCountryCode').value;
+    var phoneNumber = document.getElementById('clientPhone').value.trim();
+    var phoneValidation = validatePhone(phoneCountryCode, phoneNumber);
+    if (phoneValidation) {
+      showToast(phoneValidation, 'danger');
+      return;
+    }
     var data = {
       client_name: document.getElementById('clientName').value.trim(),
       abbreviation: document.getElementById('clientAbbreviation').value.trim(),
       contact_person: document.getElementById('contactPerson').value.trim(),
       email: document.getElementById('clientEmail').value.trim(),
-      phone: document.getElementById('clientPhone').value.trim(),
+      phone: buildPhone(phoneCountryCode, phoneNumber),
       address: document.getElementById('clientAddress').value.trim(),
       industry: document.getElementById('clientIndustry').value.trim(),
     };

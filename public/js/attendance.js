@@ -1,4 +1,6 @@
 (function () {
+  var leaveCalendarState = {};
+
   // Tab switching
   window.switchAttTab = function (tabId) {
     document.querySelectorAll('.att-tab').forEach(function (btn) {
@@ -19,6 +21,74 @@
     return inputValue.replace('-', '');
   }
 
+  function getDaysInSelectedMonth() {
+    var monthRaw = document.getElementById('attMonth').value;
+    if (!monthRaw || monthRaw.indexOf('-') === -1) return 30;
+    var parts = monthRaw.split('-');
+    var year = parseInt(parts[0], 10);
+    var month = parseInt(parts[1], 10);
+    if (!year || !month) return 30;
+    return new Date(year, month, 0).getDate();
+  }
+
+  function selectedLeaveEntries() {
+    return Object.keys(leaveCalendarState)
+      .map(function (dayKey) {
+        return {
+          day_number: parseInt(dayKey, 10),
+          leave_units: leaveCalendarState[dayKey],
+        };
+      })
+      .filter(function (entry) {
+        return entry.day_number && (entry.leave_units === 1 || entry.leave_units === 0.5);
+      })
+      .sort(function (a, b) { return a.day_number - b.day_number; });
+  }
+
+  function syncLeaveCountFromCalendar() {
+    var total = selectedLeaveEntries().reduce(function (sum, item) {
+      return sum + item.leave_units;
+    }, 0);
+    document.getElementById('attLeaveCount').value = total > 0 ? String(total) : '';
+    document.getElementById('attLeaveEntries').value = JSON.stringify(selectedLeaveEntries());
+  }
+
+  function renderLeaveCalendar() {
+    var cal = document.getElementById('attLeaveCalendar');
+    if (!cal) return;
+    var days = getDaysInSelectedMonth();
+    cal.innerHTML = '';
+    for (var d = 1; d <= days; d++) {
+      var units = Number(leaveCalendarState[d] || 0);
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.setAttribute('data-day', String(d));
+      btn.className = 'h-9 rounded-lg border text-xs font-semibold transition-colors ' +
+        (units === 1
+          ? 'bg-error/20 border-error/40 text-error'
+          : (units === 0.5
+            ? 'bg-yellow-500/20 border-yellow-500/40 text-yellow-700'
+            : 'bg-surface-container-high border-outline-variant/20 text-on-surface'));
+      btn.textContent = d;
+      cal.appendChild(btn);
+    }
+  }
+
+  function toggleLeaveDay(day) {
+    var current = Number(leaveCalendarState[day] || 0);
+    if (current === 0) leaveCalendarState[day] = 1;
+    else if (current === 1) leaveCalendarState[day] = 0.5;
+    else delete leaveCalendarState[day];
+    renderLeaveCalendar();
+    syncLeaveCountFromCalendar();
+  }
+
+  function resetLeaveCalendar() {
+    leaveCalendarState = {};
+    renderLeaveCalendar();
+    syncLeaveCountFromCalendar();
+  }
+
   // Auto-fill month inputs with previous month
   function autoFillMonthInputs() {
     var defaultVal = getDefaultBillingMonthInput(); // YYYY-MM
@@ -28,11 +98,13 @@
     });
   }
   autoFillMonthInputs();
+  renderLeaveCalendar();
 
   function clearAttendanceEmployeeDetails() {
     document.getElementById('attEmpName').value = '';
     document.getElementById('attManager').value = '';
     document.getElementById('attClient').value = '';
+    document.getElementById('attLeavesAllowed').value = '';
   }
 
   async function lookupAttendanceEmployee() {
@@ -46,6 +118,9 @@
       document.getElementById('attEmpName').value = res.data.emp_name || '';
       document.getElementById('attManager').value = res.data.reporting_manager || '';
       document.getElementById('attClient').value = res.data.client_name || '';
+      document.getElementById('attLeavesAllowed').value = res.data.leaves_allowed !== undefined && res.data.leaves_allowed !== null
+        ? String(res.data.leaves_allowed)
+        : '';
     } catch (err) {
       clearAttendanceEmployeeDetails();
       showToast(err.message, 'danger');
@@ -61,13 +136,13 @@
     var monthRaw = document.getElementById('attMonth').value.trim();
     var month = monthInputToYYYYMM(monthRaw);
     var leaveCount = document.getElementById('attLeaveCount').value;
-    var leaveDaysStr = document.getElementById('attLeaveDays').value.trim();
+    var leaveEntries = selectedLeaveEntries();
 
     var leaves;
-    if (leaveDaysStr) {
-      leaves = leaveDaysStr.split(',').map(function (d) { return parseInt(d.trim(), 10); }).filter(function (d) { return !isNaN(d); });
+    if (leaveEntries.length > 0) {
+      leaves = leaveEntries.reduce(function (sum, item) { return sum + item.leave_units; }, 0);
     } else if (leaveCount) {
-      leaves = parseInt(leaveCount, 10);
+      leaves = parseFloat(leaveCount);
     } else {
       leaves = 0;
     }
@@ -83,11 +158,12 @@
       }
       await apiCall('POST', '/api/attendance/bulk', {
         emp_code: empCode, emp_name: empName, reporting_manager: manager,
-        billing_month: month, leaves: leaves,
+        billing_month: month, leaves: leaves, leave_entries: leaveEntries,
       });
       showToast('Attendance submitted successfully!', 'success');
       document.getElementById('attManualForm').reset();
       autoFillMonthInputs();
+      resetLeaveCalendar();
     } catch (err) { showToast(err.message, 'danger'); }
   });
 
@@ -142,4 +218,12 @@
   initTableSearch('attSummarySearch', 'summaryBody');
   document.getElementById('attEmpCode').addEventListener('blur', lookupAttendanceEmployee);
   document.getElementById('attEmpCode').addEventListener('change', lookupAttendanceEmployee);
+  document.getElementById('attMonth').addEventListener('change', resetLeaveCalendar);
+  document.getElementById('attLeaveCalendar').addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-day]');
+    if (!btn) return;
+    var day = parseInt(btn.getAttribute('data-day'), 10);
+    if (!day) return;
+    toggleLeaveDay(day);
+  });
 })();

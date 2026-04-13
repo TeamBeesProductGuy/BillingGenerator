@@ -21,7 +21,7 @@
     <div class="att-tab-pane" id="tab-manual">
       <div class="stat-card !p-6">
         <form id="attManualForm">
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
             <div>
               <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Emp Code *</label>
               <input type="text" id="attEmpCode" required>
@@ -39,6 +39,10 @@
               <input type="text" id="attClient" readonly>
             </div>
             <div>
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Leaves Allowed</label>
+              <input type="text" id="attLeavesAllowed" readonly>
+            </div>
+            <div>
               <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Billing Month *</label>
               <input type="month" id="attMonth" required>
             </div>
@@ -46,13 +50,18 @@
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
             <div>
               <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Number of Leaves</label>
-              <input type="number" id="attLeaveCount" min="0" placeholder="e.g. 3">
-              <p class="text-[11px] text-on-surface-variant mt-1">OR specify leave days below</p>
+              <input type="number" id="attLeaveCount" min="0" step="0.5" placeholder="e.g. 4.5">
             </div>
-            <div>
-              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Leave Day Numbers</label>
-              <input type="text" id="attLeaveDays" placeholder="e.g. 5,12,23">
-              <p class="text-[11px] text-on-surface-variant mt-1">Comma-separated day numbers</p>
+            <div class="sm:col-span-2">
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Leave Calendar</label>
+              <div class="flex flex-wrap items-center gap-3 mb-2 text-[11px] text-on-surface-variant">
+                <span class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded bg-error/20 border border-error/40 inline-block"></span>Full Leave</span>
+                <span class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded bg-yellow-500/20 border border-yellow-500/40 inline-block"></span>Half Leave</span>
+                <span class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded bg-surface-container-high border border-outline-variant/20 inline-block"></span>Present</span>
+              </div>
+              <div id="attLeaveCalendar" class="grid grid-cols-7 gap-2"></div>
+              <input type="hidden" id="attLeaveEntries">
+              <p class="text-[11px] text-on-surface-variant mt-2">Click a day to toggle: Full Leave → Half Leave → Present</p>
             </div>
             <div class="flex items-end">
               <button type="submit" class="btn-primary w-full flex items-center justify-center gap-2" style="height: 48px;">

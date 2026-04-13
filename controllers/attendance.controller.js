@@ -40,6 +40,7 @@ const attendanceController = {
         emp_code: employee.emp_code,
         emp_name: employee.emp_name || '',
         reporting_manager: employee.reporting_manager || '',
+        leaves_allowed: employee.leaves_allowed,
         client_id: employee.client_id,
         client_name: employee.client_name || '',
       },
@@ -54,7 +55,7 @@ const attendanceController = {
 
   submitBulk: catchAsync(async (req, res) => {
     const RateCardModel = require('../models/rateCard.model');
-    const { emp_code, billing_month, leaves } = req.body;
+    const { emp_code, billing_month, leaves, leave_entries } = req.body;
     const monthError = validateBillingMonth(billing_month);
     if (monthError) throw new AppError(400, monthError);
 
@@ -67,24 +68,54 @@ const attendanceController = {
 
     const daysInMonth = getDaysInMonth(billing_month);
 
-    const leaveDays = new Set();
-    if (Array.isArray(leaves)) {
-      leaves.forEach((d) => leaveDays.add(d));
+    const dayLeaveUnits = {};
+    if (Array.isArray(leave_entries) && leave_entries.length > 0) {
+      leave_entries.forEach((entry) => {
+        const dayNum = parseInt(entry.day_number, 10);
+        const units = Number(entry.leave_units);
+        if (!Number.isInteger(dayNum) || dayNum < 1 || dayNum > daysInMonth) return;
+        if (units !== 1 && units !== 0.5) return;
+        dayLeaveUnits[dayNum] = units;
+      });
+    } else if (Array.isArray(leaves)) {
+      leaves.forEach((d) => {
+        const dayNum = parseInt(d, 10);
+        if (Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= daysInMonth) {
+          dayLeaveUnits[dayNum] = 1;
+        }
+      });
     } else if (typeof leaves === 'number' && leaves > 0) {
-      for (let d = daysInMonth; d > daysInMonth - leaves && d >= 1; d--) {
-        leaveDays.add(d);
+      const normalizedLeaves = Math.round(leaves * 2) / 2;
+      if (normalizedLeaves > daysInMonth) {
+        throw new AppError(400, `Leaves cannot exceed ${daysInMonth} days for this month`);
+      }
+      const fullLeaves = Math.floor(normalizedLeaves);
+      const hasHalfDay = normalizedLeaves % 1 !== 0;
+      for (let d = daysInMonth; d > daysInMonth - fullLeaves && d >= 1; d--) {
+        dayLeaveUnits[d] = 1;
+      }
+      if (hasHalfDay) {
+        const halfDay = daysInMonth - fullLeaves;
+        if (halfDay < 1) {
+          throw new AppError(400, 'Half-day leave cannot be assigned beyond month limits');
+        }
+        dayLeaveUnits[halfDay] = 0.5;
       }
     }
 
     const records = [];
+    let totalLeaveUnits = 0;
     for (let day = 1; day <= daysInMonth; day++) {
+      const leaveUnits = Number(dayLeaveUnits[day] || 0);
+      totalLeaveUnits += leaveUnits;
       records.push({
         emp_code,
         emp_name: employee.emp_name || null,
         reporting_manager: employee.reporting_manager || null,
         billing_month,
         day_number: day,
-        status: leaveDays.has(day) ? 'L' : 'P',
+        status: leaveUnits > 0 ? 'L' : 'P',
+        leave_units: leaveUnits,
       });
     }
 
@@ -92,7 +123,7 @@ const attendanceController = {
     res.json({
       success: true,
       data: {
-        message: `Attendance recorded for ${daysInMonth} days, ${leaveDays.size} leaves`,
+        message: `Attendance recorded for ${daysInMonth} days, ${totalLeaveUnits} leaves`,
         client_name: employee.client_name || '',
       },
     });
@@ -105,7 +136,9 @@ const attendanceController = {
     if (monthError) throw new AppError(400, monthError);
 
     try {
-      const { records, errors } = await parseAttendance(req.file.path, billingMonth);
+      const RateCardModel = require('../models/rateCard.model');
+      const rateCards = await RateCardModel.findAll();
+      const { records, errors } = await parseAttendance(req.file.path, billingMonth, { rateCards });
       const daysInMonth = getDaysInMonth(billingMonth);
 
       const dbRecords = [];
@@ -118,6 +151,11 @@ const attendanceController = {
             billing_month: billingMonth,
             day_number: day,
             status: rec.days[day] || 'P',
+            leave_units: Number(
+              rec.day_leave_units && rec.day_leave_units[day] !== undefined
+                ? rec.day_leave_units[day]
+                : ((rec.days[day] || 'P') === 'L' ? 1 : 0)
+            ),
           });
         }
       }

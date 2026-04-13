@@ -43,6 +43,10 @@ CREATE TABLE IF NOT EXISTS attendance (
     billing_month     TEXT NOT NULL,
     day_number        INTEGER NOT NULL CHECK(day_number >= 1 AND day_number <= 31),
     status            TEXT NOT NULL CHECK(status IN ('P', 'L')),
+    leave_units       REAL NOT NULL DEFAULT 0 CHECK(
+                      (status = 'P' AND leave_units = 0)
+                      OR (status = 'L' AND leave_units IN (0.5, 1))
+                    ),
     created_at        TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(emp_code, billing_month, day_number)
 );
@@ -69,7 +73,7 @@ CREATE TABLE IF NOT EXISTS billing_items (
     reporting_manager TEXT,
     monthly_rate      REAL NOT NULL,
     leaves_allowed    INTEGER NOT NULL DEFAULT 0,
-    leaves_taken      INTEGER NOT NULL DEFAULT 0,
+    leaves_taken      REAL NOT NULL DEFAULT 0,
     days_in_month     INTEGER NOT NULL,
     chargeable_days   REAL NOT NULL,
     invoice_amount    REAL NOT NULL,

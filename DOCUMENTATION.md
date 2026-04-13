@@ -8,7 +8,7 @@ A Node.js/Express-based billing engine that automates monthly invoice calculatio
 - **Excel-based Billing Generation** - Upload Rate Card + Attendance Excel files to generate billing output
 - **Database-driven Billing** - Generate billing from stored rate cards and attendance data
 - **Rate Card Management** - CRUD storage for employee rate cards with Excel import/export, mandatory SOW linkage, optional PO linkage, and frontend-only hourly-to-monthly entry support with optional cap hours
-- **Attendance Management** - Manual entry per employee or bulk Excel upload
+- **Attendance Management** - Manual entry with leave calendar (full/half-day) or bulk Excel upload (including alternate legend-based formats)
 - **Quote Generation** - Create, preview, manage, and export client quotes as branded Word `.docx` documents with structured mail-format fields, FY-based quote numbering, SOW linking, and terminate workflow
 - **Statement of Work (SOW)** - Full lifecycle management with amendment support, plus linked-document library (upload/list/search/download/delete)
 - **Purchase Order Management** - PO tracking with optional manual PO numbering, threshold alerts, renewal, and SOW linkage
@@ -432,8 +432,8 @@ All API routes require authentication via `Authorization: Bearer <token>` header
 | GET | `/api/attendance` | Get attendance (`?empCode=&billingMonth=`) |
 | GET | `/api/attendance/summary` | Get month summary (`?billingMonth=`) |
 | POST | `/api/attendance` | Submit single day |
-| POST | `/api/attendance/bulk` | Submit full month for one employee |
-| POST | `/api/attendance/upload` | Bulk upload from Excel |
+| POST | `/api/attendance/bulk` | Submit full month for one employee (supports decimal leaves and `leave_entries` for full/half-day) |
+| POST | `/api/attendance/upload` | Bulk upload from Excel (supports standard and Vocera-style attendance layouts) |
 | DELETE | `/api/attendance` | Delete employee's month data |
 
 ### Quotes
@@ -556,9 +556,9 @@ All API responses follow this envelope:
 ### Tables
 1. **clients** - Client information with `industry` field and soft-delete
 2. **rate_cards** - Employee rate cards linked to clients and POs (UNIQUE: client_id + emp_code)
-3. **attendance** - Daily attendance records (UNIQUE: emp_code + billing_month + day_number)
+3. **attendance** - Daily attendance records (UNIQUE: emp_code + billing_month + day_number) with `leave_units` support for half-day leave
 4. **billing_runs** - Audit log of billing generations
-5. **billing_items** - Per-employee calculation results for each run
+5. **billing_items** - Per-employee calculation results for each run (`leaves_taken` supports fractional values)
 6. **billing_errors** - Per-employee errors for each run
 7. **quotes** + **quote_items** - Quote management with line items; exported primarily as branded `.docx`
 8. **sows** + **sow_items** - Statement of Work with role/position items and amendment draft workflow
@@ -617,9 +617,16 @@ All API responses follow this envelope:
 - In the manual Rate Card form, users may choose `Hourly Rate` mode; the UI computes `monthly_rate = hourly_rate × min(hours_worked_in_month, cap_hours)`, and only `monthly_rate` is stored
 
 ### Attendance
-- Required columns: emp_code + day number columns
-- Day values must be "P" or "L" (case-insensitive, normalized to uppercase)
-- emp_code unique (one row per employee)
+- Standard layout: required columns `emp_code` + day number columns
+- Alternate (Vocera-style) layout is supported:
+  header row auto-detection, employee-name-based matching to rate card when `emp_code` column is absent
+- Supported present codes: `P`, `PR`, `ODW`, `WFH`
+- Supported full-leave codes: `L`, `CL`, `SL`, `EL`, `HL`, `WO`, `PRTO`, `A`
+- Supported half-leave codes: `HDL`, `HDS`, `HD`
+- Manual attendance UI supports half-day via calendar toggles:
+  `Full Leave -> Half Leave -> Present`
+- `Number of Leaves` accepts `0.5` increments (for example, `4.5`)
+- `leave_entries` payload accepts `{ day_number, leave_units }` with `leave_units` in `{1, 0.5}`
 - Days beyond month length are ignored
 
 ### Cross-validation
@@ -647,8 +654,9 @@ Errors are categorized and reported:
 | File format | Invalid file type or corrupted Excel |
 | Validation | Invalid billing month format |
 | PO consumption | Acceptance-time PO lookup/consumption failed (logged but non-fatal) |
+| PO assignment warning | Employee has no linked PO; billing still generates and warning is logged |
 
-Fatal errors (bad file, missing month) return HTTP 400. Employee-level errors are collected in the Error_Report sheet while valid employees are still processed. PO consumption errors are included during service-request acceptance and do not alter the original generated workbook.
+Fatal errors (bad file, missing month, cross-validation failures) return HTTP 400. Employee-level warnings are collected in the Error_Report sheet while valid employees are still processed. PO consumption errors are included during service-request acceptance and do not alter the original generated workbook.
 
 ---
 
@@ -671,6 +679,14 @@ Fatal errors (bad file, missing month) return HTTP 400. Employee-level errors ar
 15. **Chargeable days cap** - Maximum 30 chargeable days per employee per month
 16. **Negative billing prevention** - Chargeable days cannot go below 0
 17. **SOW amendment safety** - Signed SOWs are preserved; amendments create new SOW records with unique numbers and `Amendment Draft` status
+18. **PO warning non-blocking** - Missing PO assignment is treated as a warning and does not block billing output generation
+19. **Half-day compatibility fallback** - If legacy DB schema still stores integer `billing_items.leaves_taken`, billing insert falls back safely instead of failing at runtime
+
+### Required Migration for Full Half-Day Persistence
+- Run:
+  `database/migrations/006_attendance_half_day_leave_units.sql`
+- This migration adds:
+  `attendance.leave_units` and fractional `billing_items.leaves_taken`, and updates `get_attendance_summary` for half-day math
 
 ---
 

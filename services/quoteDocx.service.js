@@ -138,10 +138,21 @@ function formatDisplayDate(value) {
 }
 
 function splitAddressLines(value) {
-  return String(value || '')
-    .split(/\r?\n|[;,]/)
-    .map((part) => part.trim())
-    .filter(Boolean);
+  const rawLines = String(value || '').split(/\r?\n/);
+  const lines = [];
+
+  rawLines.forEach((rawLine) => {
+    const source = String(rawLine || '').trim();
+    if (!source) return;
+
+    const parts = source.match(/[^,;]+[;,]?/g) || [];
+    parts.forEach((part) => {
+      const line = String(part || '').trim();
+      if (line) lines.push(line);
+    });
+  });
+
+  return lines;
 }
 
 function isQuoteTablePlaceholder(line) {

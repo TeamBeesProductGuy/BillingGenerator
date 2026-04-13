@@ -54,6 +54,10 @@ CREATE TABLE IF NOT EXISTS attendance (
     billing_month     TEXT NOT NULL,
     day_number        INTEGER NOT NULL CHECK(day_number >= 1 AND day_number <= 31),
     status            TEXT NOT NULL CHECK(status IN ('P', 'L')),
+    leave_units       NUMERIC(4,2) NOT NULL DEFAULT 0 CHECK(
+                      (status = 'P' AND leave_units = 0)
+                      OR (status = 'L' AND leave_units IN (0.5, 1))
+                    ),
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(emp_code, billing_month, day_number)
 );
@@ -80,7 +84,7 @@ CREATE TABLE IF NOT EXISTS billing_items (
     reporting_manager TEXT,
     monthly_rate      NUMERIC(15,2) NOT NULL,
     leaves_allowed    INTEGER NOT NULL DEFAULT 0,
-    leaves_taken      INTEGER NOT NULL DEFAULT 0,
+    leaves_taken      NUMERIC(10,2) NOT NULL DEFAULT 0,
     days_in_month     INTEGER NOT NULL,
     chargeable_days   NUMERIC(10,2) NOT NULL,
     invoice_amount    NUMERIC(15,2) NOT NULL,
@@ -249,20 +253,24 @@ RETURNS TABLE (
   emp_code TEXT,
   emp_name TEXT,
   reporting_manager TEXT,
-  leaves_taken BIGINT,
-  days_present BIGINT,
+  leaves_taken NUMERIC,
+  days_present NUMERIC,
   total_days BIGINT
 ) LANGUAGE sql STABLE AS $$
   SELECT
     a.emp_code,
-    a.emp_name,
-    a.reporting_manager,
-    SUM(CASE WHEN a.status = 'L' THEN 1 ELSE 0 END) AS leaves_taken,
-    SUM(CASE WHEN a.status = 'P' THEN 1 ELSE 0 END) AS days_present,
+    MAX(a.emp_name) AS emp_name,
+    MAX(a.reporting_manager) AS reporting_manager,
+    SUM(CASE WHEN a.status = 'L' THEN COALESCE(a.leave_units, 1) ELSE 0 END) AS leaves_taken,
+    SUM(CASE
+      WHEN a.status = 'P' THEN 1
+      WHEN a.status = 'L' THEN (1 - COALESCE(a.leave_units, 1))
+      ELSE 0
+    END) AS days_present,
     COUNT(*) AS total_days
   FROM attendance a
   WHERE a.billing_month = p_billing_month
-  GROUP BY a.emp_code, a.emp_name, a.reporting_manager
+  GROUP BY a.emp_code
   ORDER BY a.emp_code;
 $$;
 

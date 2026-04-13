@@ -12,6 +12,10 @@ const { supabase } = require('../config/database');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
 
+function isWarningError(errorItem) {
+  return Boolean(errorItem && typeof errorItem.error_message === 'string' && errorItem.error_message.startsWith('WARNING:'));
+}
+
 /**
  * Resolve po_number strings (from Excel upload) to po_id integers
  * by looking up active POs in the database.
@@ -289,28 +293,32 @@ const billingController = {
 
     try {
       const rateCardResult = await parseRateCard(rateCardPath);
-      const attendanceResult = await parseAttendance(attendancePath, billingMonth);
+      const attendanceResult = await parseAttendance(attendancePath, billingMonth, {
+        rateCards: rateCardResult.records,
+      });
 
       await resolveSowNumbers(rateCardResult.records);
       // Resolve po_number strings from Excel to po_id integers from DB
       await resolvePoNumbers(rateCardResult.records);
       await resolvePoFromSow(rateCardResult.records);
 
-      const allErrors = [...rateCardResult.errors, ...attendanceResult.errors];
+      const warningErrors = [];
+      const fatalErrors = [...rateCardResult.errors, ...attendanceResult.errors];
 
       // Warn about rate cards without PO linkage
       for (const rc of rateCardResult.records) {
         if (!rc.po_id) {
-          allErrors.push({ emp_code: rc.emp_code, error_message: `WARNING: ${rc.emp_code} (${rc.emp_name}) has no PO assignment. Billing will not consume from any PO.` });
+          warningErrors.push({ emp_code: rc.emp_code, error_message: `WARNING: ${rc.emp_code} (${rc.emp_name}) has no PO assignment. Billing will not consume from any PO.` });
         }
       }
 
       if (rateCardResult.records.length > 0 && attendanceResult.records.length > 0) {
         const crossErrors = crossValidate(rateCardResult.records, attendanceResult.records);
-        allErrors.push(...crossErrors);
+        fatalErrors.push(...crossErrors);
       }
 
-      if (allErrors.length > 0) {
+      if (fatalErrors.length > 0) {
+        const allErrors = [...fatalErrors, ...warningErrors];
         const blockedSummary = {
           totalEmployees: 0,
           totalAmount: 0,
@@ -329,8 +337,12 @@ const billingController = {
       }
 
       const result = calculateBilling(rateCardResult.records, attendanceResult.records, billingMonth);
-      allErrors.push(...result.errors);
-      if (allErrors.length > 0) {
+      const calcWarnings = result.errors.filter(isWarningError);
+      const calcFatalErrors = result.errors.filter((item) => !isWarningError(item));
+      warningErrors.push(...calcWarnings);
+      fatalErrors.push(...calcFatalErrors);
+      if (fatalErrors.length > 0) {
+        const allErrors = [...fatalErrors, ...warningErrors];
         const blockedSummary = {
           ...result.summary,
           totalEmployees: 0,
@@ -349,7 +361,7 @@ const billingController = {
       const responseData = await createStoredRun({
         billingMonth,
         billingItems: result.billingItems,
-        allErrors,
+        allErrors: [...warningErrors],
         summary: result.summary,
       });
 
@@ -386,19 +398,21 @@ const billingController = {
         days: {},
       }));
 
-    const allErrors = [];
+    const warningErrors = [];
+    const fatalErrors = [];
 
     // Warn about rate cards without PO linkage
     for (const rc of rateCards) {
       if (!rc.po_id) {
-        allErrors.push({ emp_code: rc.emp_code, error_message: `WARNING: ${rc.emp_code} (${rc.emp_name}) has no PO assignment. Billing will not consume from any PO.` });
+        warningErrors.push({ emp_code: rc.emp_code, error_message: `WARNING: ${rc.emp_code} (${rc.emp_name}) has no PO assignment. Billing will not consume from any PO.` });
       }
     }
 
     const crossErrors = crossValidate(rateCards, attendanceRecords);
-    allErrors.push(...crossErrors);
+    fatalErrors.push(...crossErrors);
 
-    if (allErrors.length > 0) {
+    if (fatalErrors.length > 0) {
+      const allErrors = [...fatalErrors, ...warningErrors];
       const responseData = await createStoredRun({
         clientId: clientId || null,
         billingMonth,
@@ -417,8 +431,12 @@ const billingController = {
     }
 
     const result = calculateBilling(rateCards, attendanceRecords, billingMonth);
-    allErrors.push(...result.errors);
-    if (allErrors.length > 0) {
+    const calcWarnings = result.errors.filter(isWarningError);
+    const calcFatalErrors = result.errors.filter((item) => !isWarningError(item));
+    warningErrors.push(...calcWarnings);
+    fatalErrors.push(...calcFatalErrors);
+    if (fatalErrors.length > 0) {
+      const allErrors = [...fatalErrors, ...warningErrors];
       const responseData = await createStoredRun({
         clientId: clientId || null,
         billingMonth,
@@ -438,7 +456,7 @@ const billingController = {
       clientId: clientId || null,
       billingMonth,
       billingItems: result.billingItems,
-      allErrors,
+      allErrors: [...warningErrors],
       summary: result.summary,
     });
 
