@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-A Node.js/Express-based billing engine that automates monthly invoice calculations from employee rate card and attendance data. The system supports Excel file upload and database-driven billing, generates structured Excel output, and integrates with Purchase Orders for automatic value consumption tracking.
+A Node.js/Express-based billing engine that automates monthly invoice calculations from employee rate card and attendance data. The system supports Excel file upload and database-driven billing, generates structured Excel output, integrates with Purchase Orders for automatic value consumption tracking, and now includes a separate Permanent-client workflow (Phase 2) with Orders and Reminders.
 
 ### Key Features
 - **Excel-based Billing Generation** - Upload Rate Card + Attendance Excel files to generate billing output
@@ -13,6 +13,7 @@ A Node.js/Express-based billing engine that automates monthly invoice calculatio
 - **Statement of Work (SOW)** - Full lifecycle management with amendment support, plus linked-document library (upload/list/search/download/delete)
 - **Purchase Order Management** - PO tracking with optional manual PO numbering, threshold alerts, renewal, and SOW linkage
 - **Controlled PO Consumption** - Billing generates a pending service request first; PO consumption happens only once the client accepts it
+- **Phase 2: Permanent Flow** - Independent flow from contractual workflow: Permanent Clients → Orders → Reminders
 - **Authentication** - Supabase Auth with JWT-based API protection
 - **Downloadable Output** - Generated billing workbooks plus separate worksheet downloads for Billing_Working, Manager_Summary, and Error_Report
 - **Strict Workflow Enforcement** - Client → SOW → PO → Rate Card → Billing (each step requires the previous)
@@ -35,7 +36,7 @@ npm install
 ### Database Setup
 1. Create a Supabase project at https://supabase.com
 2. Open the SQL Editor in the Supabase Dashboard
-3. Run the full schema from `database/supabase_schema.sql`
+3. Run the full schema from `database/supabase_schema.sql` (includes Phase 2 permanent-flow tables)
 4. Copy the project URL, anon key, and service role key
 
 ### Environment Configuration
@@ -117,7 +118,7 @@ billing-engine/
 │   ├── supabase_schema.sql      # Full PostgreSQL schema (tables, views, functions, triggers)
 │   ├── schema.sql               # Legacy SQLite schema (reference only)
 │   ├── seed.js                  # Database seed script
-│   └── migrations/              # Legacy migration files (reference only)
+│   └── migrations/              # SQL migrations (includes permanent-flow migration)
 │
 ├── middleware/
 │   ├── auth.js                  # JWT authentication via Supabase Auth
@@ -128,6 +129,9 @@ billing-engine/
 │
 ├── models/                      # Data access layer (Supabase queries)
 │   ├── client.model.js          # Client CRUD
+│   ├── permanentClient.model.js # Permanent client CRUD + contact groups
+│   ├── permanentOrder.model.js  # Permanent orders CRUD + client mapping
+│   ├── permanentReminder.model.js # Reminder tracking for permanent orders
 │   ├── rateCard.model.js        # Rate card CRUD + bulk operations + PO linkage
 │   ├── attendance.model.js      # Attendance CRUD + summaries
 │   ├── billing.model.js         # Billing run history + items + errors
@@ -139,6 +143,7 @@ billing-engine/
 │   ├── excelParser.service.js   # Parse Rate Card & Attendance Excel files
 │   ├── excelWriter.service.js   # Generate billing Excel workbooks + single-sheet downloads
 │   ├── billing.service.js       # Core billing calculation engine
+│   ├── permanentBilling.service.js # Permanent billing calculations (next bill date, amount)
 │   ├── quoteDocx.service.js     # Native .docx quote generation
 │   ├── validation.service.js    # Business rule validations
 │   └── poTracker.service.js     # PO consumption & expiry alert logic
@@ -146,6 +151,9 @@ billing-engine/
 ├── validators/                  # Joi validation schemas
 │   ├── billing.validator.js     # Billing request schemas
 │   ├── client.validator.js      # Client request schemas
+│   ├── permanentClient.validator.js # Permanent client schemas
+│   ├── permanentOrder.validator.js # Permanent order schemas
+│   ├── permanentReminder.validator.js # Reminder action schemas
 │   ├── rateCard.validator.js    # Rate card request schemas
 │   ├── attendance.validator.js  # Attendance request schemas
 │   ├── quote.validator.js       # Quote request schemas
@@ -155,6 +163,9 @@ billing-engine/
 ├── controllers/                 # HTTP request handlers
 │   ├── billing.controller.js    # Billing generation + service-request decision flow
 │   ├── client.controller.js     # Client management
+│   ├── permanentClient.controller.js # Permanent client management
+│   ├── permanentOrder.controller.js # Permanent order management
+│   ├── permanentReminder.controller.js # Permanent reminder management
 │   ├── rateCard.controller.js   # Rate card management + Excel upload/export
 │   ├── attendance.controller.js # Attendance management
 │   ├── quote.controller.js      # Quote management + DOCX/PDF export
@@ -165,6 +176,9 @@ billing-engine/
 │   ├── index.js                 # Route aggregator (applies auth middleware)
 │   ├── billing.routes.js
 │   ├── client.routes.js
+│   ├── permanentClient.routes.js
+│   ├── permanentOrder.routes.js
+│   ├── permanentReminder.routes.js
 │   ├── rateCard.routes.js
 │   ├── attendance.routes.js
 │   ├── quote.routes.js
@@ -182,6 +196,8 @@ billing-engine/
 │   │   ├── dashboard.js         # Dashboard page logic
 │   │   ├── billing.js           # Billing generation UI
 │   │   ├── clients.js           # Client management UI
+│   │   ├── orders.js            # Permanent orders UI
+│   │   ├── reminders.js         # Permanent reminders UI
 │   │   ├── rate-cards.js        # Rate card management UI
 │   │   ├── attendance.js        # Attendance management UI
 │   │   ├── quotes.js            # Quote management UI
@@ -192,6 +208,8 @@ billing-engine/
 │       ├── dashboard.html
 │       ├── billing.html
 │       ├── clients.html
+│       ├── orders.html
+│       ├── reminders.html
 │       ├── rate-cards.html
 │       ├── attendance.html
 │       ├── quotes.html
@@ -415,6 +433,19 @@ All API routes require authentication via `Authorization: Bearer <token>` header
 | PUT | `/api/clients/:id` | Update client |
 | DELETE | `/api/clients/:id` | Soft-delete client |
 
+### Phase 2: Permanent Clients
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/permanent/clients` | List active permanent clients with contact groups |
+| GET | `/api/permanent/clients/:id` | Get one permanent client |
+| POST | `/api/permanent/clients` | Create permanent client |
+| PUT | `/api/permanent/clients/:id` | Update permanent client |
+| DELETE | `/api/permanent/clients/:id` | Soft-delete permanent client |
+
+Backward-compatible aliases are also mounted:
+- `/api/clients/permanent`
+- `/api/clients/permanent/:id`
+
 ### Rate Cards
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -523,6 +554,30 @@ Signed → Make Amendment → Amendment Draft → Signed
 | GET | `/api/purchase-orders/alerts` | Get POs nearing threshold or expiry |
 | PATCH | `/api/purchase-orders/:id/renew` | Renew PO (marks old as Renewed, creates new, migrates employees) |
 
+### Phase 2: Orders
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/permanent/orders` | List all permanent orders |
+| GET | `/api/permanent/orders/:id` | Get one permanent order |
+| POST | `/api/permanent/orders` | Create order (server computes `next_bill_date` and `bill_amount`) |
+| PUT | `/api/permanent/orders/:id` | Update order (recomputes billing fields) |
+| DELETE | `/api/permanent/orders/:id` | Delete order |
+
+Backward-compatible aliases are also mounted:
+- `/api/orders/permanent`
+- `/api/orders/permanent/:id`
+
+### Phase 2: Reminders
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/permanent/reminders` | List open reminders in window `referenceDate-3` to `referenceDate+3` (default `referenceDate=today`) |
+| PATCH | `/api/permanent/reminders/:id/emails` | Save/update two reminder email IDs |
+| PATCH | `/api/permanent/reminders/:id/close` | Close/end reminder |
+| PATCH | `/api/permanent/reminders/:id/extend` | Extend reminder due date |
+
+Backward-compatible aliases are also mounted:
+- `/api/reminders/permanent`
+
 ### Dashboard
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -554,21 +609,28 @@ All API responses follow this envelope:
 ## 9. Database Schema
 
 ### Tables
-1. **clients** - Client information with `industry` field and soft-delete
-2. **rate_cards** - Employee rate cards linked to clients and POs (UNIQUE: client_id + emp_code)
-3. **attendance** - Daily attendance records (UNIQUE: emp_code + billing_month + day_number) with `leave_units` support for half-day leave
-4. **billing_runs** - Audit log of billing generations
-5. **billing_items** - Per-employee calculation results for each run (`leaves_taken` supports fractional values)
-6. **billing_errors** - Per-employee errors for each run
-7. **quotes** + **quote_items** - Quote management with line items; exported primarily as branded `.docx`
-8. **sows** + **sow_items** - Statement of Work with role/position items and amendment draft workflow
-9. **purchase_orders** - PO tracking with value consumption and SOW linkage
-10. **po_consumption_log** - Consumption event history (auto + manual)
-11. **employee_po_history** - Assignment history when employees move between POs
-12. **audit_log** - General audit trail
+1. **clients** - Contractual client information with `industry` field and soft-delete
+2. **permanent_clients** - Permanent client master with billing pattern and billing rate
+3. **permanent_client_contacts** - Repeatable contact groups for permanent clients
+4. **permanent_orders** - Candidate-level placement/order records for permanent clients
+5. **permanent_reminders** - Reminder tracking for permanent billing follow-up
+6. **rate_cards** - Employee rate cards linked to clients and POs (UNIQUE: client_id + emp_code)
+7. **attendance** - Daily attendance records (UNIQUE: emp_code + billing_month + day_number) with `leave_units` support for half-day leave
+8. **billing_runs** - Audit log of billing generations
+9. **billing_items** - Per-employee calculation results for each run (`leaves_taken` supports fractional values)
+10. **billing_errors** - Per-employee errors for each run
+11. **quotes** + **quote_items** - Quote management with line items; exported primarily as branded `.docx`
+12. **sows** + **sow_items** - Statement of Work with role/position items and amendment draft workflow
+13. **purchase_orders** - PO tracking with value consumption and SOW linkage
+14. **po_consumption_log** - Consumption event history (auto + manual)
+15. **employee_po_history** - Assignment history when employees move between POs
+16. **audit_log** - General audit trail
 
 ### Key Relationships
 - `rate_cards.client_id` → `clients.id`
+- `permanent_client_contacts.client_id` → `permanent_clients.id`
+- `permanent_orders.client_id` → `permanent_clients.id`
+- `permanent_reminders.order_id` → `permanent_orders.id`
 - `rate_cards.po_id` → `purchase_orders.id` (employee-to-PO linkage)
 - `billing_items.billing_run_id` → `billing_runs.id` (CASCADE)
 - `billing_errors.billing_run_id` → `billing_runs.id` (CASCADE)
@@ -730,3 +792,48 @@ http://localhost:<PORT>
 | EMP004 | 70,000 | 4 | 3 | 27 | 63,000.00 |
 | EMP005 | 55,000 | 1 | 2 | 29 | 53,166.67 |
 | **Total** | | | | | **259,833.34** |
+
+---
+
+## 15. Phase 2 (Permanent Flow) - Implementation Notes
+
+### Scope Delivered
+1. **Contract Type split in Client modal**
+   - `Contractual` keeps existing behavior unchanged
+   - `Permanent` opens independent data model fields
+2. **Permanent Client creation/edit**
+   - Name, Abbreviation, Address, Billing Address
+   - Repeatable contact persons (name, email, phone with country code, designation)
+   - Billing Pattern (`Weekly`, `Monthly`, `Quarterly`) + Billing Rate (% of CTC)
+3. **Orders module**
+   - New Orders tab with create/edit/delete
+   - Fields: client, candidate name, role, date of joining, CTC, remarks
+   - Auto-calculations:
+     - `next_bill_date` based on client billing pattern + DOJ
+     - `bill_amount = ctc_offered * (billing_rate/100)`
+4. **Reminders module**
+   - New Reminders tab
+   - Reminder list window: 3 days before due date to 3 days after due date
+   - Inputs for two reminder email IDs
+   - Actions: close/end reminder, extend reminder date
+
+### Routing and Compatibility
+- Primary Phase 2 API paths:
+  - `/api/permanent/clients`
+  - `/api/permanent/orders`
+  - `/api/permanent/reminders`
+- Backward-compatible aliases are also mounted for resilience:
+  - `/api/clients/permanent`
+  - `/api/orders/permanent`
+  - `/api/reminders/permanent`
+
+### Database Changes
+- Added Supabase migration:
+  - `database/migrations/008_add_permanent_flow.sql`
+- Included in full schema:
+  - `database/supabase_schema.sql`
+
+### Current Reminder Email Status
+- Email addresses are stored and managed in reminders.
+- Automatic outbound email delivery is **not yet implemented** in this phase.
+- To enable delivery, add provider integration (SMTP/Resend/etc.) + scheduler/cron + send-log/idempotency.

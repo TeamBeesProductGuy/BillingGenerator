@@ -37,6 +37,7 @@ const attendanceController = {
     res.json({
       success: true,
       data: {
+        rate_card_id: employee.id,
         emp_code: employee.emp_code,
         emp_name: employee.emp_name || '',
         reporting_manager: employee.reporting_manager || '',
@@ -119,7 +120,14 @@ const attendanceController = {
       });
     }
 
-    await AttendanceModel.bulkUpsert(records);
+    try {
+      await AttendanceModel.bulkUpsert(records);
+    } catch (err) {
+      if (err && err.message && err.message.includes('Half-day attendance requires DB migration 006')) {
+        throw new AppError(400, err.message);
+      }
+      throw err;
+    }
     res.json({
       success: true,
       data: {
@@ -161,7 +169,14 @@ const attendanceController = {
       }
 
       if (dbRecords.length > 0) {
-        await AttendanceModel.bulkUpsert(dbRecords);
+        try {
+          await AttendanceModel.bulkUpsert(dbRecords);
+        } catch (err) {
+          if (err && err.message && err.message.includes('Half-day attendance requires DB migration 006')) {
+            throw new AppError(400, err.message);
+          }
+          throw err;
+        }
       }
 
       res.json({

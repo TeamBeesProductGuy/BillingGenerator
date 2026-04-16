@@ -105,6 +105,8 @@
     document.getElementById('attManager').value = '';
     document.getElementById('attClient').value = '';
     document.getElementById('attLeavesAllowed').value = '';
+    document.getElementById('attLeavesAllowed').setAttribute('data-original', '');
+    document.getElementById('attRateCardId').value = '';
   }
 
   async function lookupAttendanceEmployee() {
@@ -118,9 +120,12 @@
       document.getElementById('attEmpName').value = res.data.emp_name || '';
       document.getElementById('attManager').value = res.data.reporting_manager || '';
       document.getElementById('attClient').value = res.data.client_name || '';
-      document.getElementById('attLeavesAllowed').value = res.data.leaves_allowed !== undefined && res.data.leaves_allowed !== null
+      document.getElementById('attRateCardId').value = res.data.rate_card_id ? String(res.data.rate_card_id) : '';
+      var allowedVal = res.data.leaves_allowed !== undefined && res.data.leaves_allowed !== null
         ? String(res.data.leaves_allowed)
         : '';
+      document.getElementById('attLeavesAllowed').value = allowedVal;
+      document.getElementById('attLeavesAllowed').setAttribute('data-original', allowedVal);
     } catch (err) {
       clearAttendanceEmployeeDetails();
       showToast(err.message, 'danger');
@@ -137,6 +142,12 @@
     var month = monthInputToYYYYMM(monthRaw);
     var leaveCount = document.getElementById('attLeaveCount').value;
     var leaveEntries = selectedLeaveEntries();
+    var leavesAllowedRaw = String(document.getElementById('attLeavesAllowed').value || '').trim();
+    var leavesAllowed = leavesAllowedRaw ? parseInt(leavesAllowedRaw, 10) : null;
+    if (leavesAllowedRaw && (!Number.isFinite(leavesAllowed) || leavesAllowed < 0)) {
+      showToast('Leaves Allowed must be a non-negative integer', 'danger');
+      return;
+    }
 
     var leaves;
     if (leaveEntries.length > 0) {
@@ -156,6 +167,15 @@
       if (!empName || !document.getElementById('attClient').value.trim()) {
         throw new Error('Employee details could not be resolved from the employee code');
       }
+
+      // If user edits leaves allowed, persist it to the linked rate card so billing uses it.
+      var rcId = String(document.getElementById('attRateCardId').value || '').trim();
+      var originalAllowed = String(document.getElementById('attLeavesAllowed').getAttribute('data-original') || '').trim();
+      if (rcId && leavesAllowed !== null && String(leavesAllowed) !== originalAllowed) {
+        await apiCall('PATCH', '/api/rate-cards/' + encodeURIComponent(rcId) + '/leaves-allowed', { leaves_allowed: leavesAllowed });
+        document.getElementById('attLeavesAllowed').setAttribute('data-original', String(leavesAllowed));
+      }
+
       await apiCall('POST', '/api/attendance/bulk', {
         emp_code: empCode, emp_name: empName, reporting_manager: manager,
         billing_month: month, leaves: leaves, leave_entries: leaveEntries,

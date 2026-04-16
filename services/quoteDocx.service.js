@@ -91,6 +91,71 @@ function makeImageParagraph() {
   </w:p>`;
 }
 
+function buildHeaderXml(hasLogo) {
+  const headerContent = hasLogo
+    ? `<w:tbl>
+      <w:tblPr>
+        <w:tblW w:w="0" w:type="auto"/>
+        <w:tblBorders>
+          <w:top w:val="nil"/>
+          <w:left w:val="nil"/>
+          <w:bottom w:val="nil"/>
+          <w:right w:val="nil"/>
+          <w:insideH w:val="nil"/>
+          <w:insideV w:val="nil"/>
+        </w:tblBorders>
+      </w:tblPr>
+      <w:tblGrid>
+        <w:gridCol w:w="5400"/>
+        <w:gridCol w:w="3960"/>
+      </w:tblGrid>
+      <w:tr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="5400" w:type="dxa"/>
+            <w:vAlign w:val="top"/>
+          </w:tcPr>
+          ${makeImageParagraph()}
+        </w:tc>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="3960" w:type="dxa"/>
+            <w:vAlign w:val="top"/>
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:jc w:val="right"/>
+              <w:spacing w:after="0"/>
+            </w:pPr>
+          </w:p>
+        </w:tc>
+      </w:tr>
+    </w:tbl>`
+    : `${makeParagraph('TeamBees', { bold: true, size: DEFAULT_FONT_SIZE, color: '1F1F1F', spacingAfter: 80, font: DEFAULT_FONT })}
+    ${makeParagraph('BUILDING ON TRUST', { size: DEFAULT_FONT_SIZE, color: '6D6D6D', spacingAfter: 120, caps: true, font: DEFAULT_FONT })}`;
+
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  <w:hdr xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:o="urn:schemas-microsoft-com:office:office"
+    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"
+    xmlns:v="urn:schemas-microsoft-com:vml"
+    xmlns:wp14="http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing"
+    xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+    xmlns:w10="urn:schemas-microsoft-com:office:word"
+    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"
+    xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml"
+    xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"
+    xmlns:wpi="http://schemas.microsoft.com/office/word/2010/wordprocessingInk"
+    xmlns:wne="http://schemas.microsoft.com/office/word/2006/wordml"
+    xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"
+    mc:Ignorable="w14 w15 wp14">
+    ${headerContent}
+  </w:hdr>`;
+}
+
 function makeTableCell(text, width, options) {
   const bold = options && options.bold ? '<w:b/>' : '';
   const justify = options && options.justify ? `<w:jc w:val="${options.justify}"/>` : '';
@@ -378,10 +443,7 @@ function buildQuoteDocumentXml(quote, client) {
   const quoteDateLabel = formatDisplayDate(quote.quote_date);
 
   const content = [];
-  if (fs.existsSync(logoPath)) {
-    content.push(makeImageParagraph());
-    content.push(makeParagraph('', { spacingAfter: 120 }));
-  } else {
+  if (!fs.existsSync(logoPath)) {
     content.push(makeParagraph('TeamBees', { bold: true, size: DEFAULT_FONT_SIZE, color: '1F1F1F', spacingAfter: 80, font: DEFAULT_FONT }));
     content.push(makeParagraph('BUILDING ON TRUST', { size: DEFAULT_FONT_SIZE, color: '6D6D6D', spacingAfter: 120, caps: true, font: DEFAULT_FONT }));
   }
@@ -492,6 +554,7 @@ function buildQuoteDocumentXml(quote, client) {
     <w:body>
       ${content.join('')}
       <w:sectPr>
+        <w:headerReference w:type="default" r:id="rIdHeader1"/>
         <w:footerReference w:type="default" r:id="rIdFooter1"/>
         <w:pgSz w:w="12240" w:h="15840"/>
         <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/>
@@ -502,6 +565,7 @@ function buildQuoteDocumentXml(quote, client) {
 
 async function generateQuoteDocxBuffer(quote, client) {
   const zip = new JSZip();
+  const hasLogo = fs.existsSync(logoPath);
 
   zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
   <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
@@ -510,6 +574,7 @@ async function generateQuoteDocxBuffer(quote, client) {
     <Default Extension="jpeg" ContentType="image/jpeg"/>
     <Default Extension="png" ContentType="image/png"/>
     <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+    <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>
     <Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>
     <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
     <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
@@ -544,6 +609,7 @@ async function generateQuoteDocxBuffer(quote, client) {
 
   const word = zip.folder('word');
   word.file('document.xml', buildQuoteDocumentXml(quote, client));
+  word.file('header1.xml', buildHeaderXml(hasLogo));
   word.file('footer1.xml', buildFooterXml());
   word.file('styles.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
   <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
@@ -558,16 +624,20 @@ async function generateQuoteDocxBuffer(quote, client) {
       </w:rPr>
     </w:style>
   </w:styles>`);
-  if (fs.existsSync(logoPath)) {
+  if (hasLogo) {
     word.folder('media').file('TeamBees.png', fs.readFileSync(logoPath));
   }
+  word.folder('_rels').file('header1.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+    ${hasLogo ? '<Relationship Id="rIdLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/TeamBees.png"/>' : ''}
+  </Relationships>`);
   word.folder('_rels').file('footer1.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
   <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
     <Relationship Id="rIdWebsite" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://www.teambeescorp.com/" TargetMode="External"/>
   </Relationships>`);
   word.folder('_rels').file('document.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
   <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-    ${fs.existsSync(logoPath) ? '<Relationship Id="rIdLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/TeamBees.png"/>' : ''}
+    <Relationship Id="rIdHeader1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
     <Relationship Id="rIdFooter1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
   </Relationships>`);
 

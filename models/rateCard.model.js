@@ -46,7 +46,7 @@ const RateCardModel = {
   async findActiveByEmpCode(empCode) {
     const { data, error } = await supabase
       .from('rate_cards_view')
-      .select('id, client_id, client_name, emp_code, emp_name, reporting_manager')
+      .select('id, client_id, client_name, emp_code, emp_name, reporting_manager, leaves_allowed')
       .eq('emp_code', empCode)
       .eq('is_active', true)
       .order('client_name');
@@ -126,6 +126,14 @@ const RateCardModel = {
     if (isMissingColumnError(error, 'sow_id')) {
       throwSowMigrationError();
     }
+    if (error) throw new Error(error.message);
+  },
+
+  async updateLeavesAllowed(id, leavesAllowed) {
+    const { error } = await supabase
+      .from('rate_cards')
+      .update({ leaves_allowed: leavesAllowed, updated_at: new Date().toISOString() })
+      .eq('id', id);
     if (error) throw new Error(error.message);
   },
 

@@ -90,4 +90,11 @@ const updateRateCard = Joi.object({
     .allow(null)
 });
 
-module.exports = { createRateCard, updateRateCard };
+const updateRateCardLeavesAllowed = Joi.object({
+  leaves_allowed: Joi.number()
+    .integer()
+    .min(0)
+    .required(),
+});
+
+module.exports = { createRateCard, updateRateCard, updateRateCardLeavesAllowed };

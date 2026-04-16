@@ -25,7 +25,7 @@
     // -----------------------------------------------------------
     //  Routes & State
     // -----------------------------------------------------------
-    var ROUTES = ["dashboard", "billing", "rate-cards", "attendance", "quotes", "sows", "purchase-orders", "clients"];
+    var ROUTES = ["dashboard", "billing", "rate-cards", "attendance", "quotes", "sows", "purchase-orders", "clients", "orders", "reminders"];
     var DEFAULT_ROUTE = "dashboard";
     var currentPage = null;
     var pageCache = {};
@@ -38,7 +38,9 @@
         "attendance": "Attendance",
         "quotes": "Quotes",
         "sows": "Statements of Work",
-        "purchase-orders": "Purchase Orders"
+        "purchase-orders": "Purchase Orders",
+        "orders": "Orders",
+        "reminders": "Reminders"
     };
 
     // -----------------------------------------------------------
@@ -289,7 +291,15 @@
     window.apiCall = async function apiCall(method, url, data) {
         var options = { method: method.toUpperCase(), headers: {} };
 
-        // Attach auth token
+        // Require auth token for protected API calls
+        var isApiCall = typeof url === "string" && url.indexOf("/api/") === 0;
+        if (isApiCall && (!currentSession || !currentSession.access_token)) {
+            currentSession = null;
+            currentPage = null;
+            showLoginPage();
+            throw new Error("Authentication required. Please log in again.");
+        }
+
         if (currentSession && currentSession.access_token) {
             options.headers["Authorization"] = "Bearer " + currentSession.access_token;
         }

@@ -56,6 +56,28 @@
     } catch (e) { /* ignore */ }
   }
 
+  async function consumePendingPoLinkContext() {
+    var raw = sessionStorage.getItem('pendingPoLinkContext');
+    if (!raw) return;
+
+    sessionStorage.removeItem('pendingPoLinkContext');
+
+    try {
+      var context = JSON.parse(raw);
+      if (!context || !context.clientId) return;
+
+      openPOModal();
+      document.getElementById('poClient').value = String(context.clientId);
+      await loadSOWsForClient(context.clientId);
+
+      if (context.sowId) {
+        document.getElementById('poSOW').value = String(context.sowId);
+      }
+    } catch (e) {
+      /* ignore malformed pending state */
+    }
+  }
+
   async function loadAlerts() {
     try {
       var res = await apiCall('GET', '/api/purchase-orders/alerts');
@@ -282,5 +304,9 @@
   // Initialize search
   initTableSearch('poSearch', 'poBody');
 
-  loadClients().then(function () { loadPOs(); loadAlerts(); });
+  loadClients().then(function () {
+    loadPOs();
+    loadAlerts();
+    return consumePendingPoLinkContext();
+  });
 })();

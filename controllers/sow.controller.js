@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { supabase } = require('../config/database');
 const SOWModel = require('../models/sow.model');
 const QuoteModel = require('../models/quote.model');
 const ClientModel = require('../models/client.model');
@@ -13,6 +14,17 @@ function isEditableStatus(status) {
 }
 
 const quoteSideNoteMarker = '\n\n---SIDE_NOTE---\n';
+const FOLDER_METADATA_FILE = '.folder-metadata.json';
+const DOCUMENT_INDEX_TABLE = 'sow_document_index';
+
+function isMissingRelationError(error, relationName) {
+  return Boolean(
+    error &&
+    error.message &&
+    error.message.toLowerCase().indexOf('relation') !== -1 &&
+    error.message.toLowerCase().indexOf(String(relationName || '').toLowerCase()) !== -1
+  );
+}
 
 function getMailFormatNotes(notes) {
   const raw = String(notes || '');
@@ -69,6 +81,344 @@ function ensureUniqueFilePath(filePath) {
     nextPath = path.join(parsed.dir, `${parsed.name}_${counter}${parsed.ext}`);
   }
   return nextPath;
+}
+
+function buildStoredDocumentPath(targetDir, originalName, fallbackBaseName) {
+  const uploadedOriginal = path.basename(originalName || '');
+  const ext = path.extname(uploadedOriginal).toLowerCase();
+  const originalBase = path.basename(uploadedOriginal, ext);
+  const baseName = sanitizeSegment(originalBase || fallbackBaseName);
+  const safeExt = ext || '.docx';
+  return ensureUniqueFilePath(path.join(targetDir, `${baseName}${safeExt}`));
+}
+
+function parseFolderName(folderName) {
+  const parts = String(folderName || '').split('_').filter(Boolean);
+  if (parts.length < 3) return { clientAbbreviation: '', candidateName: '' };
+  const datePart = parts[parts.length - 1];
+  const hasDate = /^\d{8}$/.test(datePart);
+  const clientAbbreviation = parts[0] || '';
+  const candidateParts = hasDate ? parts.slice(1, parts.length - 1) : parts.slice(1);
+  return {
+    clientAbbreviation,
+    candidateName: candidateParts.join(' '),
+  };
+}
+
+async function resolveClientFromFolderName(folderName) {
+  const folder = String(folderName || '').trim();
+  if (!folder) return null;
+
+  const { data, error } = await supabase
+    .from('clients')
+    .select('id, client_name, abbreviation, is_active')
+    .eq('is_active', true);
+  if (error) throw new Error(error.message);
+
+  const matches = (data || [])
+    .map((client) => {
+      const normalized = sanitizeSegment(client.abbreviation || '');
+      return {
+        client,
+        normalized,
+      };
+    })
+    .filter((item) => item.normalized && (folder === item.normalized || folder.indexOf(item.normalized + '_') === 0))
+    .sort((a, b) => b.normalized.length - a.normalized.length);
+
+  return matches.length > 0 ? matches[0].client : null;
+}
+
+function extractFolderDate(folderName) {
+  const parts = String(folderName || '').split('_').filter(Boolean);
+  const last = parts[parts.length - 1] || '';
+  return /^\d{8}$/.test(last) ? last : '';
+}
+
+function toLowerSet(values) {
+  const output = new Set();
+  (values || []).forEach((value) => {
+    const text = String(value || '').trim().toLowerCase();
+    if (text) output.add(text);
+  });
+  return output;
+}
+
+function extractCandidatesFromFiles(files) {
+  const candidates = [];
+  (files || []).forEach((file) => {
+    const fileName = String(file && file.name || '');
+    if (!/\.docx$/i.test(fileName)) return;
+    const base = path.basename(fileName, path.extname(fileName));
+    const parts = base.split('_').filter(Boolean);
+    if (parts.length < 4) return;
+    // Generated quote docx format: <abbr>_<description>_<candidate>_<yyyymmdd>
+    const maybeDate = parts[parts.length - 1];
+    if (!/^\d{8}$/.test(maybeDate)) return;
+    const candidatePart = parts[parts.length - 2];
+    if (candidatePart) candidates.push(candidatePart);
+  });
+  return uniqueStrings(candidates.map((value) => value.replace(/_/g, ' ')));
+}
+
+function uniqueStrings(values) {
+  const seen = new Set();
+  const output = [];
+  (values || []).forEach((value) => {
+    const text = String(value || '').trim();
+    const key = text.toLowerCase();
+    if (!text || seen.has(key)) return;
+    seen.add(key);
+    output.push(text);
+  });
+  return output;
+}
+
+function readFolderMetadata(folderPath) {
+  const metadataPath = path.join(folderPath, FOLDER_METADATA_FILE);
+  if (!fs.existsSync(metadataPath)) return null;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+    if (!parsed || typeof parsed !== 'object') return null;
+    return parsed;
+  } catch (err) {
+    return null;
+  }
+}
+
+function writeFolderMetadata(folderPath, metadata) {
+  const metadataPath = path.join(folderPath, FOLDER_METADATA_FILE);
+  fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2), 'utf8');
+}
+
+function matchesHint(text, hintSet) {
+  const value = String(text || '').trim().toLowerCase();
+  if (!value || !hintSet || hintSet.size === 0) return false;
+  if (hintSet.has(value)) return true;
+  for (const hint of hintSet) {
+    if (value.indexOf(hint) !== -1 || hint.indexOf(value) !== -1) return true;
+  }
+  return false;
+}
+
+async function resolveQuoteFromFolder(clientId, folderName, candidateHints) {
+  if (!clientId) return null;
+
+  const folderDate = extractFolderDate(folderName);
+  const candidateHintSet = toLowerSet(candidateHints);
+  const quotesResult = await supabase
+    .from('quotes')
+    .select('id, quote_number, quote_date, notes')
+    .eq('client_id', clientId)
+    .order('quote_date', { ascending: false });
+  if (quotesResult.error) return null;
+
+  const quotes = quotesResult.data || [];
+  const datedQuotes = folderDate
+    ? quotes.filter((quote) => formatFolderDate(quote.quote_date) === folderDate)
+    : quotes;
+  const pool = datedQuotes.length > 0 ? datedQuotes : quotes;
+
+  return pool.find((quote) => {
+    const candidateName = extractStructuredField(getMailFormatNotes(quote.notes), 'Candidate', ['Dear', 'Body', 'Regards', 'Designation']);
+    return matchesHint(candidateName, candidateHintSet);
+  }) || null;
+}
+
+async function buildFolderMetadataFromQuote(quote, client, candidateNameFromQuote) {
+  const quoteId = quote && quote.id;
+  const linkedSows = [];
+  const roles = [];
+  if (quoteId) {
+    const sowResult = await supabase
+      .from('sows')
+      .select('id, sow_number')
+      .eq('quote_id', quoteId);
+    if (sowResult.error) throw new Error(sowResult.error.message);
+    linkedSows.push(...(sowResult.data || []));
+
+    const sowIds = linkedSows.map((sow) => sow.id);
+    if (sowIds.length > 0) {
+      const itemResult = await supabase
+        .from('sow_items')
+        .select('role_position')
+        .in('sow_id', sowIds);
+      if (itemResult.error) throw new Error(itemResult.error.message);
+      roles.push(...(itemResult.data || []).map((row) => row.role_position));
+    }
+  }
+
+  const fallbackCandidate = String(candidateNameFromQuote || '').trim();
+  const normalizedCandidates = fallbackCandidate ? [fallbackCandidate] : [];
+
+  return {
+    quote_id: quote && quote.id ? quote.id : null,
+    quote_number: quote && quote.quote_number ? quote.quote_number : '',
+    client_id: client && client.id ? client.id : null,
+    client_name: client && client.client_name ? client.client_name : '',
+    client_abbreviation: client && client.abbreviation ? client.abbreviation : '',
+    candidate_name: normalizedCandidates[0] || fallbackCandidate || '',
+    candidate_names: normalizedCandidates,
+    sow_numbers: uniqueStrings(linkedSows.map((sow) => sow.sow_number)),
+    roles: uniqueStrings(roles),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+async function upsertDocumentIndex(folderName, metadata) {
+  const payload = {
+    folder_name: folderName,
+    quote_id: metadata.quote_id || null,
+    client_id: metadata.client_id || null,
+    client_abbreviation: metadata.client_abbreviation || null,
+    candidate_name: metadata.candidate_name || null,
+    sow_numbers: metadata.sow_numbers || [],
+    roles: metadata.roles || [],
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabase
+    .from(DOCUMENT_INDEX_TABLE)
+    .upsert(payload, { onConflict: 'folder_name' });
+  if (isMissingRelationError(error, DOCUMENT_INDEX_TABLE)) return;
+  if (error) throw new Error(error.message);
+}
+
+async function loadDocumentIndexMap() {
+  const { data, error } = await supabase
+    .from(DOCUMENT_INDEX_TABLE)
+    .select('*');
+  if (isMissingRelationError(error, DOCUMENT_INDEX_TABLE)) return {};
+  if (error) throw new Error(error.message);
+
+  const indexMap = {};
+  (data || []).forEach((row) => {
+    indexMap[row.folder_name] = {
+      quote_id: row.quote_id || null,
+      client_id: row.client_id || null,
+      client_abbreviation: row.client_abbreviation || '',
+      candidate_name: row.candidate_name || '',
+      sow_numbers: Array.isArray(row.sow_numbers) ? row.sow_numbers : [],
+      roles: Array.isArray(row.roles) ? row.roles : [],
+      updated_at: row.updated_at || null,
+    };
+  });
+  return indexMap;
+}
+
+async function enrichFolderMetadata(folderName, folderPath, files, indexedMetadata) {
+  let metadata = Object.assign({}, indexedMetadata || {}, readFolderMetadata(folderPath) || {});
+  let parsed = parseFolderName(folderName);
+  let resolvedClient = null;
+
+  try {
+    resolvedClient = await resolveClientFromFolderName(folderName);
+  } catch (err) {
+    resolvedClient = null;
+  }
+
+  if (resolvedClient) {
+    const normalizedClientPrefix = sanitizeSegment(resolvedClient.abbreviation || '');
+    const folderDate = extractFolderDate(folderName);
+    var candidatePart = String(folderName || '');
+    if (normalizedClientPrefix && candidatePart.indexOf(normalizedClientPrefix + '_') === 0) {
+      candidatePart = candidatePart.slice((normalizedClientPrefix + '_').length);
+    }
+    if (folderDate && candidatePart.endsWith('_' + folderDate)) {
+      candidatePart = candidatePart.slice(0, -1 * ('_' + folderDate).length);
+    }
+    parsed = {
+      clientAbbreviation: resolvedClient.abbreviation || parsed.clientAbbreviation,
+      candidateName: candidatePart.replace(/_/g, ' ').trim(),
+    };
+    metadata.client_id = resolvedClient.id;
+    metadata.client_name = resolvedClient.client_name;
+    metadata.client_abbreviation = resolvedClient.abbreviation;
+  } else if (!metadata.client_abbreviation && parsed.clientAbbreviation) {
+    metadata.client_abbreviation = parsed.clientAbbreviation;
+  }
+
+  const normalizedAbbreviation = String(parsed.clientAbbreviation || metadata.client_abbreviation || '').trim().toLowerCase();
+  metadata.candidate_name = '';
+  metadata.candidate_names = [];
+  metadata.roles = [];
+  metadata.sow_numbers = [];
+
+  var clientId = metadata.client_id || null;
+  if ((!metadata.client_name || !clientId) && normalizedAbbreviation) {
+    const clientResult = await supabase
+      .from('clients')
+      .select('id, client_name, abbreviation')
+      .eq('is_active', true)
+      .order('client_name');
+    if (!clientResult.error) {
+      const matchedClient = (clientResult.data || []).find((row) => {
+        return String(row.abbreviation || '').trim().toLowerCase() === normalizedAbbreviation;
+      });
+      if (matchedClient) {
+        metadata.client_abbreviation = matchedClient.abbreviation || metadata.client_abbreviation;
+        metadata.client_name = matchedClient.client_name || metadata.client_name;
+        metadata.client_id = matchedClient.id;
+        clientId = matchedClient.id;
+      }
+    }
+  }
+
+  // Canonical folder index mapping:
+  // Candidate -> quote input, Role -> sow_items.role_position, Client -> clients.abbreviation
+  const candidateHints = uniqueStrings(
+    []
+      .concat([parsed.candidateName || ''])
+      .concat(extractCandidatesFromFiles(files))
+  );
+
+  if (!metadata.quote_id && clientId) {
+    const matchedQuote = await resolveQuoteFromFolder(clientId, folderName, candidateHints);
+    if (matchedQuote) {
+      metadata.quote_id = matchedQuote.id;
+      metadata.quote_number = matchedQuote.quote_number || metadata.quote_number || '';
+    }
+  }
+
+  if (metadata.quote_id) {
+    const quote = await QuoteModel.findById(metadata.quote_id);
+    const client = quote ? await ClientModel.findById(quote.client_id) : null;
+    if (quote && client) {
+      const candidateName = extractStructuredField(getMailFormatNotes(quote.notes), 'Candidate', ['Dear', 'Body', 'Regards', 'Designation']);
+      metadata = Object.assign({}, metadata, await buildFolderMetadataFromQuote(quote, client, candidateName));
+    }
+  }
+
+  metadata.updated_at = new Date().toISOString();
+  writeFolderMetadata(folderPath, metadata);
+  await upsertDocumentIndex(folderName, metadata);
+  return metadata;
+}
+
+function folderMatchesFilters(folder, filters) {
+  const metadata = folder.metadata || {};
+  const folderName = String(folder.folder_name || '').toLowerCase();
+  const searchValue = String(filters.search || '').toLowerCase();
+  const clientValue = String(filters.client || '').toLowerCase();
+  const candidateValue = String(filters.candidate || '').toLowerCase();
+  const roleValue = String(filters.role || '').toLowerCase();
+  const sowValue = String(filters.sow || '').toLowerCase();
+
+  const clientText = String(metadata.client_abbreviation || metadata.client_name || '').toLowerCase();
+  const candidateText = uniqueStrings((metadata.candidate_names || []).concat([metadata.candidate_name || ''])).join(' ').toLowerCase();
+  const rolesText = (metadata.roles || []).join(' ').toLowerCase();
+  const sowText = (metadata.sow_numbers || []).join(' ').toLowerCase();
+  const quoteText = String(metadata.quote_number || '').toLowerCase();
+
+  if (searchValue) {
+    const aggregate = [folderName, clientText, candidateText, rolesText, sowText, quoteText].join(' ');
+    if (aggregate.indexOf(searchValue) === -1) return false;
+  }
+  if (clientValue && clientText.indexOf(clientValue) === -1) return false;
+  if (candidateValue && candidateText.indexOf(candidateValue) === -1) return false;
+  if (roleValue && rolesText.indexOf(roleValue) === -1) return false;
+  if (sowValue && sowText.indexOf(sowValue) === -1) return false;
+  return true;
 }
 
 function getLinkedDocumentsBaseDir() {
@@ -163,13 +513,15 @@ const sowController = {
       return;
     }
 
-    const folders = fs.readdirSync(baseDir, { withFileTypes: true })
+    const existingIndexMap = await loadDocumentIndexMap();
+    const rawFolders = fs.readdirSync(baseDir, { withFileTypes: true })
       .filter((entry) => entry.isDirectory())
-      .map((entry) => {
+      .map(async (entry) => {
         const folderPath = path.join(baseDir, entry.name);
         const stats = fs.statSync(folderPath);
         const files = fs.readdirSync(folderPath, { withFileTypes: true })
           .filter((fileEntry) => fileEntry.isFile())
+          .filter((fileEntry) => fileEntry.name !== FOLDER_METADATA_FILE)
           .map((fileEntry) => {
             const filePath = path.join(folderPath, fileEntry.name);
             const fileStats = fs.statSync(filePath);
@@ -181,13 +533,19 @@ const sowController = {
           })
           .sort((a, b) => a.name.localeCompare(b.name));
 
+        const metadata = await enrichFolderMetadata(entry.name, folderPath, files, existingIndexMap[entry.name]);
         return {
           folder_name: entry.name,
           created_at: stats.birthtime.toISOString(),
           modified_at: stats.mtime.toISOString(),
+          metadata,
           files,
         };
-      })
+      });
+
+    let folders = await Promise.all(rawFolders);
+    folders = folders
+      .filter((folder) => folderMatchesFilters(folder, req.query || {}))
       .sort((a, b) => new Date(b.modified_at).getTime() - new Date(a.modified_at).getTime());
 
     res.json({ success: true, data: folders });
@@ -253,11 +611,11 @@ const sowController = {
       const quoteDocxPath = ensureUniqueFilePath(path.join(targetDir, `${buildQuoteDocumentBaseName(quote, client)}.docx`));
       fs.writeFileSync(quoteDocxPath, quoteBuffer);
 
-      const uploadedOriginal = path.basename(req.file.originalname || req.file.filename || 'uploaded_sow');
-      const ext = path.extname(uploadedOriginal) || path.extname(req.file.path);
-      const originalBase = path.basename(uploadedOriginal, ext);
-      const sowDocPath = ensureUniqueFilePath(path.join(targetDir, `${sanitizeSegment(originalBase || 'sow_document')}${ext.toLowerCase()}`));
+      const sowDocPath = buildStoredDocumentPath(targetDir, req.file.originalname || req.file.filename, 'sow_document');
       fs.copyFileSync(req.file.path, sowDocPath);
+
+      const metadata = await buildFolderMetadataFromQuote(quote, client, candidateName);
+      writeFolderMetadata(targetDir, metadata);
 
       res.json({
         success: true,
@@ -266,6 +624,36 @@ const sowController = {
           folderPath: targetDir,
           quoteFile: path.basename(quoteDocxPath),
           sowFile: path.basename(sowDocPath),
+          metadata,
+        },
+      });
+    } finally {
+      try { fs.unlinkSync(req.file.path); } catch (e) { /* ignore */ }
+    }
+  }),
+
+  uploadLinkedPODocument: catchAsync(async (req, res) => {
+    if (!req.file) throw new AppError(400, 'PO file is required');
+    const folderName = String(req.body.folder || '').trim();
+    if (!folderName) {
+      try { fs.unlinkSync(req.file.path); } catch (e) { /* ignore */ }
+      throw new AppError(400, 'folder is required');
+    }
+
+    try {
+      const targetDir = resolveLinkedDocumentPath(folderName);
+      if (!fs.existsSync(targetDir) || !fs.statSync(targetDir).isDirectory()) {
+        throw new AppError(404, 'Document folder not found');
+      }
+
+      const poDocPath = buildStoredDocumentPath(targetDir, req.file.originalname || req.file.filename, 'po_document');
+      fs.copyFileSync(req.file.path, poDocPath);
+
+      res.json({
+        success: true,
+        data: {
+          folderName,
+          poFile: path.basename(poDocPath),
         },
       });
     } finally {

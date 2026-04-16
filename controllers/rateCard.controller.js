@@ -87,6 +87,14 @@ const rateCardController = {
     res.json({ success: true, data: { message: 'Rate card deleted' } });
   }),
 
+  updateLeavesAllowed: catchAsync(async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    const existing = await RateCardModel.findById(id);
+    if (!existing) throw new AppError(404, 'Rate card not found');
+    await RateCardModel.updateLeavesAllowed(id, req.body.leaves_allowed);
+    res.json({ success: true, data: { id } });
+  }),
+
   uploadExcel: catchAsync(async (req, res) => {
     if (!req.file) throw new AppError(400, 'Excel file is required');
     const clientId = parseInt(req.body.clientId, 10);

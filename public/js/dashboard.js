@@ -198,4 +198,11 @@
 
     var refreshBtn = document.getElementById("btnRefreshDashboard");
     if (refreshBtn) refreshBtn.addEventListener("click", loadDashboard);
+
+    var trackerBtn = document.getElementById("btnDownloadTracker");
+    if (trackerBtn) {
+        trackerBtn.addEventListener("click", function () {
+            downloadFile("/api/dashboard/tracker/export", "Order_Tracker.xlsx");
+        });
+    }
 })();

@@ -1,11 +1,20 @@
 (function () {
   // openModal / closeModal provided by app.js
+  var sowActionMap = {};
+
   window.openSowDocumentUploadModal = async function () {
     document.getElementById('sowDocumentUploadForm').reset();
     await loadAcceptedQuotesForDocumentUpload();
     openModal('sowDocumentUploadModal');
   };
   window.closeSowDocumentUploadModal = function () { closeModal('sowDocumentUploadModal'); };
+  window.openSowLinkPOModal = function (folderName) {
+    document.getElementById('sowLinkPOForm').reset();
+    document.getElementById('sowLinkPOFolderName').value = folderName || '';
+    document.getElementById('sowLinkPOFolderLabel').value = folderName || '';
+    openModal('sowLinkPOModal');
+  };
+  window.closeSowLinkPOModal = function () { closeModal('sowLinkPOModal'); };
 
   function formatFileSize(bytes) {
     var size = Number(bytes) || 0;
@@ -55,9 +64,22 @@
             '<div>' +
               '<div class="text-base font-semibold text-on-surface break-all">' + escapeHtml(folder.folder_name) + '</div>' +
               '<div class="text-xs text-on-surface-variant mt-1">Last updated ' + formatDateTime(folder.modified_at) + '</div>' +
+              '<div class="flex flex-wrap gap-2 mt-2">' +
+                (folder.metadata && (folder.metadata.client_abbreviation || folder.metadata.client_name)
+                  ? '<span class="badge-processing">Client: ' + escapeHtml(folder.metadata.client_abbreviation || folder.metadata.client_name) + '</span>' : '') +
+                (folder.metadata && ((folder.metadata.candidate_names && folder.metadata.candidate_names.length) || folder.metadata.candidate_name)
+                  ? '<span class="badge-processing">Candidate: ' + escapeHtml(((folder.metadata.candidate_names && folder.metadata.candidate_names.length) ? folder.metadata.candidate_names.join(', ') : folder.metadata.candidate_name)) + '</span>' : '') +
+                (folder.metadata && folder.metadata.sow_numbers && folder.metadata.sow_numbers.length
+                  ? '<span class="badge-processing">SOW: ' + escapeHtml(folder.metadata.sow_numbers.join(', ')) + '</span>' : '') +
+                (folder.metadata && folder.metadata.roles && folder.metadata.roles.length
+                  ? '<span class="badge-processing">Role: ' + escapeHtml(folder.metadata.roles.join(', ')) + '</span>' : '') +
+              '</div>' +
             '</div>' +
             '<div class="flex items-center gap-2 self-start">' +
               '<div class="text-xs font-semibold uppercase tracking-[0.15em] text-on-surface-variant">' + (folder.files || []).length + ' file' + ((folder.files || []).length === 1 ? '' : 's') + '</div>' +
+              '<button type="button" class="btn-secondary btn-sm inline-flex items-center gap-1.5" onclick="openSowLinkPOModal(\'' + escapeHtml(folder.folder_name).replace(/'/g, "\\'") + '\')">' +
+                '<span class="material-symbols-outlined text-base">attach_file</span>Link PO' +
+              '</button>' +
               '<button type="button" class="btn-danger btn-sm inline-flex items-center gap-1.5" onclick="deleteLinkedDocumentFolder(\'' + escapeHtml(folder.folder_name).replace(/'/g, "\\'") + '\')">' +
                 '<span class="material-symbols-outlined text-base">delete</span>Delete Folder' +
               '</button>' +
@@ -73,19 +95,29 @@
     if (!container) return;
     container.innerHTML = '<div class="loading-spinner"></div>';
     try {
-      var res = await apiCall('GET', '/api/sows/documents');
-      var searchValue = String((document.getElementById('sowDocumentSearch') || {}).value || '').trim().toLowerCase();
-      var folders = (res.data || []).filter(function (folder) {
-        return !searchValue || String(folder.folder_name || '').toLowerCase().indexOf(searchValue) !== -1;
-      });
-      container.innerHTML = buildDocumentLibraryHtml(folders);
+      var searchValue = String((document.getElementById('sowDocumentSearch') || {}).value || '').trim();
+      var clientValue = String((document.getElementById('sowDocumentFilterClient') || {}).value || '').trim();
+      var candidateValue = String((document.getElementById('sowDocumentFilterCandidate') || {}).value || '').trim();
+      var roleValue = String((document.getElementById('sowDocumentFilterRole') || {}).value || '').trim();
+      var sowValue = String((document.getElementById('sowDocumentFilterSow') || {}).value || '').trim();
+
+      var query = [];
+      if (searchValue) query.push('search=' + encodeURIComponent(searchValue));
+      if (clientValue) query.push('client=' + encodeURIComponent(clientValue));
+      if (candidateValue) query.push('candidate=' + encodeURIComponent(candidateValue));
+      if (roleValue) query.push('role=' + encodeURIComponent(roleValue));
+      if (sowValue) query.push('sow=' + encodeURIComponent(sowValue));
+      var url = '/api/sows/documents' + (query.length ? ('?' + query.join('&')) : '');
+
+      var res = await apiCall('GET', url);
+      container.innerHTML = buildDocumentLibraryHtml(res.data || []);
     } catch (err) {
       container.innerHTML = '<div class="rounded-2xl border border-outline-variant/12 bg-surface-container-high p-6 text-sm text-error">Failed to load saved documents: ' + escapeHtml(err.message) + '</div>';
     }
   };
 
   window.deleteLinkedDocumentFolder = async function (folderName) {
-    var confirmed = await confirmAction('Delete Document Folder', 'Are you sure you want to delete this saved document folder? This will remove both the generated quote and uploaded SOW files.');
+    var confirmed = await confirmAction('Delete Document Folder', 'Are you sure you want to delete this saved document folder? This will remove all linked files (quote, SOW, and PO).');
     if (!confirmed) return;
     try {
       await apiCall('DELETE', '/api/sows/documents?folder=' + encodeURIComponent(folderName));
@@ -167,10 +199,17 @@
       if (res.data.length === 0) {
         tbody.innerHTML = '<tr><td colspan="8" class="text-center text-on-surface-variant py-8">No SOWs found</td></tr>';
       } else {
+        sowActionMap = {};
         tbody.innerHTML = res.data.map(function (s) {
           var VALID_TRANSITIONS = { Draft: ['Signed'], 'Amendment Draft': ['Signed'], Signed: ['Expired', 'Terminated'], Expired: [], Terminated: [] };
           var STATUS_LABELS = { Signed: 'Mark Signed', Expired: 'Mark Expired', Terminated: 'Terminate', Draft: 'Revert to Draft' };
           var allowed = VALID_TRANSITIONS[s.status] || [];
+          sowActionMap[s.id] = {
+            id: s.id,
+            clientId: s.client_id,
+            status: s.status,
+            allowed: allowed.slice()
+          };
 
           var actionsHtml = '<div class="inline-flex items-center gap-1">';
           if (s.status === 'Draft' || s.status === 'Amendment Draft') {
@@ -180,21 +219,7 @@
 
           // Status menu
           if (allowed.length > 0 || s.status === 'Draft' || s.status === 'Amendment Draft' || s.status === 'Signed') {
-            actionsHtml += '<div class="relative inline-block" id="sowMenu' + s.id + '">';
-            actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="toggleSowMenu(' + s.id + ')" title="More"><span class="material-symbols-outlined text-base">more_vert</span></button>';
-            actionsHtml += '<div class="sow-dropdown hidden absolute right-0 top-full mt-1 bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-2xl py-1 z-50 min-w-[160px]">';
-            allowed.forEach(function (st) {
-              actionsHtml += '<a href="#" class="block px-4 py-2 text-sm text-on-surface hover:bg-surface-container-highest transition-colors no-underline" onclick="event.preventDefault();changeSOWStatus(' + s.id + ',\'' + st + '\')">' + (STATUS_LABELS[st] || st) + '</a>';
-            });
-            if (s.status === 'Signed') {
-              actionsHtml += '<div class="border-t border-outline-variant/10 my-1"></div>';
-              actionsHtml += '<a href="#" class="block px-4 py-2 text-sm text-on-surface hover:bg-surface-container-highest transition-colors no-underline" onclick="event.preventDefault();makeSOWAmendment(' + s.id + ')">Make Amendment</a>';
-            }
-            if (s.status === 'Draft' || s.status === 'Amendment Draft') {
-              actionsHtml += '<div class="border-t border-outline-variant/10 my-1"></div>';
-              actionsHtml += '<a href="#" class="block px-4 py-2 text-sm text-error hover:bg-surface-container-highest transition-colors no-underline" onclick="event.preventDefault();deleteSOW(' + s.id + ')">Delete</a>';
-            }
-            actionsHtml += '</div></div>';
+            actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="openSOWActions(' + s.id + ')" title="More"><span class="material-symbols-outlined text-base">more_vert</span></button>';
           }
           actionsHtml += '</div>';
 
@@ -214,19 +239,64 @@
     } catch (err) { showToast(err.message, 'danger'); hideLoading(tbody); }
   }
 
-  window.toggleSowMenu = function (id) {
-    document.querySelectorAll('.sow-dropdown').forEach(function (dd) {
-      if (dd.closest('#sowMenu' + id) === null) dd.classList.add('hidden');
+  window.openSOWActions = function (id) {
+    var actionState = sowActionMap[id];
+    var container = document.getElementById('sowActionList');
+    var title = document.getElementById('sowActionTitle');
+    var STATUS_LABELS = { Signed: 'Mark Signed', Expired: 'Mark Expired', Terminated: 'Terminate', Draft: 'Revert to Draft' };
+
+    if (!actionState || !container || !title) return;
+
+    title.textContent = 'SOW Actions';
+    container.innerHTML = '';
+
+    actionState.allowed.forEach(function (st) {
+      container.innerHTML += '<button type="button" class="w-full text-left rounded-xl px-4 py-3 text-sm font-medium text-on-surface bg-surface hover:bg-surface-container-highest transition-colors" onclick="runSOWActionStatus(' + actionState.id + ', \'' + st + '\')">' + (STATUS_LABELS[st] || st) + '</button>';
     });
-    var menu = document.querySelector('#sowMenu' + id + ' .sow-dropdown');
-    if (menu) menu.classList.toggle('hidden');
+
+    if (actionState.status === 'Signed') {
+      container.innerHTML += '<button type="button" class="w-full text-left rounded-xl px-4 py-3 text-sm font-medium text-on-surface bg-surface hover:bg-surface-container-highest transition-colors" onclick="runSOWActionLinkPO(' + actionState.id + ', ' + actionState.clientId + ')">Link to PO</button>';
+      container.innerHTML += '<button type="button" class="w-full text-left rounded-xl px-4 py-3 text-sm font-medium text-on-surface bg-surface hover:bg-surface-container-highest transition-colors" onclick="runSOWActionAmendment(' + actionState.id + ')">Make Amendment</button>';
+    }
+
+    if (actionState.status === 'Draft' || actionState.status === 'Amendment Draft') {
+      container.innerHTML += '<button type="button" class="w-full text-left rounded-xl px-4 py-3 text-sm font-medium text-error bg-surface hover:bg-surface-container-highest transition-colors" onclick="runSOWActionDelete(' + actionState.id + ')">Delete</button>';
+    }
+
+    openModal('sowActionModal');
   };
 
-  document.addEventListener('click', function (e) {
-    if (!e.target.closest('[id^="sowMenu"]')) {
-      document.querySelectorAll('.sow-dropdown').forEach(function (dd) { dd.classList.add('hidden'); });
-    }
-  });
+  window.closeSOWActions = function () {
+    closeModal('sowActionModal');
+  };
+
+  window.runSOWActionStatus = function (id, status) {
+    closeSOWActions();
+    changeSOWStatus(id, status);
+  };
+
+  window.runSOWActionLinkPO = function (sowId, clientId) {
+    closeSOWActions();
+    linkSOWToPO(sowId, clientId);
+  };
+
+  window.runSOWActionAmendment = function (id) {
+    closeSOWActions();
+    makeSOWAmendment(id);
+  };
+
+  window.runSOWActionDelete = function (id) {
+    closeSOWActions();
+    deleteSOW(id);
+  };
+
+  window.linkSOWToPO = function (sowId, clientId) {
+    sessionStorage.setItem('pendingPoLinkContext', JSON.stringify({
+      sowId: sowId,
+      clientId: clientId
+    }));
+    location.hash = '#purchase-orders';
+  };
 
   function addSowItemRow(item) {
     var tbody = document.getElementById('sowItemsBody');
@@ -397,10 +467,40 @@
     }
   });
 
+  document.getElementById('sowLinkPOForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var folderName = document.getElementById('sowLinkPOFolderName').value.trim();
+    var fileInput = document.getElementById('sowLinkPOFile');
+    if (!folderName) {
+      showToast('Folder name is missing', 'danger');
+      return;
+    }
+    if (!fileInput.files || !fileInput.files[0]) {
+      showToast('Please choose a PO file to upload', 'danger');
+      return;
+    }
+
+    var fd = new FormData();
+    fd.append('folder', folderName);
+    fd.append('file', fileInput.files[0]);
+    try {
+      var res = await apiCall('POST', '/api/sows/documents/link-po', fd);
+      showToast('PO file linked in folder ' + res.data.folderName, 'success');
+      closeSowLinkPOModal();
+      loadLinkedDocumentLibrary();
+    } catch (err) {
+      showToast(err.message, 'danger');
+    }
+  });
+
   document.getElementById('btnAddSowItem').addEventListener('click', function () { addSowItemRow(); });
   document.getElementById('sowFilterClient').addEventListener('change', loadSOWs);
   document.getElementById('sowFilterStatus').addEventListener('change', loadSOWs);
   document.getElementById('sowDocumentSearch').addEventListener('input', loadLinkedDocumentLibrary);
+  document.getElementById('sowDocumentFilterClient').addEventListener('input', loadLinkedDocumentLibrary);
+  document.getElementById('sowDocumentFilterCandidate').addEventListener('input', loadLinkedDocumentLibrary);
+  document.getElementById('sowDocumentFilterRole').addEventListener('input', loadLinkedDocumentLibrary);
+  document.getElementById('sowDocumentFilterSow').addEventListener('input', loadLinkedDocumentLibrary);
 
   // Load quotes when client changes
   document.getElementById('sowClient').addEventListener('change', function () {

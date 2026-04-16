@@ -17,6 +17,89 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_unique_name_location_active
 ON clients (LOWER(client_name), LOWER(COALESCE(address, '')))
 WHERE is_active = 1;
 
+CREATE TABLE IF NOT EXISTS permanent_clients (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_name     TEXT NOT NULL,
+    abbreviation    TEXT,
+    address         TEXT,
+    billing_address TEXT,
+    billing_pattern TEXT NOT NULL CHECK(billing_pattern IN ('Weekly', 'Monthly', 'Quarterly')),
+    billing_rate    REAL NOT NULL CHECK(billing_rate > 0 AND billing_rate <= 100),
+    is_active       INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_permanent_clients_unique_name_location_active
+ON permanent_clients (LOWER(client_name), LOWER(COALESCE(address, '')))
+WHERE is_active = 1;
+
+CREATE TABLE IF NOT EXISTS permanent_client_contacts (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id       INTEGER NOT NULL REFERENCES permanent_clients(id) ON DELETE CASCADE,
+    contact_name    TEXT NOT NULL,
+    email           TEXT,
+    phone           TEXT,
+    designation     TEXT,
+    is_active       INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_permanent_contacts_client ON permanent_client_contacts(client_id);
+
+CREATE TABLE IF NOT EXISTS permanent_orders (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id       INTEGER NOT NULL REFERENCES permanent_clients(id),
+    candidate_name  TEXT NOT NULL,
+    position_role   TEXT NOT NULL,
+    date_of_joining TEXT NOT NULL,
+    ctc_offered     REAL NOT NULL CHECK(ctc_offered > 0),
+    bill_amount     REAL NOT NULL CHECK(bill_amount >= 0),
+    next_bill_date  TEXT NOT NULL,
+    remarks         TEXT,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_permanent_orders_client ON permanent_orders(client_id);
+CREATE INDEX IF NOT EXISTS idx_permanent_orders_next_bill_date ON permanent_orders(next_bill_date);
+
+CREATE TABLE IF NOT EXISTS permanent_reminders (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id         INTEGER NOT NULL REFERENCES permanent_orders(id) ON DELETE CASCADE,
+    due_date         TEXT NOT NULL,
+    email_primary    TEXT,
+    email_secondary  TEXT,
+    status           TEXT NOT NULL DEFAULT 'Open' CHECK(status IN ('Open', 'Closed')),
+    closed_at        TEXT,
+    extended_count   INTEGER NOT NULL DEFAULT 0,
+    last_extended_at TEXT,
+    created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_permanent_reminders_order_open
+ON permanent_reminders(order_id)
+WHERE status = 'Open';
+CREATE INDEX IF NOT EXISTS idx_permanent_reminders_due_date ON permanent_reminders(due_date);
+
+CREATE TABLE IF NOT EXISTS sow_document_index (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    folder_name         TEXT NOT NULL UNIQUE,
+    quote_id            INTEGER REFERENCES quotes(id),
+    client_id           INTEGER REFERENCES clients(id),
+    client_abbreviation TEXT,
+    candidate_name      TEXT,
+    sow_numbers         TEXT NOT NULL DEFAULT '[]',
+    roles               TEXT NOT NULL DEFAULT '[]',
+    created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_sow_document_index_quote ON sow_document_index(quote_id);
+CREATE INDEX IF NOT EXISTS idx_sow_document_index_client ON sow_document_index(client_id);
+
 CREATE TABLE IF NOT EXISTS rate_cards (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
     client_id         INTEGER NOT NULL REFERENCES clients(id),

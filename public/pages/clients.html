@@ -1,14 +1,12 @@
 <div class="p-5 sm:p-8 space-y-6 fade-in">
 
-  <!-- Header with Add button -->
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-    <div><!-- Title handled by shell --></div>
+    <div></div>
     <button class="btn-primary inline-flex items-center gap-2" onclick="window.clientEdit=null;openClientModal()">
       <span class="material-symbols-outlined text-lg">add</span>Add Client
     </button>
   </div>
 
-  <!-- Search Bar -->
   <div class="stat-card !p-4">
     <div class="flex items-center gap-3 max-w-md">
       <span class="material-symbols-outlined text-on-surface-variant">search</span>
@@ -16,7 +14,6 @@
     </div>
   </div>
 
-  <!-- Clients Table -->
   <div class="stat-card !p-0 overflow-hidden">
     <div class="overflow-x-auto">
       <table class="stitch-table" id="clientsTable">
@@ -24,25 +21,26 @@
           <tr>
             <th class="sortable" data-sort-key="0">Name</th>
             <th class="sortable" data-sort-key="1">Abbreviation</th>
-            <th class="sortable" data-sort-key="2">Location</th>
-            <th class="sortable" data-sort-key="3">Contact Person</th>
-            <th class="sortable" data-sort-key="4">Email</th>
-            <th class="sortable" data-sort-key="5">Phone</th>
-            <th class="sortable" data-sort-key="6">Industry</th>
+            <th class="sortable" data-sort-key="2">Contract Type</th>
+            <th class="sortable" data-sort-key="3">Location / Address</th>
+            <th class="sortable" data-sort-key="4">Contact Person</th>
+            <th class="sortable" data-sort-key="5">Email</th>
+            <th class="sortable" data-sort-key="6">Phone</th>
+            <th class="sortable" data-sort-key="7">Billing Pattern</th>
+            <th class="sortable text-right" data-sort-key="8" data-sort-type="number">Billing Rate %</th>
             <th class="text-center">Actions</th>
           </tr>
         </thead>
         <tbody id="clientsBody">
-          <tr><td colspan="8"><div class="loading-spinner"></div></td></tr>
+          <tr><td colspan="10"><div class="loading-spinner"></div></td></tr>
         </tbody>
       </table>
     </div>
   </div>
 </div>
 
-<!-- Client Modal -->
 <div id="clientModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
-  <div class="bg-surface-container-high rounded-2xl w-full max-w-lg mx-4 border border-outline-variant/15 shadow-2xl">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-3xl mx-4 border border-outline-variant/15 shadow-2xl max-h-[90vh] overflow-y-auto styled-scrollbar">
     <form id="clientForm">
       <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8">
         <h5 class="font-headline font-bold text-lg text-on-surface" id="clientModalTitle">Add Client</h5>
@@ -52,44 +50,100 @@
       </div>
       <div class="p-6 space-y-4">
         <input type="hidden" id="clientId">
+        <input type="hidden" id="clientEntityType" value="Contractual">
+
         <div>
-          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Client Name *</label>
-          <input type="text" id="clientName" required>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Contract Type *</label>
+          <select id="contractType" required>
+            <option value="Contractual">Contractual</option>
+            <option value="Permanent">Permanent</option>
+          </select>
         </div>
-        <div>
-          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Abbreviation</label>
-          <input type="text" id="clientAbbreviation" placeholder="e.g. NTT">
-        </div>
-        <div>
-          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Contact Person</label>
-          <input type="text" id="contactPerson">
-        </div>
-        <div>
-          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Email</label>
-          <input type="email" id="clientEmail">
-        </div>
-        <div>
-          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Phone</label>
-          <div class="grid grid-cols-3 gap-2">
-            <select id="clientPhoneCountryCode">
-              <option value="+91">+91 (India)</option>
-              <option value="+1">+1 (US/CA)</option>
-              <option value="+44">+44 (UK)</option>
-              <option value="+61">+61 (Australia)</option>
-              <option value="+65">+65 (Singapore)</option>
-              <option value="+971">+971 (UAE)</option>
-            </select>
-            <input type="text" id="clientPhone" class="col-span-2" placeholder="Phone number">
-          </div>
-        </div>
-        <div class="grid grid-cols-2 gap-4">
+
+        <div id="contractualFields" class="space-y-4">
           <div>
-            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Industry</label>
-            <input type="text" id="clientIndustry" placeholder="e.g. IT Services, Healthcare...">
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Client Name *</label>
+            <input type="text" id="clientName">
           </div>
           <div>
-            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Location</label>
-            <textarea id="clientAddress" rows="2" placeholder="e.g. Delhi"></textarea>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Abbreviation</label>
+            <input type="text" id="clientAbbreviation" placeholder="e.g. NTT">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Contact Person</label>
+            <input type="text" id="contactPerson">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Email</label>
+            <input type="email" id="clientEmail">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Phone</label>
+            <div class="grid grid-cols-3 gap-2">
+              <select id="clientPhoneCountryCode">
+                <option value="+91">+91 (India)</option>
+                <option value="+1">+1 (US/CA)</option>
+                <option value="+44">+44 (UK)</option>
+                <option value="+61">+61 (Australia)</option>
+                <option value="+65">+65 (Singapore)</option>
+                <option value="+971">+971 (UAE)</option>
+              </select>
+              <input type="text" id="clientPhone" class="col-span-2" placeholder="Phone number">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Industry</label>
+              <input type="text" id="clientIndustry" placeholder="e.g. IT Services, Healthcare...">
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Location</label>
+              <textarea id="clientAddress" rows="2" placeholder="e.g. Delhi"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div id="permanentFields" class="hidden space-y-4">
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Name *</label>
+            <input type="text" id="permanentClientName">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Abbreviation *</label>
+            <input type="text" id="permanentClientAbbreviation" placeholder="Used for search">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Address</label>
+            <textarea id="permanentClientAddress" rows="2"></textarea>
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Billing Address</label>
+            <textarea id="permanentClientBillingAddress" rows="2"></textarea>
+          </div>
+
+          <div class="stat-card !p-4 !bg-surface-container">
+            <div class="flex items-center justify-between mb-3">
+              <h6 class="section-label !mb-0">Contact Person(s)</h6>
+              <button type="button" class="btn-secondary btn-sm inline-flex items-center gap-1" onclick="addPermanentContactRow()">
+                <span class="material-symbols-outlined text-base">add</span>Add Contact
+              </button>
+            </div>
+            <div id="permanentContactsList" class="space-y-3"></div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Billing Pattern *</label>
+              <select id="permanentBillingPattern">
+                <option value="Weekly">Weekly</option>
+                <option value="Monthly">Monthly</option>
+                <option value="Quarterly">Quarterly (3 months)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Billing Rate (% of CTC) *</label>
+              <input type="number" id="permanentBillingRate" min="0.01" max="100" step="0.01">
+            </div>
           </div>
         </div>
       </div>

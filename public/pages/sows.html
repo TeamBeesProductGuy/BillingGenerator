@@ -72,7 +72,7 @@
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-5 py-4 border-b border-outline-variant/8">
       <div>
         <h3 class="text-base font-semibold text-on-surface">Saved SOW Documents</h3>
-        <p class="text-sm text-on-surface-variant">Browse the linked quote and uploaded SOW files directly from the site.</p>
+        <p class="text-sm text-on-surface-variant">Browse linked quote, SOW, and PO files with advanced folder filtering.</p>
       </div>
       <div class="flex flex-col sm:flex-row sm:items-center gap-3">
         <div class="flex items-center gap-3 w-full sm:w-72">
@@ -84,8 +84,31 @@
         </button>
       </div>
     </div>
+    <div class="px-5 py-4 border-b border-outline-variant/8">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <input type="text" id="sowDocumentFilterClient" placeholder="Filter by company/client">
+        <input type="text" id="sowDocumentFilterCandidate" placeholder="Filter by candidate name">
+        <input type="text" id="sowDocumentFilterRole" placeholder="Filter by role">
+        <input type="text" id="sowDocumentFilterSow" placeholder="Filter by SOW number">
+      </div>
+    </div>
     <div id="sowDocumentLibrary" class="p-5">
       <div class="loading-spinner"></div>
+    </div>
+  </div>
+</div>
+
+<!-- SOW Actions Modal -->
+<div id="sowActionModal" class="fixed inset-0 z-[220] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-sm mx-4 border border-outline-variant/15 shadow-2xl">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8">
+      <h5 class="font-headline font-bold text-lg text-on-surface" id="sowActionTitle">SOW Actions</h5>
+      <button type="button" onclick="closeSOWActions()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="p-4">
+      <div id="sowActionList" class="space-y-2"></div>
     </div>
   </div>
 </div>
@@ -110,12 +133,42 @@
         <div>
           <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">SOW File *</label>
           <input type="file" id="sowDocumentFile" accept=".pdf,.doc,.docx" required>
-          <p class="mt-2 text-xs text-on-surface-variant">Accepted formats: PDF, DOC, DOCX. The app will create one folder and store the generated quote DOCX together with this uploaded file.</p>
+          <p class="mt-2 text-xs text-on-surface-variant">Accepted formats: PDF, DOC, DOCX. The app will create one folder and store the generated quote DOCX together with this uploaded file. You can later add PO files to the same folder using Link PO.</p>
         </div>
       </div>
       <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
         <button type="button" class="btn-secondary" onclick="closeSowDocumentUploadModal()">Cancel</button>
         <button type="submit" class="btn-primary">Upload</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Link PO File Modal -->
+<div id="sowLinkPOModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-lg mx-4 border border-outline-variant/15 shadow-2xl">
+    <form id="sowLinkPOForm">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8">
+        <h5 class="font-headline font-bold text-lg text-on-surface">Link PO Document</h5>
+        <button type="button" onclick="closeSowLinkPOModal()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="p-6 space-y-4">
+        <input type="hidden" id="sowLinkPOFolderName">
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Target Folder</label>
+          <input type="text" id="sowLinkPOFolderLabel" disabled>
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">PO File *</label>
+          <input type="file" id="sowLinkPOFile" accept=".pdf,.doc,.docx" required>
+          <p class="mt-2 text-xs text-on-surface-variant">Accepted formats: PDF, DOC, DOCX.</p>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
+        <button type="button" class="btn-secondary" onclick="closeSowLinkPOModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Upload PO</button>
       </div>
     </form>
   </div>
