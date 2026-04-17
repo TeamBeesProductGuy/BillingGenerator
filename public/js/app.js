@@ -27,6 +27,7 @@
     // -----------------------------------------------------------
     var ROUTES = ["dashboard", "billing", "rate-cards", "attendance", "quotes", "sows", "purchase-orders", "clients", "orders", "reminders"];
     var DEFAULT_ROUTE = "dashboard";
+    var SIGNIN_PATH = "/signin";
     var currentPage = null;
     var pageCache = {};
 
@@ -62,6 +63,9 @@
 
     async function showLoginPage() {
         hideApp();
+        if (location.pathname !== SIGNIN_PATH || location.hash) {
+            history.replaceState(null, "", SIGNIN_PATH);
+        }
         var loginContainer = document.getElementById("login-container");
         if (!loginContainer) {
             loginContainer = document.createElement("div");
@@ -103,6 +107,11 @@
 
     window.onAuthSuccess = function (session) {
         currentSession = session;
+        if (location.pathname === SIGNIN_PATH || location.pathname !== "/") {
+            history.replaceState(null, "", "/#" + DEFAULT_ROUTE);
+        } else if (!location.hash) {
+            history.replaceState(null, "", "/#" + DEFAULT_ROUTE);
+        }
         hideLoginPage();
         showApp();
         updateUserDisplay();
@@ -132,12 +141,15 @@
     //  Router
     // -----------------------------------------------------------
     async function navigate() {
-        if (!currentSession) return;
+        if (!currentSession) {
+            await showLoginPage();
+            return;
+        }
 
         var hash = (location.hash || "").replace(/^#\/?/, "").toLowerCase();
         if (!hash || !ROUTES.includes(hash)) {
             hash = DEFAULT_ROUTE;
-            history.replaceState(null, "", "#" + hash);
+            history.replaceState(null, "", "/#" + hash);
         }
         if (hash === currentPage) return;
         currentPage = hash;
@@ -650,6 +662,7 @@
     //  Initialization
     // -----------------------------------------------------------
     document.addEventListener("DOMContentLoaded", async function () {
+        hideApp();
         initDarkMode();
         initSupabase();
 
@@ -662,6 +675,7 @@
         // Check existing auth session
         var session = await checkAuth();
         if (session) {
+            showApp();
             updateUserDisplay();
             navigate();
         } else {
