@@ -228,26 +228,32 @@ create index if not exists idx_po_consumption_log_owner_user on public.po_consum
 create index if not exists idx_employee_po_history_owner_user on public.employee_po_history(owner_user_id);
 create index if not exists idx_audit_log_owner_user on public.audit_log(owner_user_id);
 
-create or replace view public.rate_cards_view
+drop view if exists public.rate_cards_view;
+drop view if exists public.quotes_view;
+drop view if exists public.sows_view;
+drop view if exists public.purchase_orders_view;
+
+create view public.rate_cards_view
 with (security_invoker = true) as
-select rc.*, c.client_name, po.po_number
+select rc.*, c.client_name, po.po_number, sw.sow_number
 from public.rate_cards rc
 join public.clients c on rc.client_id = c.id
-left join public.purchase_orders po on rc.po_id = po.id;
+left join public.purchase_orders po on rc.po_id = po.id
+left join public.sows sw on rc.sow_id = sw.id;
 
-create or replace view public.quotes_view
+create view public.quotes_view
 with (security_invoker = true) as
 select q.*, c.client_name
 from public.quotes q
 join public.clients c on q.client_id = c.id;
 
-create or replace view public.sows_view
+create view public.sows_view
 with (security_invoker = true) as
 select s.*, c.client_name
 from public.sows s
 join public.clients c on s.client_id = c.id;
 
-create or replace view public.purchase_orders_view
+create view public.purchase_orders_view
 with (security_invoker = true) as
 select po.*, c.client_name, sw.sow_number,
   case when po.po_value > 0 then round((po.consumed_value / po.po_value) * 100, 2) else 0 end as consumption_pct,
