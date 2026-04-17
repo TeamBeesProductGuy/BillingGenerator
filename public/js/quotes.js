@@ -1,5 +1,6 @@
 (function () {
   // openModal / closeModal provided by app.js (with scroll lock + Escape + backdrop)
+  var quoteActionMap = {};
   var quoteSideNoteMarker = '\n\n---SIDE_NOTE---\n';
   var quoteMailBodyLines = [
     'Please refer to the following quote with best fitment to the requirements:',
@@ -313,6 +314,7 @@
       if (res.data.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" class="text-center text-on-surface-variant py-8">No quotes found</td></tr>';
       } else {
+        quoteActionMap = {};
         tbody.innerHTML = res.data.map(function (q) {
           var actionsHtml = '<div class="inline-flex items-center gap-1">';
           if (q.status === 'Draft') {
@@ -331,23 +333,13 @@
           };
           var STATUS_LABELS = { Sent: 'Mark Sent', Accepted: 'Accept', Rejected: 'Reject', Draft: 'Revert to Draft', Expired: 'Mark Expired' };
           var allowed = VALID_TRANSITIONS[q.status] || [];
-
-          actionsHtml += '<div class="relative inline-block" id="quoteMenu' + q.id + '">';
-          actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="toggleQuoteMenu(' + q.id + ')" title="More"><span class="material-symbols-outlined text-base">more_vert</span></button>';
-          actionsHtml += '<div class="quote-dropdown hidden absolute right-0 top-full mt-1 bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-2xl py-1 z-50 min-w-[160px]">';
-          allowed.forEach(function (s) {
-            actionsHtml += '<a href="#" class="block px-4 py-2 text-sm text-on-surface hover:bg-surface-container-highest transition-colors no-underline" onclick="event.preventDefault();changeQuoteStatus(' + q.id + ',\'' + s + '\')">' + (STATUS_LABELS[s] || s) + '</a>';
-          });
-          if (q.status === 'Accepted') {
-            actionsHtml += '<div class="border-t border-outline-variant/10 my-1"></div>';
-            actionsHtml += '<a href="#" class="block px-4 py-2 text-sm text-error hover:bg-surface-container-highest transition-colors no-underline" onclick="event.preventDefault();terminateQuote(' + q.id + ')">Terminate</a>';
-            actionsHtml += '<a href="#" class="block px-4 py-2 text-sm text-green-400 hover:bg-surface-container-highest transition-colors no-underline" onclick="event.preventDefault();convertToSOW(' + q.id + ')">Link to SOW</a>';
-          }
-          if (q.status === 'Draft') {
-            actionsHtml += '<div class="border-t border-outline-variant/10 my-1"></div>';
-            actionsHtml += '<a href="#" class="block px-4 py-2 text-sm text-error hover:bg-surface-container-highest transition-colors no-underline" onclick="event.preventDefault();deleteQuote(' + q.id + ')">Delete</a>';
-          }
-          actionsHtml += '</div></div></div>';
+          quoteActionMap[q.id] = {
+            id: q.id,
+            status: q.status,
+            allowed: allowed.slice(),
+          };
+          actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="openQuoteActions(' + q.id + ')" title="More"><span class="material-symbols-outlined text-base">more_vert</span></button>';
+          actionsHtml += '</div>';
 
           return '<tr>' +
             '<td><strong>' + escapeHtml(q.quote_number) + '</strong></td>' +
@@ -364,21 +356,56 @@
     } catch (err) { showToast(err.message, 'danger'); hideLoading(tbody); }
   }
 
-  window.toggleQuoteMenu = function (id) {
-    // Close all other menus first
-    document.querySelectorAll('.quote-dropdown').forEach(function (dd) {
-      if (dd.closest('#quoteMenu' + id) === null) dd.classList.add('hidden');
+  window.openQuoteActions = function (id) {
+    var actionState = quoteActionMap[id];
+    var container = document.getElementById('quoteActionList');
+    var title = document.getElementById('quoteActionTitle');
+    var STATUS_LABELS = { Sent: 'Mark Sent', Accepted: 'Accept', Rejected: 'Reject', Draft: 'Revert to Draft', Expired: 'Mark Expired' };
+
+    if (!actionState || !container || !title) return;
+
+    title.textContent = 'Quote Actions';
+    container.innerHTML = '';
+
+    actionState.allowed.forEach(function (status) {
+      container.innerHTML += '<button type="button" class="w-full text-left rounded-xl px-4 py-3 text-sm font-medium text-on-surface bg-surface hover:bg-surface-container-highest transition-colors" onclick="runQuoteActionStatus(' + actionState.id + ', \'' + status + '\')">' + (STATUS_LABELS[status] || status) + '</button>';
     });
-    var menu = document.querySelector('#quoteMenu' + id + ' .quote-dropdown');
-    if (menu) menu.classList.toggle('hidden');
+
+    if (actionState.status === 'Accepted') {
+      container.innerHTML += '<button type="button" class="w-full text-left rounded-xl px-4 py-3 text-sm font-medium text-on-surface bg-surface hover:bg-surface-container-highest transition-colors" onclick="runQuoteActionConvertToSow(' + actionState.id + ')">Link to SOW</button>';
+      container.innerHTML += '<button type="button" class="w-full text-left rounded-xl px-4 py-3 text-sm font-medium text-error bg-surface hover:bg-surface-container-highest transition-colors" onclick="runQuoteActionTerminate(' + actionState.id + ')">Terminate</button>';
+    }
+
+    if (actionState.status === 'Draft') {
+      container.innerHTML += '<button type="button" class="w-full text-left rounded-xl px-4 py-3 text-sm font-medium text-error bg-surface hover:bg-surface-container-highest transition-colors" onclick="runQuoteActionDelete(' + actionState.id + ')">Delete</button>';
+    }
+
+    openModal('quoteActionModal');
   };
 
-  // Close dropdowns when clicking outside
-  document.addEventListener('click', function (e) {
-    if (!e.target.closest('[id^="quoteMenu"]')) {
-      document.querySelectorAll('.quote-dropdown').forEach(function (dd) { dd.classList.add('hidden'); });
-    }
-  });
+  window.closeQuoteActions = function () {
+    closeModal('quoteActionModal');
+  };
+
+  window.runQuoteActionStatus = function (id, status) {
+    closeQuoteActions();
+    changeQuoteStatus(id, status);
+  };
+
+  window.runQuoteActionConvertToSow = function (id) {
+    closeQuoteActions();
+    convertToSOW(id);
+  };
+
+  window.runQuoteActionTerminate = function (id) {
+    closeQuoteActions();
+    terminateQuote(id);
+  };
+
+  window.runQuoteActionDelete = function (id) {
+    closeQuoteActions();
+    deleteQuote(id);
+  };
 
   function addItemRow(item) {
     var tbody = document.getElementById('quoteItemsBody');

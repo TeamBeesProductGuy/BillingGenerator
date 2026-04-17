@@ -63,6 +63,21 @@
   </div>
 </div>
 
+<!-- Quote Actions Modal -->
+<div id="quoteActionModal" class="fixed inset-0 z-[220] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-sm mx-4 border border-outline-variant/15 shadow-2xl">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8">
+      <h5 class="font-headline font-bold text-lg text-on-surface" id="quoteActionTitle">Quote Actions</h5>
+      <button type="button" onclick="closeQuoteActions()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="p-4">
+      <div id="quoteActionList" class="space-y-2"></div>
+    </div>
+  </div>
+</div>
+
 <!-- Quote Detail Modal -->
 <div id="quoteDetailModal"
   class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">

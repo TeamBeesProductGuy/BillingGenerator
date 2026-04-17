@@ -4,8 +4,13 @@ function isMissingFunctionError(error, functionName) {
   return Boolean(error && error.message && error.message.toLowerCase().includes(functionName.toLowerCase()));
 }
 
+function isDuplicateKeyError(error) {
+  const message = String(error && error.message ? error.message : '');
+  return Boolean(error && (error.code === '23505' || message.includes('duplicate key') || message.includes('UNIQUE')));
+}
+
 const POModel = {
-  async generatePONumber() {
+  async generatePONumber(offset = 0) {
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const pattern = `PO-${today}-%`;
     const { count, error } = await supabase
@@ -13,7 +18,7 @@ const POModel = {
       .select('*', { count: 'exact', head: true })
       .like('po_number', pattern);
     if (error) throw new Error(error.message);
-    const seq = String((count || 0) + 1).padStart(3, '0');
+    const seq = String((count || 0) + 1 + offset).padStart(3, '0');
     return `PO-${today}-${seq}`;
   },
 
@@ -66,23 +71,40 @@ const POModel = {
   },
 
   async create(data) {
-    const poNumber = data.po_number || await POModel.generatePONumber();
-    const { data: row, error } = await supabase
-      .from('purchase_orders')
-      .insert({
-        po_number: poNumber,
-        client_id: data.client_id,
-        quote_id: data.quote_id || null,
-        po_date: data.po_date,
-        start_date: data.start_date,
-        end_date: data.end_date,
-        po_value: data.po_value,
-        alert_threshold: data.alert_threshold || 80,
-        sow_id: data.sow_id || null,
-        notes: data.notes || null,
-      })
-      .select('id')
-      .single();
+    const maxAttempts = data.po_number ? 1 : 25;
+    let poNumber = data.po_number || null;
+    let row;
+    let error;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const candidateNumber = poNumber || await POModel.generatePONumber(attempt);
+      ({ data: row, error } = await supabase
+        .from('purchase_orders')
+        .insert({
+          po_number: candidateNumber,
+          client_id: data.client_id,
+          quote_id: data.quote_id || null,
+          po_date: data.po_date,
+          start_date: data.start_date,
+          end_date: data.end_date,
+          po_value: data.po_value,
+          alert_threshold: data.alert_threshold || 80,
+          sow_id: data.sow_id || null,
+          notes: data.notes || null,
+        })
+        .select('id')
+        .single());
+
+      if (!error) {
+        poNumber = candidateNumber;
+        break;
+      }
+
+      if (!isDuplicateKeyError(error) || data.po_number) {
+        throw new Error(error.message);
+      }
+    }
+
     if (error) throw new Error(error.message);
     return { id: row.id, po_number: poNumber };
   },

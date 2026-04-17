@@ -234,6 +234,31 @@ function readFolderMetadata(folderPath) {
   }
 }
 
+function buildFallbackFolderMetadata(folderName, folderPath, files, indexedMetadata) {
+  const metadata = Object.assign({}, indexedMetadata || {}, readFolderMetadata(folderPath) || {});
+  const parsed = parseFolderName(folderName);
+  const candidateNames = uniqueStrings(
+    []
+      .concat(metadata.candidate_names || [])
+      .concat(metadata.candidate_name || '')
+      .concat(parsed.candidateName || '')
+      .concat(extractCandidatesFromFiles(files))
+  );
+
+  if (!metadata.client_abbreviation && parsed.clientAbbreviation) {
+    metadata.client_abbreviation = parsed.clientAbbreviation;
+  }
+  if (!metadata.candidate_name) {
+    metadata.candidate_name = candidateNames[0] || '';
+  }
+  metadata.candidate_names = candidateNames;
+  metadata.roles = uniqueStrings(metadata.roles || []);
+  metadata.sow_numbers = uniqueStrings(metadata.sow_numbers || []);
+  metadata.quote_number = metadata.quote_number || '';
+  metadata.updated_at = metadata.updated_at || new Date().toISOString();
+  return metadata;
+}
+
 function writeFolderMetadata(folderPath, metadata) {
   const metadataPath = path.join(folderPath, FOLDER_METADATA_FILE);
   fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2), 'utf8');
@@ -337,6 +362,7 @@ async function loadDocumentIndexMap() {
     .from(DOCUMENT_INDEX_TABLE)
     .select('*');
   if (isMissingRelationError(error, DOCUMENT_INDEX_TABLE)) return {};
+  if (error && String(error.message || '').toLowerCase().indexOf('fetch failed') !== -1) return {};
   if (error) throw new Error(error.message);
 
   const indexMap = {};
@@ -561,7 +587,12 @@ const sowController = {
       return;
     }
 
-    const existingIndexMap = await loadDocumentIndexMap();
+    let existingIndexMap = {};
+    try {
+      existingIndexMap = await loadDocumentIndexMap();
+    } catch (err) {
+      existingIndexMap = {};
+    }
     const rawFolders = fs.readdirSync(baseDir, { withFileTypes: true })
       .filter((entry) => entry.isDirectory())
       .map(async (entry) => {
@@ -581,7 +612,12 @@ const sowController = {
           })
           .sort((a, b) => a.name.localeCompare(b.name));
 
-        const metadata = await enrichFolderMetadata(entry.name, folderPath, files, existingIndexMap[entry.name]);
+        let metadata;
+        try {
+          metadata = await enrichFolderMetadata(entry.name, folderPath, files, existingIndexMap[entry.name]);
+        } catch (err) {
+          metadata = buildFallbackFolderMetadata(entry.name, folderPath, files, existingIndexMap[entry.name]);
+        }
         return {
           folder_name: entry.name,
           created_at: stats.birthtime.toISOString(),
@@ -626,6 +662,17 @@ const sowController = {
     }
 
     fs.rmSync(folderPath, { recursive: true, force: true });
+    try {
+      const { error } = await supabase
+        .from(DOCUMENT_INDEX_TABLE)
+        .delete()
+        .eq('folder_name', folderName);
+      if (error && !isMissingRelationError(error, DOCUMENT_INDEX_TABLE)) {
+        throw new Error(error.message);
+      }
+    } catch (err) {
+      // Keep folder deletion successful even if the optional index cleanup cannot be completed.
+    }
     res.json({ success: true, data: { folderName } });
   }),
 

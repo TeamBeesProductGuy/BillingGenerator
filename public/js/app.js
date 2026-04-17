@@ -137,6 +137,13 @@
         return null;
     }
 
+    async function getValidSession() {
+        if (currentSession && currentSession.access_token) {
+            return currentSession;
+        }
+        return checkAuth();
+    }
+
     // -----------------------------------------------------------
     //  Router
     // -----------------------------------------------------------
@@ -305,15 +312,20 @@
 
         // Require auth token for protected API calls
         var isApiCall = typeof url === "string" && url.indexOf("/api/") === 0;
-        if (isApiCall && (!currentSession || !currentSession.access_token)) {
+        var session = currentSession;
+        if (isApiCall) {
+            session = await getValidSession();
+        }
+        if (isApiCall && (!session || !session.access_token)) {
             currentSession = null;
             currentPage = null;
             showLoginPage();
             throw new Error("Authentication required. Please log in again.");
         }
 
-        if (currentSession && currentSession.access_token) {
-            options.headers["Authorization"] = "Bearer " + currentSession.access_token;
+        if (session && session.access_token) {
+            currentSession = session;
+            options.headers["Authorization"] = "Bearer " + session.access_token;
         }
 
         if (data !== undefined && data !== null) {
@@ -354,8 +366,10 @@
     window.downloadFile = async function (url, filename) {
         try {
             var options = { method: "GET", headers: {} };
-            if (currentSession && currentSession.access_token) {
-                options.headers["Authorization"] = "Bearer " + currentSession.access_token;
+            var session = await getValidSession();
+            if (session && session.access_token) {
+                currentSession = session;
+                options.headers["Authorization"] = "Bearer " + session.access_token;
             }
             var response = await fetch(url, options);
 
@@ -689,7 +703,7 @@
                     currentSession = null;
                     currentPage = null;
                     showLoginPage();
-                } else if (event === "TOKEN_REFRESHED" || event === "SIGNED_IN") {
+                } else if (event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED" || event === "SIGNED_IN") {
                     currentSession = session;
                 }
             });
