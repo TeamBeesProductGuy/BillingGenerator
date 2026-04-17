@@ -1,5 +1,6 @@
 (function () {
   // openModal / closeModal provided by app.js (with scroll lock + Escape + backdrop)
+  var poActionMap = {};
 
   window.openPOModal = function () {
     document.getElementById('poForm').reset();
@@ -21,9 +22,10 @@
 
   function progressBar(pct) {
     var p = Math.min(pct, 100);
-    var color = p >= 80 ? 'bg-red-500' : p >= 60 ? 'bg-yellow-500' : 'bg-green-500';
-    return '<div class="w-full bg-surface-container-highest rounded-full h-5 overflow-hidden">' +
-      '<div class="' + color + ' h-full rounded-full flex items-center justify-center text-xs font-bold text-white transition-all" style="width:' + p + '%">' + p.toFixed(1) + '%</div>' +
+    var colorClass = p >= 80 ? 'po-progress-fill-danger' : p >= 60 ? 'po-progress-fill-warning' : 'po-progress-fill-safe';
+    return '<div class="po-progress-track">' +
+      '<div class="po-progress-fill ' + colorClass + '" style="width:' + p + '%"></div>' +
+      '<div class="po-progress-label">' + p.toFixed(1) + '%</div>' +
       '</div>';
   }
 
@@ -112,36 +114,74 @@
       if (res.data.length === 0) {
         tbody.innerHTML = '<tr><td colspan="11" class="text-center text-on-surface-variant py-8">No purchase orders found</td></tr>';
       } else {
+        poActionMap = {};
         tbody.innerHTML = res.data.map(function (po) {
-          var actionsHtml = '<div class="inline-flex items-center gap-1">';
-          actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="editPO(' + po.id + ')" title="Edit"><span class="material-symbols-outlined text-base">edit</span></button>';
-          actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="viewPO(' + po.id + ')" title="Details"><span class="material-symbols-outlined text-base">visibility</span></button>';
-          if (po.status === 'Active') {
-            actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="consumePO(' + po.id + ')" title="Consume"><span class="material-symbols-outlined text-base">remove_circle</span></button>';
-          }
-          if (['Active', 'Expired', 'Exhausted'].indexOf(po.status) !== -1) {
-            actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="renewPO(' + po.id + ')" title="Renew"><span class="material-symbols-outlined text-base">autorenew</span></button>';
-          }
-          actionsHtml += '</div>';
+          poActionMap[po.id] = {
+            id: po.id,
+            status: po.status,
+          };
 
           return '<tr>' +
-            '<td><strong>' + escapeHtml(po.po_number) + '</strong></td>' +
-            '<td>' + escapeHtml(po.client_name) + '</td>' +
-            '<td>' + escapeHtml(po.sow_number || '---') + '</td>' +
+            '<td><span class="entity-pill entity-pill-strong">' + escapeHtml(po.po_number) + '</span></td>' +
+            '<td><span class="entity-pill" title="' + escapeHtml(po.client_name) + '">' + escapeHtml(po.client_name) + '</span></td>' +
+            '<td><span class="entity-pill" title="' + escapeHtml(po.sow_number || 'Not linked') + '">' + escapeHtml(po.sow_number || 'Not linked') + '</span></td>' +
             '<td>' + formatDate(po.start_date) + '</td>' +
             '<td>' + formatDate(po.end_date) + '</td>' +
-            '<td class="text-right">' + formatCurrency(po.po_value) + '</td>' +
-            '<td class="text-right">' + formatCurrency(po.consumed_value) + '</td>' +
+            '<td class="text-right"><span class="table-amount-pill">' + formatCurrency(po.po_value) + '</span></td>' +
+            '<td class="text-right"><span class="table-amount-pill">' + formatCurrency(po.consumed_value) + '</span></td>' +
             '<td>' + progressBar(po.consumption_pct || 0) + '</td>' +
             '<td>' + statusBadge(po.status) + '</td>' +
             '<td class="text-center">' + (po.linked_employees || 0) + '</td>' +
-            '<td class="text-center">' + actionsHtml + '</td>' +
+            '<td class="text-center"><button class="btn-secondary btn-sm table-action-trigger inline-flex items-center justify-center" title="Open purchase order actions" aria-label="Open purchase order actions" onclick="openPOActions(' + po.id + ')"><span class="material-symbols-outlined text-base">more_horiz</span></button></td>' +
             '</tr>';
         }).join('');
       }
       initTableSort('poTable');
     } catch (err) { showToast(err.message, 'danger'); hideLoading(tbody); }
   }
+
+  window.openPOActions = function (id) {
+    var actionState = poActionMap[id];
+    var container = document.getElementById('poActionList');
+    var title = document.getElementById('poActionTitle');
+    if (!actionState || !container || !title) return;
+
+    title.textContent = 'Purchase Order Actions';
+    container.innerHTML = '';
+    container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runPOActionView(' + id + ')"><span class="material-symbols-outlined">visibility</span><span><strong>View details</strong><small>Open the full purchase order summary and logs</small></span></button>';
+    container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runPOActionEdit(' + id + ')"><span class="material-symbols-outlined">edit</span><span><strong>Edit purchase order</strong><small>Update dates, value, linked SOW, and notes</small></span></button>';
+    if (actionState.status === 'Active') {
+      container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runPOActionConsume(' + id + ')"><span class="material-symbols-outlined">remove_circle</span><span><strong>Record consumption</strong><small>Log an amount consumed from this PO</small></span></button>';
+    }
+    if (['Active', 'Expired', 'Exhausted'].indexOf(actionState.status) !== -1) {
+      container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runPOActionRenew(' + id + ')"><span class="material-symbols-outlined">autorenew</span><span><strong>Renew purchase order</strong><small>Create a new renewed PO for this engagement</small></span></button>';
+    }
+    openModal('poActionModal');
+  };
+
+  window.closePOActions = function () {
+    closeModal('poActionModal');
+  };
+
+  window.runPOActionView = function (id) {
+    closePOActions();
+    viewPO(id);
+  };
+
+  window.runPOActionEdit = function (id) {
+    closePOActions();
+    editPO(id);
+  };
+
+  window.runPOActionConsume = function (id) {
+    closePOActions();
+    consumePO(id);
+  };
+
+  window.runPOActionRenew = function (id) {
+    closePOActions();
+    renewPO(id);
+  };
 
   window.viewPO = async function (id) {
     try {

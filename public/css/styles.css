@@ -569,6 +569,304 @@ select.w-auto {
     -webkit-backdrop-filter: blur(12px);
 }
 
+/* --- Reminders Table --- */
+.reminder-cell-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.reminder-cell-title {
+    color: #e6e4fb;
+    font-weight: 600;
+}
+
+.reminder-amount {
+    color: #e6e4fb;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.reminder-status-card {
+    min-width: 10rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    padding: 0.8rem 0.9rem;
+    border-radius: 0.9rem;
+    background: linear-gradient(180deg, rgba(34, 42, 61, 0.84), rgba(24, 31, 48, 0.84));
+    border: 1px solid rgba(104, 104, 132, 0.16);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.reminder-status-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.reminder-meta-line {
+    font-size: 0.72rem;
+    color: #9e9bb7;
+    line-height: 1.4;
+}
+
+.reminder-meta-label {
+    display: block;
+    margin-bottom: 0.15rem;
+    color: #d5d3ec;
+    font-size: 0.64rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+}
+
+.reminder-compact-select {
+    min-width: 0;
+}
+
+.reminder-email-wrap {
+    min-width: 0;
+}
+
+.reminder-email-pill {
+    display: inline-flex;
+    align-items: center;
+    max-width: 14rem;
+    padding: 0.8rem 1rem;
+    border-radius: 1rem;
+    background: rgba(34, 42, 61, 0.7);
+    border: 1px solid rgba(104, 104, 132, 0.14);
+    color: #d9d7ef;
+    font-size: 0.84rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.reminder-email-empty {
+    color: #9794b4;
+}
+
+.reminder-action-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.reminder-action-trigger {
+    width: 3rem;
+    height: 3rem;
+    justify-content: center;
+    padding: 0;
+    border-radius: 1rem;
+}
+
+.reminder-action-trigger .material-symbols-outlined {
+    color: inherit;
+}
+
+.reminder-action-sheet-btn {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1.4rem 1fr;
+    gap: 0.9rem;
+    align-items: start;
+    padding: 1rem 1.05rem;
+    border: 1px solid rgba(104, 104, 132, 0.14);
+    border-radius: 1rem;
+    background: rgba(27, 35, 54, 0.72);
+    color: #dddaf3;
+    text-align: left;
+    transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.reminder-action-sheet-btn:hover {
+    background: rgba(36, 45, 67, 0.88);
+    border-color: rgba(195, 192, 255, 0.16);
+    transform: translateY(-1px);
+}
+
+.reminder-action-sheet-btn .material-symbols-outlined {
+    font-size: 1.15rem;
+    margin-top: 0.05rem;
+    color: #c8c5e7;
+}
+
+.reminder-action-sheet-btn strong {
+    display: block;
+    color: #f1efff;
+    font-size: 0.88rem;
+    font-weight: 700;
+}
+
+.reminder-action-sheet-btn small {
+    display: block;
+    margin-top: 0.2rem;
+    color: #a4a1bf;
+    font-size: 0.74rem;
+    line-height: 1.4;
+}
+
+.reminder-action-sheet-btn-danger {
+    border-color: rgba(239, 68, 68, 0.14);
+    background: rgba(63, 30, 38, 0.5);
+}
+
+.reminder-action-sheet-btn-danger .material-symbols-outlined,
+.reminder-action-sheet-btn-danger strong {
+    color: #ffb4ab;
+}
+
+.reminder-action-sheet-btn-danger small {
+    color: #d9a6a1;
+}
+
+/* --- Clean Table Pills / Action Sheets --- */
+.entity-pill {
+    display: inline-flex;
+    align-items: center;
+    max-width: 15rem;
+    padding: 0.6rem 0.9rem;
+    border-radius: 9999px;
+    background: rgba(34, 42, 61, 0.66);
+    border: 1px solid rgba(104, 104, 132, 0.14);
+    color: #d8d6ef;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.entity-pill-strong {
+    color: #f3f1ff;
+    font-weight: 700;
+}
+
+.table-amount-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0.55rem 0.8rem;
+    border-radius: 9999px;
+    background: rgba(28, 37, 56, 0.72);
+    color: #f0eefc;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.table-action-trigger {
+    width: 3rem;
+    height: 3rem;
+    justify-content: center;
+    padding: 0;
+    border-radius: 1rem;
+}
+
+.action-sheet-btn {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1.4rem 1fr;
+    gap: 0.9rem;
+    align-items: start;
+    padding: 1rem 1.05rem;
+    border: 1px solid rgba(104, 104, 132, 0.14);
+    border-radius: 1rem;
+    background: rgba(27, 35, 54, 0.72);
+    color: #dddaf3;
+    text-align: left;
+    transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.action-sheet-btn:hover {
+    background: rgba(36, 45, 67, 0.88);
+    border-color: rgba(195, 192, 255, 0.16);
+    transform: translateY(-1px);
+}
+
+.action-sheet-btn .material-symbols-outlined {
+    font-size: 1.15rem;
+    margin-top: 0.05rem;
+    color: #c8c5e7;
+}
+
+.action-sheet-btn strong {
+    display: block;
+    color: #f1efff;
+    font-size: 0.88rem;
+    font-weight: 700;
+}
+
+.action-sheet-btn small {
+    display: block;
+    margin-top: 0.2rem;
+    color: #a4a1bf;
+    font-size: 0.74rem;
+    line-height: 1.4;
+}
+
+.action-sheet-btn-danger {
+    border-color: rgba(239, 68, 68, 0.14);
+    background: rgba(63, 30, 38, 0.5);
+}
+
+.action-sheet-btn-danger .material-symbols-outlined,
+.action-sheet-btn-danger strong {
+    color: #ffb4ab;
+}
+
+.action-sheet-btn-danger small {
+    color: #d9a6a1;
+}
+
+/* --- Purchase Order Progress --- */
+.po-progress-track {
+    position: relative;
+    width: 100%;
+    height: 1.35rem;
+    overflow: hidden;
+    border-radius: 9999px;
+    background: rgba(34, 42, 61, 0.88);
+    border: 1px solid rgba(104, 104, 132, 0.14);
+}
+
+.po-progress-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    height: 100%;
+    min-width: 0;
+    border-radius: 9999px;
+    transition: width 0.25s ease;
+}
+
+.po-progress-fill-safe {
+    background: linear-gradient(90deg, #15803d, #22c55e);
+}
+
+.po-progress-fill-warning {
+    background: linear-gradient(90deg, #d97706, #f59e0b);
+}
+
+.po-progress-fill-danger {
+    background: linear-gradient(90deg, #dc2626, #ef4444);
+}
+
+.po-progress-label {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #ffffff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+    pointer-events: none;
+}
+
 /* --- Responsive Sidebar --- */
 @media (max-width: 767px) {
     #sidebar.open { transform: translateX(0); }

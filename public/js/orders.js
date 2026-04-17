@@ -1,6 +1,7 @@
 (function () {
   var permanentClients = [];
   var ordersData = [];
+  var orderActionMap = {};
 
   function addDays(date, days) {
     var base = new Date(date);
@@ -54,24 +55,23 @@
       return;
     }
 
+    orderActionMap = {};
     tbody.innerHTML = data.map(function (order) {
       var clientName = order.client ? getClientDisplayName(order.client) : ('Client #' + order.client_id);
+      orderActionMap[order.id] = { id: order.id };
       return '<tr>' +
-        '<td>' + escapeHtml(clientName) + '</td>' +
-        '<td><strong>' + escapeHtml(order.candidate_name || '') + '</strong></td>' +
+        '<td><span class="entity-pill" title="' + escapeHtml(clientName) + '">' + escapeHtml(clientName) + '</span></td>' +
+        '<td><span class="entity-pill entity-pill-strong" title="' + escapeHtml(order.candidate_name || '') + '">' + escapeHtml(order.candidate_name || '') + '</span></td>' +
         '<td>' + escapeHtml(order.requisition_description || '') + '</td>' +
         '<td>' + escapeHtml(order.position_role || '') + '</td>' +
         '<td>' + formatDate(order.date_of_offer) + '</td>' +
         '<td>' + formatDate(order.date_of_joining) + '</td>' +
-        '<td class="text-right">' + formatCurrency(order.ctc_offered) + '</td>' +
+        '<td class="text-right"><span class="table-amount-pill">' + formatCurrency(order.ctc_offered) + '</span></td>' +
         '<td>' + formatDate(order.next_bill_date) + '</td>' +
-        '<td class="text-right">' + formatCurrency(order.bill_amount) + '</td>' +
+        '<td class="text-right"><span class="table-amount-pill">' + formatCurrency(order.bill_amount) + '</span></td>' +
         '<td>' + escapeHtml(order.remarks || '') + '</td>' +
         '<td class="text-center">' +
-          '<div class="inline-flex items-center gap-1">' +
-            '<button class="btn-secondary btn-sm inline-flex items-center" onclick="editOrder(' + order.id + ')" title="Edit"><span class="material-symbols-outlined text-base">edit</span></button>' +
-            '<button class="btn-danger btn-sm inline-flex items-center" onclick="deleteOrder(' + order.id + ')" title="Delete"><span class="material-symbols-outlined text-base">delete</span></button>' +
-          '</div>' +
+          '<button class="btn-secondary btn-sm table-action-trigger inline-flex items-center justify-center" title="Open order actions" aria-label="Open order actions" onclick="openOrderActions(' + order.id + ')"><span class="material-symbols-outlined text-base">more_horiz</span></button>' +
         '</td>' +
       '</tr>';
     }).join('');
@@ -102,6 +102,33 @@
       hideLoading(tbody);
     }
   }
+
+  window.openOrderActions = function (id) {
+    var actionState = orderActionMap[id];
+    var container = document.getElementById('orderActionList');
+    var title = document.getElementById('orderActionTitle');
+    if (!actionState || !container || !title) return;
+
+    title.textContent = 'Order Actions';
+    container.innerHTML = '';
+    container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runOrderActionEdit(' + id + ')"><span class="material-symbols-outlined">edit</span><span><strong>Edit order</strong><small>Update candidate, role, billing, and dates</small></span></button>';
+    container.innerHTML += '<button type="button" class="action-sheet-btn action-sheet-btn-danger" onclick="runOrderActionDelete(' + id + ')"><span class="material-symbols-outlined">delete</span><span><strong>Delete order</strong><small>Remove this order from the active list</small></span></button>';
+    openModal('orderActionModal');
+  };
+
+  window.closeOrderActions = function () {
+    closeModal('orderActionModal');
+  };
+
+  window.runOrderActionEdit = function (id) {
+    closeOrderActions();
+    editOrder(id);
+  };
+
+  window.runOrderActionDelete = function (id) {
+    closeOrderActions();
+    deleteOrder(id);
+  };
 
   window.openOrderModal = function () {
     document.getElementById('orderForm').reset();

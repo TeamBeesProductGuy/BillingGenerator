@@ -22,6 +22,11 @@ function isMissingColumnError(error, columnName) {
   return Boolean(error && error.message && error.message.includes('column') && error.message.includes(columnName));
 }
 
+function isDuplicateKeyError(error) {
+  const message = String(error && error.message ? error.message : '');
+  return Boolean(error && (error.code === '23505' || message.includes('duplicate key') || message.includes('UNIQUE')));
+}
+
 function buildQuoteInsertPayload(quoteNumber, quote, totalAmount) {
   return {
     quote_number: quoteNumber,
@@ -29,6 +34,18 @@ function buildQuoteInsertPayload(quoteNumber, quote, totalAmount) {
     version_number: quote.version_number,
     parent_quote_id: quote.parent_quote_id || null,
     is_latest: quote.is_latest !== false,
+    client_id: quote.client_id,
+    quote_date: quote.quote_date,
+    valid_until: quote.valid_until,
+    status: quote.status || 'Draft',
+    total_amount: totalAmount,
+    notes: quote.notes || null,
+  };
+}
+
+function buildLegacyInsertPayload(quoteNumber, quote, totalAmount) {
+  return {
+    quote_number: quoteNumber,
     client_id: quote.client_id,
     quote_date: quote.quote_date,
     valid_until: quote.valid_until,
@@ -79,7 +96,7 @@ const QuoteModel = {
     return { ...quote, items };
   },
 
-  async generateQuoteNumber(quoteDate) {
+  async generateQuoteNumber(quoteDate, offset = 0) {
     const fyCode = getFinancialYearCode(quoteDate);
     const pattern = `TBC-${fyCode}-%`;
     let data;
@@ -100,45 +117,54 @@ const QuoteModel = {
     if (error) throw new Error(error.message);
 
     const baseNumbers = new Set((data || []).map((row) => normalizeBaseQuoteNumber(row.base_quote_number || row.quote_number)));
-    const seq = String(baseNumbers.size + 1).padStart(3, '0');
+    const seq = String(baseNumbers.size + 1 + offset).padStart(3, '0');
     return `TBC-${fyCode}-${seq}`;
   },
 
   async create(quote, items) {
-    const quoteNumber = quote.quote_number || await QuoteModel.generateQuoteNumber(quote.quote_date);
     const totalAmount = Math.round(items.reduce((sum, item) => sum + item.amount, 0) * 100) / 100;
-    const baseQuoteNumber = quote.base_quote_number || quoteNumber;
-    const versionNumber = quote.version_number || 0;
-    const insertPayload = buildQuoteInsertPayload(quoteNumber, {
-      ...quote,
-      base_quote_number: baseQuoteNumber,
-      version_number: versionNumber,
-    }, totalAmount);
+    const maxAttempts = quote.quote_number ? 1 : 25;
+    let quoteNumber = quote.quote_number || null;
+    let row;
+    let qErr;
 
-    let { data: row, error: qErr } = await supabase
-      .from('quotes')
-      .insert(insertPayload)
-      .select('id')
-      .single();
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const candidateNumber = quoteNumber || await QuoteModel.generateQuoteNumber(quote.quote_date, attempt);
+      const baseQuoteNumber = quote.base_quote_number || candidateNumber;
+      const versionNumber = quote.version_number || 0;
+      const insertPayload = buildQuoteInsertPayload(candidateNumber, {
+        ...quote,
+        base_quote_number: baseQuoteNumber,
+        version_number: versionNumber,
+      }, totalAmount);
 
-    if (isMissingColumnError(qErr, 'base_quote_number')
-      || isMissingColumnError(qErr, 'version_number')
-      || isMissingColumnError(qErr, 'parent_quote_id')
-      || isMissingColumnError(qErr, 'is_latest')) {
       ({ data: row, error: qErr } = await supabase
         .from('quotes')
-        .insert({
-          quote_number: quoteNumber,
-          client_id: quote.client_id,
-          quote_date: quote.quote_date,
-          valid_until: quote.valid_until,
-          status: quote.status || 'Draft',
-          total_amount: totalAmount,
-          notes: quote.notes || null,
-        })
+        .insert(insertPayload)
         .select('id')
         .single());
+
+      if (isMissingColumnError(qErr, 'base_quote_number')
+        || isMissingColumnError(qErr, 'version_number')
+        || isMissingColumnError(qErr, 'parent_quote_id')
+        || isMissingColumnError(qErr, 'is_latest')) {
+        ({ data: row, error: qErr } = await supabase
+          .from('quotes')
+          .insert(buildLegacyInsertPayload(candidateNumber, quote, totalAmount))
+          .select('id')
+          .single());
+      }
+
+      if (!qErr) {
+        quoteNumber = candidateNumber;
+        break;
+      }
+
+      if (!isDuplicateKeyError(qErr) || quote.quote_number) {
+        throw new Error(qErr.message);
+      }
     }
+
     if (qErr) throw new Error(qErr.message);
 
     const quoteId = row.id;
