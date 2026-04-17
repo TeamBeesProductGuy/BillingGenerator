@@ -71,6 +71,54 @@ function buildQuoteDocumentBaseName(quote, client) {
   ].filter(Boolean).join('_');
 }
 
+function buildQuoteDocumentBaseCore(quote, client) {
+  const fullName = buildQuoteDocumentBaseName(quote, client);
+  const parts = String(fullName || '').split('_').filter(Boolean);
+  if (parts.length <= 1) return fullName;
+  const last = parts[parts.length - 1];
+  return /^\d{8}$/.test(last) ? parts.slice(0, -1).join('_') : fullName;
+}
+
+async function findLatestSowForQuote(quoteId) {
+  if (!quoteId) return null;
+  const { data, error } = await supabase
+    .from('sows')
+    .select('id, sow_number')
+    .eq('quote_id', quoteId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data || null;
+}
+
+async function resolveQuoteAndClientFromFolder(folderName, folderPath) {
+  const metadata = readFolderMetadata(folderPath) || {};
+  if (metadata.quote_id) {
+    const quote = await QuoteModel.findById(metadata.quote_id);
+    if (quote) {
+      const client = await ClientModel.findById(quote.client_id);
+      if (client) return { quote, client, metadata };
+    }
+  }
+
+  const files = fs.existsSync(folderPath)
+    ? fs.readdirSync(folderPath, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name !== FOLDER_METADATA_FILE)
+      .map((entry) => ({ name: entry.name }))
+    : [];
+  const enriched = await enrichFolderMetadata(folderName, folderPath, files, metadata);
+  if (enriched && enriched.quote_id) {
+    const quote = await QuoteModel.findById(enriched.quote_id);
+    if (quote) {
+      const client = await ClientModel.findById(quote.client_id);
+      if (client) return { quote, client, metadata: enriched };
+    }
+  }
+
+  return { quote: null, client: null, metadata: enriched || metadata };
+}
+
 function ensureUniqueFilePath(filePath) {
   if (!fs.existsSync(filePath)) return filePath;
   const parsed = path.parse(filePath);
@@ -611,7 +659,14 @@ const sowController = {
       const quoteDocxPath = ensureUniqueFilePath(path.join(targetDir, `${buildQuoteDocumentBaseName(quote, client)}.docx`));
       fs.writeFileSync(quoteDocxPath, quoteBuffer);
 
-      const sowDocPath = buildStoredDocumentPath(targetDir, req.file.originalname || req.file.filename, 'sow_document');
+      const latestSow = await findLatestSowForQuote(quoteId);
+      const latestSowNumber = latestSow && latestSow.sow_number ? latestSow.sow_number : '';
+      const sowBaseName = [
+        buildQuoteDocumentBaseCore(quote, client),
+        latestSowNumber ? sanitizeSegment(latestSowNumber) : '',
+        formatFolderDate(quote.quote_date),
+      ].filter(Boolean).join('_');
+      const sowDocPath = buildStoredDocumentPath(targetDir, `${sowBaseName}${path.extname(req.file.originalname || req.file.filename || '')}`, sowBaseName || 'sow_document');
       fs.copyFileSync(req.file.path, sowDocPath);
 
       const metadata = await buildFolderMetadataFromQuote(quote, client, candidateName);
@@ -635,9 +690,14 @@ const sowController = {
   uploadLinkedPODocument: catchAsync(async (req, res) => {
     if (!req.file) throw new AppError(400, 'PO file is required');
     const folderName = String(req.body.folder || '').trim();
+    const poNumber = String(req.body.po_number || '').trim();
     if (!folderName) {
       try { fs.unlinkSync(req.file.path); } catch (e) { /* ignore */ }
       throw new AppError(400, 'folder is required');
+    }
+    if (!poNumber) {
+      try { fs.unlinkSync(req.file.path); } catch (e) { /* ignore */ }
+      throw new AppError(400, 'po_number is required');
     }
 
     try {
@@ -646,13 +706,26 @@ const sowController = {
         throw new AppError(404, 'Document folder not found');
       }
 
-      const poDocPath = buildStoredDocumentPath(targetDir, req.file.originalname || req.file.filename, 'po_document');
+      const resolved = await resolveQuoteAndClientFromFolder(folderName, targetDir);
+      const quote = resolved.quote;
+      const client = resolved.client;
+      const metadata = resolved.metadata || {};
+      const sowNumber = Array.isArray(metadata.sow_numbers) && metadata.sow_numbers.length > 0 ? metadata.sow_numbers[0] : '';
+      const dateToken = quote ? formatFolderDate(quote.quote_date) : formatFolderDate(new Date());
+      const poBaseName = [
+        quote && client ? buildQuoteDocumentBaseCore(quote, client) : sanitizeSegment(folderName),
+        sowNumber ? sanitizeSegment(sowNumber) : '',
+        sanitizeSegment(poNumber),
+        dateToken,
+      ].filter(Boolean).join('_');
+      const poDocPath = buildStoredDocumentPath(targetDir, `${poBaseName}${path.extname(req.file.originalname || req.file.filename || '')}`, poBaseName || 'po_document');
       fs.copyFileSync(req.file.path, poDocPath);
 
       res.json({
         success: true,
         data: {
           folderName,
+          poNumber,
           poFile: path.basename(poDocPath),
         },
       });

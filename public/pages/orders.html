@@ -20,17 +20,19 @@
           <tr>
             <th class="sortable" data-sort-key="0">Client</th>
             <th class="sortable" data-sort-key="1">Candidate</th>
-            <th class="sortable" data-sort-key="2">Position / Role</th>
-            <th class="sortable" data-sort-key="3" data-sort-type="date">Date of Joining</th>
-            <th class="sortable text-right" data-sort-key="4" data-sort-type="currency">CTC Offered</th>
-            <th class="sortable" data-sort-key="5" data-sort-type="date">Next Bill Date</th>
-            <th class="sortable text-right" data-sort-key="6" data-sort-type="currency">Bill Amount</th>
-            <th class="sortable" data-sort-key="7">Remarks</th>
+            <th class="sortable" data-sort-key="2">Requisition / Description</th>
+            <th class="sortable" data-sort-key="3">Position / Role</th>
+            <th class="sortable" data-sort-key="4" data-sort-type="date">Date of Offer</th>
+            <th class="sortable" data-sort-key="5" data-sort-type="date">Date of Joining</th>
+            <th class="sortable text-right" data-sort-key="6" data-sort-type="currency">CTC Offered</th>
+            <th class="sortable" data-sort-key="7" data-sort-type="date">Next Bill Date</th>
+            <th class="sortable text-right" data-sort-key="8" data-sort-type="currency">Bill Amount</th>
+            <th class="sortable" data-sort-key="9">Remarks</th>
             <th class="text-center">Actions</th>
           </tr>
         </thead>
         <tbody id="ordersBody">
-          <tr><td colspan="9"><div class="loading-spinner"></div></td></tr>
+          <tr><td colspan="11"><div class="loading-spinner"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -63,8 +65,19 @@
             <input type="text" id="orderCandidateName" required>
           </div>
           <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Requisition / Description</label>
+            <input type="text" id="orderRequisitionDescription">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
             <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Position / Role *</label>
             <input type="text" id="orderPositionRole" required>
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Date of Offer</label>
+            <input type="date" id="orderDateOfOffer">
           </div>
         </div>
 

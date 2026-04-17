@@ -50,7 +50,9 @@ const PermanentOrderModel = {
       .insert({
         client_id: data.client_id,
         candidate_name: data.candidate_name,
+        requisition_description: data.requisition_description || null,
         position_role: data.position_role,
+        date_of_offer: data.date_of_offer || null,
         date_of_joining: data.date_of_joining,
         ctc_offered: data.ctc_offered,
         bill_amount: data.bill_amount,
@@ -69,7 +71,9 @@ const PermanentOrderModel = {
       .update({
         client_id: data.client_id,
         candidate_name: data.candidate_name,
+        requisition_description: data.requisition_description || null,
         position_role: data.position_role,
+        date_of_offer: data.date_of_offer || null,
         date_of_joining: data.date_of_joining,
         ctc_offered: data.ctc_offered,
         bill_amount: data.bill_amount,

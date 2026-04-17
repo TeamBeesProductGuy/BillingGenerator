@@ -1,5 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
 const env = require('../config/env');
+const { createRequestSupabaseClient, runWithRequestClient } = require('../config/database');
 const { AppError } = require('./errorHandler');
 
 // Use anon key client to verify user tokens
@@ -21,7 +22,9 @@ async function requireAuth(req, res, next) {
   }
 
   req.user = user;
-  next();
+  req.db = createRequestSupabaseClient(token);
+
+  return runWithRequestClient(req.db, () => next());
 }
 
 module.exports = { requireAuth };

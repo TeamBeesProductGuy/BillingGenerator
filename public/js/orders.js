@@ -50,7 +50,7 @@
   function renderOrders(data) {
     var tbody = document.getElementById('ordersBody');
     if (!data || data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="9" class="text-center text-on-surface-variant py-8">No orders found. Create one!</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="11" class="text-center text-on-surface-variant py-8">No orders found. Create one!</td></tr>';
       return;
     }
 
@@ -59,7 +59,9 @@
       return '<tr>' +
         '<td>' + escapeHtml(clientName) + '</td>' +
         '<td><strong>' + escapeHtml(order.candidate_name || '') + '</strong></td>' +
+        '<td>' + escapeHtml(order.requisition_description || '') + '</td>' +
         '<td>' + escapeHtml(order.position_role || '') + '</td>' +
+        '<td>' + formatDate(order.date_of_offer) + '</td>' +
         '<td>' + formatDate(order.date_of_joining) + '</td>' +
         '<td class="text-right">' + formatCurrency(order.ctc_offered) + '</td>' +
         '<td>' + formatDate(order.next_bill_date) + '</td>' +
@@ -126,7 +128,9 @@
       document.getElementById('orderId').value = order.id;
       document.getElementById('orderClient').value = order.client_id;
       document.getElementById('orderCandidateName').value = order.candidate_name || '';
+      document.getElementById('orderRequisitionDescription').value = order.requisition_description || '';
       document.getElementById('orderPositionRole').value = order.position_role || '';
+      document.getElementById('orderDateOfOffer').value = order.date_of_offer || '';
       document.getElementById('orderDateOfJoining').value = order.date_of_joining || '';
       document.getElementById('orderCTCOffered').value = order.ctc_offered || '';
       document.getElementById('orderRemarks').value = order.remarks || '';
@@ -158,7 +162,9 @@
     var payload = {
       client_id: parseInt(document.getElementById('orderClient').value, 10),
       candidate_name: document.getElementById('orderCandidateName').value.trim(),
+      requisition_description: document.getElementById('orderRequisitionDescription').value.trim(),
       position_role: document.getElementById('orderPositionRole').value.trim(),
+      date_of_offer: document.getElementById('orderDateOfOffer').value,
       date_of_joining: document.getElementById('orderDateOfJoining').value,
       ctc_offered: parseFloat(document.getElementById('orderCTCOffered').value),
       remarks: document.getElementById('orderRemarks').value.trim(),

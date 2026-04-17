@@ -1,5 +1,6 @@
 const env = require('./config/env');
 const db = require('./config/database');
+const reminderScheduler = require('./services/reminderScheduler.service');
 
 async function start() {
   await db.init();
@@ -10,10 +11,12 @@ async function start() {
     console.log(`Billing Engine running at http://localhost:${env.port}`);
     console.log(`Environment: ${env.nodeEnv}`);
   });
+  reminderScheduler.start();
 
   // Graceful shutdown
   function shutdown(signal) {
     console.log(`\n${signal} received. Shutting down gracefully...`);
+    reminderScheduler.stop();
     server.close(() => {
       console.log('HTTP server closed');
       process.exit(0);

@@ -14,12 +14,6 @@
 
         <!-- Login Card -->
         <div class="stat-card !p-7 !rounded-2xl">
-            <!-- Tab Switcher -->
-            <div class="flex gap-1 mb-6 bg-surface-container rounded-xl p-1">
-                <button id="tabLogin" onclick="switchAuthTab('login')" class="flex-1 py-2 rounded-lg text-sm font-semibold transition-all bg-gradient-to-r from-[#4f46e5] to-[#7c3aed] text-white shadow-md shadow-[#4f46e5]/20">Sign In</button>
-                <button id="tabSignup" onclick="switchAuthTab('signup')" class="flex-1 py-2 rounded-lg text-sm font-semibold transition-all text-on-surface-variant hover:text-on-surface">Sign Up</button>
-            </div>
-
             <!-- Error Display -->
             <div id="authError" class="hidden mb-4 p-3 rounded-xl bg-error/5 border border-error/10 text-error text-sm flex items-center gap-2">
                 <span class="material-symbols-outlined text-lg">error</span>
@@ -46,30 +40,9 @@
                 </button>
             </form>
 
-            <!-- Signup Form (hidden) -->
-            <form id="signupForm" class="hidden" onsubmit="handleSignup(event)">
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-[11px] font-semibold text-on-surface-variant uppercase tracking-[0.15em] mb-2">Email</label>
-                        <input id="signupEmail" type="email" required placeholder="you@company.com"
-                            class="w-full">
-                    </div>
-                    <div>
-                        <label class="block text-[11px] font-semibold text-on-surface-variant uppercase tracking-[0.15em] mb-2">Password</label>
-                        <input id="signupPassword" type="password" required minlength="6" placeholder="Minimum 6 characters"
-                            class="w-full">
-                    </div>
-                    <div>
-                        <label class="block text-[11px] font-semibold text-on-surface-variant uppercase tracking-[0.15em] mb-2">Confirm Password</label>
-                        <input id="signupPasswordConfirm" type="password" required minlength="6" placeholder="Re-enter password"
-                            class="w-full">
-                    </div>
-                </div>
-                <button type="submit" id="signupBtn" class="btn-primary w-full mt-6 py-3 flex items-center justify-center gap-2 !rounded-xl !text-sm">
-                    <span class="material-symbols-outlined text-lg">person_add</span>
-                    Create Account
-                </button>
-            </form>
+            <div class="mt-5 rounded-xl border border-outline-variant/15 bg-surface-container p-4 text-xs leading-relaxed text-on-surface-variant">
+                New accounts are provisioned only through Supabase/admin access. Public self-signup is disabled for data isolation.
+            </div>
         </div>
 
         <p class="text-center text-on-surface-variant/40 text-[10px] mt-6 tracking-widest uppercase">Powered by TeamBees</p>
