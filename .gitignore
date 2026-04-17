@@ -5,6 +5,8 @@ uploads/*
 !uploads/.gitkeep
 output/*
 !output/.gitkeep
+public/images/*.docx
+public/images/*.xlsx
 .env
 *.log
 .DS_Store

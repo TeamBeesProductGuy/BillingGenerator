@@ -12,6 +12,7 @@
     document.getElementById('sowLinkPOForm').reset();
     document.getElementById('sowLinkPOFolderName').value = folderName || '';
     document.getElementById('sowLinkPOFolderLabel').value = folderName || '';
+    document.getElementById('sowLinkPONumber').value = '';
     openModal('sowLinkPOModal');
   };
   window.closeSowLinkPOModal = function () { closeModal('sowLinkPOModal'); };
@@ -470,9 +471,14 @@
   document.getElementById('sowLinkPOForm').addEventListener('submit', async function (e) {
     e.preventDefault();
     var folderName = document.getElementById('sowLinkPOFolderName').value.trim();
+    var poNumber = document.getElementById('sowLinkPONumber').value.trim();
     var fileInput = document.getElementById('sowLinkPOFile');
     if (!folderName) {
       showToast('Folder name is missing', 'danger');
+      return;
+    }
+    if (!poNumber) {
+      showToast('Please enter a PO number', 'danger');
       return;
     }
     if (!fileInput.files || !fileInput.files[0]) {
@@ -482,6 +488,7 @@
 
     var fd = new FormData();
     fd.append('folder', folderName);
+    fd.append('po_number', poNumber);
     fd.append('file', fileInput.files[0]);
     try {
       var res = await apiCall('POST', '/api/sows/documents/link-po', fd);

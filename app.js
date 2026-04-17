@@ -18,11 +18,25 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
-// CORS configuration
-const corsOptions = env.corsOrigins === '*'
-  ? {}
-  : { origin: env.corsOrigins.split(',').map(s => s.trim()) };
-app.use(cors(corsOptions));
+// In production, default to same-origin unless an allowlist is configured.
+const configuredOrigins = String(env.corsOrigins || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean)
+  .filter((origin) => origin !== '*');
+
+if (configuredOrigins.length > 0) {
+  app.use(cors({
+    origin(origin, callback) {
+      if (!origin || configuredOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error('Origin not allowed by CORS'));
+    },
+  }));
+} else if (env.nodeEnv !== 'production') {
+  app.use(cors());
+}
 
 // Request logging
 if (env.nodeEnv !== 'test') {

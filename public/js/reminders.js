@@ -1,5 +1,7 @@
 (function () {
   var remindersData = [];
+  var defaultPrimaryRecipient = 'jatinder@teambeescorp.com';
+  var defaultSecondaryRecipient = 'tanmay@teambeescorp.com';
 
   function badgeForDueDate(dueDate) {
     var due = new Date(dueDate);
@@ -15,7 +17,7 @@
   function renderReminders(data) {
     var tbody = document.getElementById('remindersBody');
     if (!data || data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="8" class="text-center text-on-surface-variant py-8">No reminders in -3 to +3 day window.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="10" class="text-center text-on-surface-variant py-8">No reminders in -3 to +3 day window.</td></tr>';
       return;
     }
 
@@ -29,11 +31,26 @@
         '<td>' + escapeHtml(order.candidate_name || '') + '</td>' +
         '<td>' + escapeHtml(order.position_role || '') + '</td>' +
         '<td class="text-right">' + formatCurrency(order.bill_amount || 0) + '</td>' +
-        '<td><input type="email" id="reminderEmail1-' + reminder.id + '" value="' + escapeHtml(reminder.email_primary || '') + '" placeholder="first@email.com"></td>' +
-        '<td><input type="email" id="reminderEmail2-' + reminder.id + '" value="' + escapeHtml(reminder.email_secondary || '') + '" placeholder="second@email.com"></td>' +
+        '<td>' +
+          '<select id="reminderPaymentStatus-' + reminder.id + '">' +
+            '<option value="pending"' + (reminder.payment_status === 'pending' ? ' selected' : '') + '>Pending</option>' +
+            '<option value="paid"' + (reminder.payment_status === 'paid' ? ' selected' : '') + '>Paid</option>' +
+          '</select>' +
+          '<div class="mt-1 text-xs text-on-surface-variant">Sent: ' + (reminder.reminder_count || 0) + '</div>' +
+        '</td>' +
+        '<td>' +
+          '<div>' + escapeHtml((reminder.invoice_status || 'pending').toUpperCase()) + '</div>' +
+          '<div class="mt-1 text-xs text-on-surface-variant">' + escapeHtml(reminder.invoice_number || 'No invoice no.') + '</div>' +
+          '<div class="mt-1 text-xs text-on-surface-variant">' + (reminder.invoice_date ? formatDate(reminder.invoice_date) : 'No invoice date') + '</div>' +
+        '</td>' +
+        '<td><input type="email" id="reminderEmail1-' + reminder.id + '" value="' + escapeHtml(reminder.email_primary || defaultPrimaryRecipient) + '" placeholder="' + escapeHtml(defaultPrimaryRecipient) + '"></td>' +
+        '<td><input type="email" id="reminderEmail2-' + reminder.id + '" value="' + escapeHtml(reminder.email_secondary || defaultSecondaryRecipient) + '" placeholder="' + escapeHtml(defaultSecondaryRecipient) + '"></td>' +
         '<td class="text-center">' +
           '<div class="inline-flex items-center gap-1">' +
             '<button class="btn-secondary btn-sm inline-flex items-center" onclick="saveReminderEmails(' + reminder.id + ')"><span class="material-symbols-outlined text-base">save</span></button>' +
+            '<button class="btn-secondary btn-sm inline-flex items-center" onclick="updateReminderPaymentStatus(' + reminder.id + ')"><span class="material-symbols-outlined text-base">payments</span></button>' +
+            '<button class="btn-secondary btn-sm inline-flex items-center" onclick="sendReminderMail(' + reminder.id + ')"><span class="material-symbols-outlined text-base">mail</span></button>' +
+            '<button class="btn-secondary btn-sm inline-flex items-center" onclick="openInvoiceSentModal(' + reminder.id + ', \'' + escapeHtml(reminder.invoice_number || '') + '\', \'' + (reminder.invoice_date || '') + '\')"><span class="material-symbols-outlined text-base">receipt_long</span></button>' +
             '<button class="btn-secondary btn-sm inline-flex items-center" onclick="openExtendReminderModal(' + reminder.id + ', \'' + reminder.due_date + '\')"><span class="material-symbols-outlined text-base">event_repeat</span></button>' +
             '<button class="btn-danger btn-sm inline-flex items-center" onclick="closeReminder(' + reminder.id + ')"><span class="material-symbols-outlined text-base">task_alt</span></button>' +
           '</div>' +
@@ -88,6 +105,41 @@
     }
   };
 
+  window.updateReminderPaymentStatus = async function (id) {
+    try {
+      var status = document.getElementById('reminderPaymentStatus-' + id).value;
+      await apiCall('PATCH', '/api/permanent/reminders/' + id + '/payment-status', {
+        payment_status: status,
+      });
+      showToast('Payment status updated', 'success');
+      loadReminders();
+    } catch (err) {
+      showToast(err.message, 'danger');
+    }
+  };
+
+  window.sendReminderMail = async function (id) {
+    try {
+      await apiCall('POST', '/api/permanent/reminders/' + id + '/send-mail');
+      showToast('Reminder email sent', 'success');
+      loadReminders();
+    } catch (err) {
+      showToast(err.message, 'danger');
+    }
+  };
+
+  window.openInvoiceSentModal = function (id, invoiceNumber, invoiceDate) {
+    document.getElementById('invoiceSentForm').reset();
+    document.getElementById('invoiceSentReminderId').value = id;
+    document.getElementById('invoiceNumber').value = invoiceNumber || '';
+    document.getElementById('invoiceDate').value = invoiceDate || '';
+    openModal('invoiceSentModal');
+  };
+
+  window.closeInvoiceSentModal = function () {
+    closeModal('invoiceSentModal');
+  };
+
   window.openExtendReminderModal = function (id, dueDate) {
     document.getElementById('extendReminderForm').reset();
     document.getElementById('extendReminderId').value = id;
@@ -107,6 +159,24 @@
       await apiCall('PATCH', '/api/permanent/reminders/' + reminderId + '/extend', { due_date: dueDate });
       showToast('Reminder date extended', 'success');
       closeExtendReminderModal();
+      loadReminders();
+    } catch (err) {
+      showToast(err.message, 'danger');
+    }
+  });
+
+  document.getElementById('invoiceSentForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var reminderId = document.getElementById('invoiceSentReminderId').value;
+    var invoiceNumber = document.getElementById('invoiceNumber').value.trim();
+    var invoiceDate = document.getElementById('invoiceDate').value;
+    try {
+      await apiCall('PATCH', '/api/permanent/reminders/' + reminderId + '/invoice-sent', {
+        invoice_number: invoiceNumber,
+        invoice_date: invoiceDate,
+      });
+      showToast('Invoice status updated', 'success');
+      closeInvoiceSentModal();
       loadReminders();
     } catch (err) {
       showToast(err.message, 'danger');

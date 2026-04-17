@@ -202,6 +202,13 @@ function formatDisplayDate(value) {
   return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+function formatIndianCurrencyNumber(value) {
+  return new Intl.NumberFormat('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value) || 0);
+}
+
 function splitAddressLines(value) {
   const rawLines = String(value || '').split(/\r?\n/);
   const lines = [];
@@ -376,21 +383,21 @@ function buildQuoteItemsTableXml(quote) {
   tableRows.push(makeTableRow([
     makeTableCell('S. No.', 980, { bold: true, justify: 'center', color: '000000', size: DEFAULT_FONT_SIZE, font: DEFAULT_FONT }),
     makeTableCell('Description', 5980, { bold: true, color: '000000', size: DEFAULT_FONT_SIZE, font: DEFAULT_FONT }),
-    makeTableCell('Cost', 2400, { bold: true, justify: 'right', color: '000000', size: DEFAULT_FONT_SIZE, font: DEFAULT_FONT }),
+    makeTableCell('Service Fee Monthly (INR)', 2400, { bold: true, justify: 'right', color: '000000', size: DEFAULT_FONT_SIZE, font: DEFAULT_FONT }),
   ]));
 
   items.forEach(function (item, index) {
     tableRows.push(makeTableRow([
       makeTableCell(String(index + 1), 980, { justify: 'center', font: DEFAULT_FONT, size: DEFAULT_FONT_SIZE }),
       makeTableCell(item.description || '', 5980, { font: DEFAULT_FONT, size: DEFAULT_FONT_SIZE }),
-      makeTableCell(Number(item.amount || 0).toFixed(2), 2400, { justify: 'right', font: DEFAULT_FONT, size: DEFAULT_FONT_SIZE }),
+      makeTableCell(formatIndianCurrencyNumber(item.amount || 0), 2400, { justify: 'right', font: DEFAULT_FONT, size: DEFAULT_FONT_SIZE }),
     ]));
   });
 
   tableRows.push(makeTableRow([
     makeTableCell('', 980, {}),
     makeTableCell('Total', 5980, { bold: true, font: DEFAULT_FONT, size: DEFAULT_FONT_SIZE }),
-    makeTableCell(Number(quote.total_amount || 0).toFixed(2), 2400, { bold: true, justify: 'right', font: DEFAULT_FONT, size: DEFAULT_FONT_SIZE }),
+    makeTableCell(formatIndianCurrencyNumber(quote.total_amount || 0), 2400, { bold: true, justify: 'right', font: DEFAULT_FONT, size: DEFAULT_FONT_SIZE }),
   ]));
 
   return `<w:tbl>
