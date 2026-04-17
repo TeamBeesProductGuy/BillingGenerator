@@ -46,15 +46,22 @@ alter table public.audit_log alter column owner_user_id set default auth.uid();
 do $$
 declare
   default_owner uuid;
+  auth_user_count integer;
 begin
+  select count(*) into auth_user_count from auth.users;
+
+  if auth_user_count = 0 then
+    raise exception 'Create the first Supabase auth user before running migration 012.';
+  end if;
+
+  if auth_user_count > 1 then
+    raise exception 'Migration 012 found multiple Supabase users. Backfill owner_user_id explicitly for existing data before enabling RLS.';
+  end if;
+
   select id into default_owner
   from auth.users
   order by created_at
   limit 1;
-
-  if default_owner is null then
-    raise exception 'Create the first Supabase auth user before running migration 012.';
-  end if;
 
   update public.clients
   set owner_user_id = coalesce(owner_user_id, default_owner);
