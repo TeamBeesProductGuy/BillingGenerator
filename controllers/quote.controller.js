@@ -9,8 +9,32 @@ const { generateQuoteDocxBuffer } = require('../services/quoteDocx.service');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
 
-const logoPath = path.join(__dirname, '..', 'public', 'images', 'TeamBees.png');
+const logoPath = path.join(__dirname, '..', 'public', 'images', 'TeamBeesLOgo.png');
 const quoteSideNoteMarker = '\n\n---SIDE_NOTE---\n';
+
+function getPngDimensions(filePath) {
+  try {
+    const buffer = fs.readFileSync(filePath);
+    if (buffer.length < 24 || buffer.toString('ascii', 1, 4) !== 'PNG') return null;
+    return {
+      width: buffer.readUInt32BE(16),
+      height: buffer.readUInt32BE(20),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function getPdfLogoSize(targetWidth) {
+  const dimensions = getPngDimensions(logoPath);
+  if (!dimensions || !dimensions.width || !dimensions.height) {
+    return { width: targetWidth, height: 50 };
+  }
+  return {
+    width: targetWidth,
+    height: Math.max(Math.round((targetWidth * dimensions.height) / dimensions.width), 28),
+  };
+}
 
 function getMailFormatNotes(notes) {
   const raw = String(notes || '');
@@ -130,7 +154,7 @@ function drawQuoteTable(doc, quote) {
   const tableWidth = 460;
   const widths = [50, 280, 130];
   const headers = ['S. No.', 'Description', 'Cost'];
-  const rowHeight = 22;
+  const rowHeight = 24;
   let y = doc.y;
 
   const ensureSpace = (needed) => {
@@ -142,20 +166,19 @@ function drawQuoteTable(doc, quote) {
 
   ensureSpace((quote.items.length + 2) * rowHeight + 20);
 
-  doc.font('Times-Bold').fontSize(10);
+  doc.font('Helvetica-Bold').fontSize(10);
   let x = startX;
   headers.forEach((header, index) => {
-    const align = index === 2 ? 'right' : (index === 0 ? 'center' : 'left');
-    doc.rect(x, y, widths[index], rowHeight).stroke('#BFBFBF');
+    doc.rect(x, y, widths[index], rowHeight).stroke('#000000');
     doc.text(header, x + 6, y + 6, {
       width: widths[index] - 12,
-      align,
+      align: 'center',
     });
     x += widths[index];
   });
   y += rowHeight;
 
-  doc.font('Times-Roman').fontSize(10);
+  doc.font('Helvetica').fontSize(10);
   quote.items.forEach((item, index) => {
     x = startX;
     const cells = [
@@ -165,7 +188,7 @@ function drawQuoteTable(doc, quote) {
     ];
     cells.forEach((cell, cellIndex) => {
       const align = cellIndex === 2 ? 'right' : (cellIndex === 0 ? 'center' : 'left');
-      doc.rect(x, y, widths[cellIndex], rowHeight).stroke('#D9D9D9');
+      doc.rect(x, y, widths[cellIndex], rowHeight).stroke('#000000');
       doc.text(cell, x + 6, y + 6, {
         width: widths[cellIndex] - 12,
         align,
@@ -176,10 +199,10 @@ function drawQuoteTable(doc, quote) {
   });
 
   x = startX;
-  doc.font('Times-Bold').fontSize(10);
+  doc.font('Helvetica-Bold').fontSize(10);
   ['', 'Total', Number(quote.total_amount || 0).toFixed(2)].forEach((cell, cellIndex) => {
     const align = cellIndex === 2 ? 'right' : (cellIndex === 0 ? 'center' : 'left');
-    doc.rect(x, y, widths[cellIndex], rowHeight).stroke('#BFBFBF');
+    doc.rect(x, y, widths[cellIndex], rowHeight).stroke('#000000');
     doc.text(cell, x + 6, y + 6, {
       width: widths[cellIndex] - 12,
       align,
@@ -208,37 +231,45 @@ function drawQuotePdf(doc, quote, client) {
   const location = deriveQuoteLocations(quote.items || []);
   const addressLines = splitAddressLines((client && client.address) || '');
   const quoteDateLabel = formatDisplayDate(quote.quote_date);
+  const logoSize = { width: 234, height: 109.44 };
 
-  doc.font('Times-Roman').fontSize(10).fillColor('#1F2937');
+  doc.font('Helvetica').fontSize(10).fillColor('#000000');
 
   if (fs.existsSync(logoPath)) {
-    doc.image(logoPath, 70, 35, { width: 165 });
-    doc.y = 88;
+    doc.image(logoPath, (doc.page.width - logoSize.width) / 2, 34, {
+      width: logoSize.width,
+      height: logoSize.height,
+    });
+    doc.y = 34 + logoSize.height + 8;
   } else {
-    doc.font('Times-Bold').fontSize(10).text('TeamBees', 70, 50);
+    doc.font('Helvetica-Bold').fontSize(11).text('TeamBees', 70, 50);
     doc.y = 88;
   }
 
-  doc.font('Times-Bold').fontSize(10).fillColor('#475569')
-    .text(`Quote No.: ${quote.quote_number || ''}`, 0, doc.y + 6, { align: 'right', width: doc.page.width - 70 });
+  doc.moveTo(60, doc.y + 10).lineTo(doc.page.width - 60, doc.y + 10).strokeColor('#D6DCE5').lineWidth(1).stroke();
+  if (quote.quote_number) {
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#000000')
+      .text(`Quote No.: ${quote.quote_number || ''}`, 0, doc.y + 20, { align: 'right', width: doc.page.width - 60 });
+  }
   if (quoteDateLabel) {
-    doc.font('Times-Roman').fontSize(10).fillColor('#475569')
-      .text(`Date : ${quoteDateLabel}`, 0, doc.y + 2, { align: 'right', width: doc.page.width - 70 });
+    doc.font('Helvetica').fontSize(10).fillColor('#000000')
+      .text(`Date: ${quoteDateLabel}`, 0, doc.y + 4, { align: 'right', width: doc.page.width - 60 });
   }
 
-  doc.moveDown(1.2);
-  doc.font('Times-Roman').fontSize(10).fillColor('#475569').text('To,', 70);
-  doc.font('Times-Bold').fontSize(10).fillColor('#0F172A').text(quote.client_name || '', 70);
-  doc.font('Times-Roman').fontSize(10).fillColor('#475569');
+  doc.moveDown(1.8);
+  doc.font('Helvetica').fontSize(10).fillColor('#000000').text('To,', 70);
+  doc.font('Helvetica').fontSize(10).fillColor('#000000').text(quote.client_name || '', 70);
+  doc.font('Helvetica').fontSize(10).fillColor('#000000');
   addressLines.forEach((line) => doc.text(line, 70));
 
   doc.moveDown(1);
   if (subjectLine) {
-    doc.font('Times-Bold').fontSize(10).fillColor('#0F172A').text(subjectLine, 70);
-    doc.moveDown(1);
+    doc.font('Helvetica').fontSize(10).fillColor('#000000').text(subjectLine, 70);
+    doc.moveDown(0.6);
   }
   if (dear) {
-    doc.font('Times-Roman').fontSize(10).fillColor('#1F2937').text(`Dear ${dear},`, 70);
+    doc.moveDown(0.4);
+    doc.font('Helvetica').fontSize(10).fillColor('#000000').text(`Dear ${dear},`, 70);
     doc.moveDown(0.8);
   }
 
@@ -256,23 +287,23 @@ function drawQuotePdf(doc, quote, client) {
       return;
     }
     if (!insertedQuoteTable && /^1\.\s*cost of resource/i.test(trimmed)) {
-      doc.font('Times-Roman').fontSize(10).fillColor('#334155').text(trimmed, 70);
-      doc.moveDown(0.5);
+      doc.font('Helvetica').fontSize(10).fillColor('#000000').text(trimmed, 70);
+      doc.moveDown(0.3);
       drawQuoteTable(doc, quote);
       insertedQuoteTable = true;
       return;
     }
     if (/^3\.\s*Location\s*:/i.test(trimmed)) {
-      doc.font('Times-Roman').fontSize(10).fillColor('#0F172A').text(`3. Location: ${location || '-'}`, 70);
+      doc.font('Helvetica').fontSize(10).fillColor('#000000').text(`3. Location: ${location || '-'}`, 70);
       return;
     }
-    doc.font('Times-Roman').fontSize(10).fillColor('#334155').text(trimmed, 70);
+    doc.font('Helvetica').fontSize(10).fillColor('#000000').text(trimmed, 70);
   });
 
   if (regards) {
-    doc.moveDown(1);
-    doc.font('Times-Roman').fontSize(10).fillColor('#0F172A').text('Regards,', 70);
-    doc.moveDown(0.8);
+    doc.moveDown(0.6);
+    doc.font('Helvetica').fontSize(10).fillColor('#000000').text('Regards,', 70);
+    doc.moveDown(0.5);
     doc.text(regards, 70);
     if (designation) {
       doc.text(`(${designation})`, 70);
@@ -280,14 +311,15 @@ function drawQuotePdf(doc, quote, client) {
   }
 
   const footerY = doc.page.height - 70;
-  doc.font('Times-Roman').fontSize(8).fillColor('#475569');
+  doc.moveTo(70, footerY - 12).lineTo(doc.page.width - 70, footerY - 12).strokeColor('#D6DCE5').lineWidth(1).stroke();
+  doc.font('Helvetica').fontSize(8).fillColor('#000000');
   doc.text('63 GF, Block-G22, Sector-7', 70, footerY);
   doc.text('Rohini, Delhi-110085', 70, footerY + 12);
-  doc.fillColor('#0563C1').text('www.teambeescorp.com', 70, footerY + 24, {
+  doc.fillColor('#000000').text('www.teambeescorp.com', 70, footerY + 24, {
     link: 'https://www.teambeescorp.com/',
     underline: false,
   });
-  doc.fillColor('#475569').text('Confidential & Proprietary', 0, footerY + 12, {
+  doc.fillColor('#000000').text('Confidential & Proprietary', 0, footerY + 12, {
     align: 'right',
     width: doc.page.width - 70,
   });

@@ -129,6 +129,37 @@
     bodyEl.value = lines.join('\n');
   }
 
+  function updateQuoteLocationLine() {
+    var bodyEl = document.getElementById('quoteBody');
+    if (!bodyEl) return;
+    var locations = collectQuoteItemLocations();
+    var locationLine = '3. Location: ' + (locations.length ? locations.join(', ') : '[Auto-filled from line item locations]');
+    var lines = String(bodyEl.value || '').split(/\r?\n/);
+    var found = false;
+    lines = lines.map(function (line) {
+      if (/^3\.\s*Location\s*:/i.test(String(line).trim())) {
+        found = true;
+        return locationLine;
+      }
+      return line;
+    });
+    if (!found) {
+      var insertAt = -1;
+      lines.forEach(function (line, index) {
+        if (/^2\.\s*Prevailing taxes\b/i.test(String(line).trim())) insertAt = index + 1;
+      });
+      if (insertAt === -1) {
+        lines.push(locationLine);
+      } else {
+        lines.splice(insertAt, 0, locationLine);
+      }
+    }
+    bodyEl.value = lines.join('\n');
+  }
+  if (typeof window !== 'undefined') {
+    window.updateQuoteLocationLine = updateQuoteLocationLine;
+  }
+
   function syncValidUntilFromQuoteDate(force) {
     var quoteDate = document.getElementById('quoteDate').value;
     var validUntilEl = document.getElementById('quoteValidUntil');
@@ -139,6 +170,19 @@
     }
     validUntilEl.value = addDaysToInputDate(quoteDate, 10);
     updateQuoteValidityLine();
+  }
+
+  function syncQuoteBodyAutofills(forceValidity) {
+    updateQuoteLocationLine();
+    if (forceValidity === true) {
+      syncValidUntilFromQuoteDate(true);
+      return;
+    }
+    if (forceValidity === false) {
+      updateQuoteValidityLine();
+      return;
+    }
+    syncValidUntilFromQuoteDate(false);
   }
 
   function buildQuoteMailFormat(fields) {
@@ -253,7 +297,7 @@
     quoteValidUntilTouched = false;
     setQuoteMailFormFields(getDefaultQuoteFormFields());
     document.getElementById('quoteDate').value = toLocalDateInputValue(new Date());
-    syncValidUntilFromQuoteDate(true);
+    syncQuoteBodyAutofills(true);
     document.getElementById('quoteSideNote').value = '';
     window.quoteEdit = null;
     addItemRow();
@@ -416,7 +460,7 @@
       '<td><input type="number" class="qi-qty" value="' + (item ? item.quantity : 1) + '" min="1"></td>' +
       '<td><input type="number" class="qi-rate" value="' + (item ? item.unit_rate : '') + '" step="0.01" min="0"></td>' +
       '<td><input type="number" class="qi-amt" value="' + (item ? item.amount : '') + '" step="0.01" readonly></td>' +
-      '<td><button type="button" class="btn-danger btn-sm inline-flex items-center" onclick="this.closest(\'tr\').remove();recalcQuote()"><span class="material-symbols-outlined text-base">close</span></button></td>';
+      '<td><button type="button" class="btn-danger btn-sm inline-flex items-center" onclick="this.closest(\'tr\').remove();recalcQuote();updateQuoteLocationLine()"><span class="material-symbols-outlined text-base">close</span></button></td>';
     tbody.appendChild(row);
 
     row.querySelector('.qi-qty').addEventListener('input', function () {
@@ -428,6 +472,9 @@
       var qty = parseInt(row.querySelector('.qi-qty').value, 10) || 0;
       row.querySelector('.qi-amt').value = qty * (parseFloat(this.value) || 0);
       recalcQuote();
+    });
+    row.querySelector('.qi-loc').addEventListener('input', function () {
+      updateQuoteLocationLine();
     });
   }
 
@@ -453,6 +500,7 @@
       document.getElementById('quoteSideNote').value = parsedNotes.sideNote;
       document.getElementById('quoteItemsBody').innerHTML = '';
       q.items.forEach(function (item) { addItemRow(item); });
+      syncQuoteBodyAutofills(false);
       recalcQuote();
       openModal('quoteModal');
     } catch (err) { showToast(err.message, 'danger'); }
@@ -559,7 +607,10 @@
       quote_date: document.getElementById('quoteDate').value,
       valid_until: document.getElementById('quoteValidUntil').value,
       notes: buildStoredQuoteNotes(
-        buildQuoteMailFormat(getQuoteMailFormFields()),
+        (function () {
+          syncQuoteBodyAutofills(false);
+          return buildQuoteMailFormat(getQuoteMailFormFields());
+        })(),
         document.getElementById('quoteSideNote').value
       ),
       items: items,

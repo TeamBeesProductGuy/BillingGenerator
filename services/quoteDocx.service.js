@@ -2,10 +2,33 @@ const JSZip = require('jszip');
 const fs = require('fs');
 const path = require('path');
 
-const logoPath = path.join(__dirname, '..', 'public', 'images', 'TeamBees.png');
+const logoPath = path.join(__dirname, '..', 'public', 'images', 'TeamBeesLOgo.png');
 const sideNoteMarker = '\n\n---SIDE_NOTE---\n';
-const DEFAULT_FONT = 'Times New Roman';
+const DEFAULT_FONT = 'Calibri';
 const DEFAULT_FONT_SIZE = 20;
+const FOOTER_FONT_SIZE = 15;
+const LOGO_WIDTH_EMU = 2971800;
+const LOGO_HEIGHT_EMU = 1389888;
+
+function getPngDimensions(filePath) {
+  try {
+    const buffer = fs.readFileSync(filePath);
+    if (buffer.length < 24 || buffer.toString('ascii', 1, 4) !== 'PNG') return null;
+    return {
+      width: buffer.readUInt32BE(16),
+      height: buffer.readUInt32BE(20),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function getLogoExtent() {
+  return {
+    width: LOGO_WIDTH_EMU,
+    height: LOGO_HEIGHT_EMU,
+  };
+}
 
 function escapeXml(value) {
   return String(value || '')
@@ -47,10 +70,11 @@ function makeParagraph(text, options) {
 }
 
 function makeImageParagraph() {
+  const logoExtent = getLogoExtent();
   return `<w:p>
     <w:pPr>
-      <w:jc w:val="left"/>
-      <w:spacing w:after="0"/>
+      <w:jc w:val="center"/>
+      <w:spacing w:after="60"/>
     </w:pPr>
     <w:r>
       <w:drawing>
@@ -58,7 +82,7 @@ function makeImageParagraph() {
           xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
           xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
           xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
-          <wp:extent cx="3438000" cy="1335600"/>
+          <wp:extent cx="${logoExtent.width}" cy="${logoExtent.height}"/>
           <wp:effectExtent l="0" t="0" r="0" b="0"/>
           <wp:docPr id="1" name="TeamBees Logo"/>
           <wp:cNvGraphicFramePr>
@@ -78,7 +102,7 @@ function makeImageParagraph() {
                 <pic:spPr>
                   <a:xfrm>
                     <a:off x="0" y="0"/>
-                    <a:ext cx="3438000" cy="1335600"/>
+                    <a:ext cx="${logoExtent.width}" cy="${logoExtent.height}"/>
                   </a:xfrm>
                   <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
                 </pic:spPr>
@@ -95,7 +119,8 @@ function buildHeaderXml(hasLogo) {
   const headerContent = hasLogo
     ? `<w:tbl>
       <w:tblPr>
-        <w:tblW w:w="0" w:type="auto"/>
+        <w:tblW w:w="9360" w:type="dxa"/>
+        <w:jc w:val="center"/>
         <w:tblBorders>
           <w:top w:val="nil"/>
           <w:left w:val="nil"/>
@@ -106,31 +131,19 @@ function buildHeaderXml(hasLogo) {
         </w:tblBorders>
       </w:tblPr>
       <w:tblGrid>
-        <w:gridCol w:w="5400"/>
-        <w:gridCol w:w="3960"/>
+        <w:gridCol w:w="9360"/>
       </w:tblGrid>
       <w:tr>
         <w:tc>
           <w:tcPr>
-            <w:tcW w:w="5400" w:type="dxa"/>
-            <w:vAlign w:val="top"/>
+            <w:tcW w:w="9360" w:type="dxa"/>
+            <w:vAlign w:val="center"/>
           </w:tcPr>
           ${makeImageParagraph()}
         </w:tc>
-        <w:tc>
-          <w:tcPr>
-            <w:tcW w:w="3960" w:type="dxa"/>
-            <w:vAlign w:val="top"/>
-          </w:tcPr>
-          <w:p>
-            <w:pPr>
-              <w:jc w:val="right"/>
-              <w:spacing w:after="0"/>
-            </w:pPr>
-          </w:p>
-        </w:tc>
       </w:tr>
-    </w:tbl>`
+    </w:tbl>
+    ${makeDividerParagraph('D6DCE5')}`
     : `${makeParagraph('TeamBees', { bold: true, size: DEFAULT_FONT_SIZE, color: '1F1F1F', spacingAfter: 80, font: DEFAULT_FONT })}
     ${makeParagraph('BUILDING ON TRUST', { size: DEFAULT_FONT_SIZE, color: '6D6D6D', spacingAfter: 120, caps: true, font: DEFAULT_FONT })}`;
 
@@ -164,14 +177,17 @@ function makeTableCell(text, width, options) {
   const resolvedSize = options && options.size ? options.size : DEFAULT_FONT_SIZE;
   const size = `<w:sz w:val="${resolvedSize}"/>`;
   const font = options && options.font ? `<w:rFonts w:ascii="${options.font}" w:hAnsi="${options.font}" w:cs="${options.font}"/>` : '';
+  const spacing = options && options.spacing ? `<w:spacing w:before="${options.spacing}" w:after="${options.spacing}"/>` : '';
+  const noWrap = options && options.noWrap ? '<w:noWrap/>' : '';
 
   return `<w:tc>
     <w:tcPr>
       <w:tcW w:w="${width}" w:type="dxa"/>
       ${fill}
+      ${noWrap}
     </w:tcPr>
     <w:p>
-      <w:pPr>${justify}</w:pPr>
+      <w:pPr>${justify}${spacing}</w:pPr>
       <w:r>
         <w:rPr>${font}${bold}${color}${size}</w:rPr>
         <w:t xml:space="preserve">${escapeXml(text)}</w:t>
@@ -257,9 +273,11 @@ function buildFooterXml() {
     xmlns:wne="http://schemas.microsoft.com/office/word/2006/wordml"
     xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"
     mc:Ignorable="w14 w15 wp14">
+    ${makeDividerParagraph('D6DCE5')}
     <w:tbl>
       <w:tblPr>
-        <w:tblW w:w="0" w:type="auto"/>
+      <w:tblW w:w="10440" w:type="dxa"/>
+      <w:jc w:val="center"/>
         <w:tblBorders>
           <w:top w:val="nil"/>
           <w:left w:val="nil"/>
@@ -270,13 +288,13 @@ function buildFooterXml() {
         </w:tblBorders>
       </w:tblPr>
       <w:tblGrid>
-        <w:gridCol w:w="5200"/>
-        <w:gridCol w:w="3200"/>
+        <w:gridCol w:w="6800"/>
+        <w:gridCol w:w="3640"/>
       </w:tblGrid>
       <w:tr>
         <w:tc>
           <w:tcPr>
-            <w:tcW w:w="5200" w:type="dxa"/>
+            <w:tcW w:w="6800" w:type="dxa"/>
             <w:vAlign w:val="bottom"/>
           </w:tcPr>
           <w:p>
@@ -284,7 +302,7 @@ function buildFooterXml() {
             <w:r>
               <w:rPr>
                 <w:rFonts w:ascii="${DEFAULT_FONT}" w:hAnsi="${DEFAULT_FONT}" w:cs="${DEFAULT_FONT}"/>
-                <w:sz w:val="16"/>
+                <w:sz w:val="${FOOTER_FONT_SIZE}"/>
                 <w:color w:val="475569"/>
               </w:rPr>
               <w:t>63 GF, Block-G22, Sector-7</w:t>
@@ -295,7 +313,7 @@ function buildFooterXml() {
             <w:r>
               <w:rPr>
                 <w:rFonts w:ascii="${DEFAULT_FONT}" w:hAnsi="${DEFAULT_FONT}" w:cs="${DEFAULT_FONT}"/>
-                <w:sz w:val="16"/>
+                <w:sz w:val="${FOOTER_FONT_SIZE}"/>
                 <w:color w:val="475569"/>
               </w:rPr>
               <w:t>Rohini, Delhi-110085</w:t>
@@ -308,7 +326,7 @@ function buildFooterXml() {
                 <w:rPr>
                   <w:rFonts w:ascii="${DEFAULT_FONT}" w:hAnsi="${DEFAULT_FONT}" w:cs="${DEFAULT_FONT}"/>
                   <w:color w:val="0563C1"/>
-                  <w:sz w:val="16"/>
+                  <w:sz w:val="${FOOTER_FONT_SIZE}"/>
                 </w:rPr>
                 <w:t>www.teambeescorp.com</w:t>
               </w:r>
@@ -317,7 +335,7 @@ function buildFooterXml() {
         </w:tc>
         <w:tc>
           <w:tcPr>
-            <w:tcW w:w="3200" w:type="dxa"/>
+            <w:tcW w:w="3640" w:type="dxa"/>
             <w:vAlign w:val="bottom"/>
           </w:tcPr>
           <w:p>
@@ -333,7 +351,7 @@ function buildFooterXml() {
             <w:r>
               <w:rPr>
                 <w:rFonts w:ascii="${DEFAULT_FONT}" w:hAnsi="${DEFAULT_FONT}" w:cs="${DEFAULT_FONT}"/>
-                <w:sz w:val="16"/>
+                <w:sz w:val="${FOOTER_FONT_SIZE}"/>
                 <w:color w:val="475569"/>
               </w:rPr>
               <w:t>Confidential &amp; Proprietary</w:t>
@@ -381,23 +399,23 @@ function buildQuoteItemsTableXml(quote) {
   const items = quote.items || [];
   const tableRows = [];
   tableRows.push(makeTableRow([
-    makeTableCell('S. No.', 980, { bold: true, justify: 'center', color: '000000', size: DEFAULT_FONT_SIZE, font: DEFAULT_FONT }),
-    makeTableCell('Description', 5980, { bold: true, color: '000000', size: DEFAULT_FONT_SIZE, font: DEFAULT_FONT }),
-    makeTableCell('Service Fee Monthly (INR)', 2400, { bold: true, justify: 'right', color: '000000', size: DEFAULT_FONT_SIZE, font: DEFAULT_FONT }),
+    makeTableCell('S. No.', 980, { bold: true, justify: 'center', color: '000000', size: DEFAULT_FONT_SIZE, font: DEFAULT_FONT, spacing: 40, noWrap: true }),
+    makeTableCell('Description', 5980, { bold: true, justify: 'center', color: '000000', size: DEFAULT_FONT_SIZE, font: DEFAULT_FONT, spacing: 40 }),
+    makeTableCell('Service Fee Monthly (INR)', 2400, { bold: true, justify: 'center', color: '000000', size: DEFAULT_FONT_SIZE, font: DEFAULT_FONT, spacing: 40 }),
   ]));
 
   items.forEach(function (item, index) {
     tableRows.push(makeTableRow([
-      makeTableCell(String(index + 1), 980, { justify: 'center', font: DEFAULT_FONT, size: DEFAULT_FONT_SIZE }),
-      makeTableCell(item.description || '', 5980, { font: DEFAULT_FONT, size: DEFAULT_FONT_SIZE }),
-      makeTableCell(formatIndianCurrencyNumber(item.amount || 0), 2400, { justify: 'right', font: DEFAULT_FONT, size: DEFAULT_FONT_SIZE }),
+      makeTableCell(String(index + 1), 980, { justify: 'center', font: DEFAULT_FONT, size: DEFAULT_FONT_SIZE, spacing: 28, color: '000000' }),
+      makeTableCell(item.description || '', 5980, { font: DEFAULT_FONT, size: DEFAULT_FONT_SIZE, spacing: 28, color: '000000' }),
+      makeTableCell(formatIndianCurrencyNumber(item.amount || 0), 2400, { justify: 'right', font: DEFAULT_FONT, size: DEFAULT_FONT_SIZE, spacing: 28, color: '000000' }),
     ]));
   });
 
   tableRows.push(makeTableRow([
     makeTableCell('', 980, {}),
-    makeTableCell('Total', 5980, { bold: true, font: DEFAULT_FONT, size: DEFAULT_FONT_SIZE }),
-    makeTableCell(formatIndianCurrencyNumber(quote.total_amount || 0), 2400, { bold: true, justify: 'right', font: DEFAULT_FONT, size: DEFAULT_FONT_SIZE }),
+    makeTableCell('Total', 5980, { font: DEFAULT_FONT, size: DEFAULT_FONT_SIZE, spacing: 28, color: '000000' }),
+    makeTableCell(formatIndianCurrencyNumber(quote.total_amount || 0), 2400, { justify: 'right', font: DEFAULT_FONT, size: DEFAULT_FONT_SIZE, spacing: 28, color: '000000' }),
   ]));
 
   return `<w:tbl>
@@ -411,12 +429,12 @@ function buildQuoteItemsTableXml(quote) {
         <w:right w:w="110" w:type="dxa"/>
       </w:tblCellMar>
       <w:tblBorders>
-        <w:top w:val="single" w:sz="8" w:space="0" w:color="BFBFBF"/>
-        <w:left w:val="single" w:sz="8" w:space="0" w:color="BFBFBF"/>
-        <w:bottom w:val="single" w:sz="8" w:space="0" w:color="BFBFBF"/>
-        <w:right w:val="single" w:sz="8" w:space="0" w:color="BFBFBF"/>
-        <w:insideH w:val="single" w:sz="5" w:space="0" w:color="D9D9D9"/>
-        <w:insideV w:val="single" w:sz="5" w:space="0" w:color="D9D9D9"/>
+        <w:top w:val="single" w:sz="8" w:space="0" w:color="000000"/>
+        <w:left w:val="single" w:sz="8" w:space="0" w:color="000000"/>
+        <w:bottom w:val="single" w:sz="8" w:space="0" w:color="000000"/>
+        <w:right w:val="single" w:sz="8" w:space="0" w:color="000000"/>
+        <w:insideH w:val="single" w:sz="6" w:space="0" w:color="000000"/>
+        <w:insideV w:val="single" w:sz="6" w:space="0" w:color="000000"/>
       </w:tblBorders>
     </w:tblPr>
     <w:tblGrid>
@@ -457,40 +475,49 @@ function buildQuoteDocumentXml(quote, client) {
   if (quote.quote_number) {
     content.push(makeParagraph(`Quote No.: ${quote.quote_number}`, {
       justify: 'right',
-      spacingAfter: 80,
+      spacingAfter: 90,
       font: DEFAULT_FONT,
       size: DEFAULT_FONT_SIZE,
-      color: '475569',
+      color: '000000',
       bold: true,
     }));
   }
   if (quoteDateLabel) {
-    content.push(makeParagraph(`Date : ${quoteDateLabel}`, {
+    content.push(makeParagraph(`Date: ${quoteDateLabel}`, {
       justify: 'right',
-      spacingAfter: 160,
+      spacingAfter: 130,
       font: DEFAULT_FONT,
       size: DEFAULT_FONT_SIZE,
-      color: '475569',
+      color: '000000',
     }));
   }
-  content.push(makeParagraph('To,', { spacingAfter: 90, font: DEFAULT_FONT, color: '475569', size: DEFAULT_FONT_SIZE }));
-  content.push(makeParagraph(quote.client_name || '', { size: DEFAULT_FONT_SIZE, spacingAfter: 120, font: DEFAULT_FONT, color: '0F172A' }));
+  content.push(makeParagraph('To,', { spacingAfter: 70, font: DEFAULT_FONT, color: '000000', size: DEFAULT_FONT_SIZE }));
+  content.push(makeParagraph(quote.client_name || '', { size: DEFAULT_FONT_SIZE, spacingAfter: 70, font: DEFAULT_FONT, color: '000000' }));
   addressLines.forEach(function (line) {
-    content.push(makeParagraph(line, { color: '475569', spacingAfter: 100, font: DEFAULT_FONT, size: DEFAULT_FONT_SIZE }));
+    content.push(makeParagraph(line, { color: '000000', spacingAfter: 40, font: DEFAULT_FONT, size: DEFAULT_FONT_SIZE }));
   });
-  content.push(makeParagraph('', { spacingAfter: 240 }));
+  content.push(makeParagraph('', { spacingAfter: 120 }));
 
   if (subject) {
     const subjectLine = candidateName ? `Subject: ${subject} ("${candidateName}")` : `Subject: ${subject}`;
-    content.push(makeParagraph(subjectLine, { size: DEFAULT_FONT_SIZE, spacingAfter: 120, font: DEFAULT_FONT, color: '0F172A' }));
+    content.push(makeParagraph(subjectLine, { size: DEFAULT_FONT_SIZE, spacingAfter: 90, font: DEFAULT_FONT, color: '000000' }));
   }
-  if (dear) content.push(makeParagraph(`Dear ${dear},`, { spacingAfter: 200, font: DEFAULT_FONT, color: '1F2937', size: DEFAULT_FONT_SIZE }));
+  if (dear) {
+    content.push(makeParagraph('', { spacingAfter: 70 }));
+    content.push(makeParagraph(`Dear ${dear},`, {
+      spacingAfter: 70,
+      font: DEFAULT_FONT,
+      color: '000000',
+      size: DEFAULT_FONT_SIZE,
+    }));
+    content.push(makeParagraph('', { spacingAfter: 70 }));
+  }
 
   var insertedQuoteTable = false;
   body.split(/\r?\n/).forEach(function (line) {
     var trimmed = String(line || '').trim();
     if (!trimmed) {
-      content.push(makeParagraph('', { spacingAfter: 120 }));
+      content.push(makeParagraph('', { spacingAfter: 70 }));
       return;
     }
     if (isQuoteTablePlaceholder(trimmed)) {
@@ -498,44 +525,44 @@ function buildQuoteDocumentXml(quote, client) {
         return;
       }
       content.push(buildQuoteItemsTableXml(quote));
-      content.push(makeParagraph('', { spacingAfter: 160 }));
+      content.push(makeParagraph('', { spacingAfter: 90 }));
       insertedQuoteTable = true;
       return;
     }
     if (!insertedQuoteTable && /^1\.\s*cost of resource/i.test(trimmed)) {
-      content.push(makeParagraph(trimmed, { spacingAfter: 160, font: DEFAULT_FONT, color: '334155', size: DEFAULT_FONT_SIZE }));
+      content.push(makeParagraph(trimmed, { spacingAfter: 90, font: DEFAULT_FONT, color: '000000', size: DEFAULT_FONT_SIZE }));
       content.push(buildQuoteItemsTableXml(quote));
-      content.push(makeParagraph('', { spacingAfter: 160 }));
+      content.push(makeParagraph('', { spacingAfter: 90 }));
       insertedQuoteTable = true;
       return;
     }
     if (/^3\.\s*Location\s*:/i.test(trimmed)) {
-      content.push(makeParagraph(`3. Location: ${location || '-'}`, { spacingAfter: 180, font: DEFAULT_FONT, color: '0F172A', size: DEFAULT_FONT_SIZE }));
+      content.push(makeParagraph(`3. Location: ${location || '-'}`, { spacingAfter: 90, font: DEFAULT_FONT, color: '000000', size: DEFAULT_FONT_SIZE }));
       return;
     }
-    content.push(makeParagraph(trimmed, { spacingAfter: 160, font: DEFAULT_FONT, color: '334155', size: DEFAULT_FONT_SIZE }));
+    content.push(makeParagraph(trimmed, { spacingAfter: 90, font: DEFAULT_FONT, color: '000000', size: DEFAULT_FONT_SIZE }));
   });
 
   if (regards) {
     content.push(makeParagraph('Regards,', {
-      spacingBefore: 120,
-      spacingAfter: 120,
+      spacingBefore: 70,
+      spacingAfter: 80,
       font: DEFAULT_FONT,
-      color: '0F172A',
+      color: '000000',
       size: DEFAULT_FONT_SIZE,
     }));
     content.push(makeParagraph(regards, {
-      spacingAfter: designation ? 80 : 180,
+      spacingAfter: designation ? 40 : 90,
       font: DEFAULT_FONT,
-      color: '0F172A',
+      color: '000000',
       size: DEFAULT_FONT_SIZE,
     }));
   }
   if (designation) {
     content.push(makeParagraph(`(${designation})`, {
-      spacingAfter: 180,
+      spacingAfter: 90,
       font: DEFAULT_FONT,
-      color: '0F172A',
+      color: '000000',
       size: DEFAULT_FONT_SIZE,
     }));
   }
@@ -564,7 +591,7 @@ function buildQuoteDocumentXml(quote, client) {
         <w:headerReference w:type="default" r:id="rIdHeader1"/>
         <w:footerReference w:type="default" r:id="rIdFooter1"/>
         <w:pgSz w:w="12240" w:h="15840"/>
-        <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/>
+        <w:pgMar w:top="1008" w:right="900" w:bottom="936" w:left="900" w:header="540" w:footer="540" w:gutter="0"/>
       </w:sectPr>
     </w:body>
   </w:document>`;
