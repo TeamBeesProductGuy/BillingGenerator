@@ -21,6 +21,10 @@ function getFinancialYearCode(dateValue) {
   return String(startYear).slice(-2) + String(endYear).slice(-2);
 }
 
+function toIsoDateOnly(date) {
+  return date.toISOString().slice(0, 10);
+}
+
 function isMissingColumnError(error, columnName) {
   return Boolean(error && error.message && error.message.includes('column') && error.message.includes(columnName));
 }
@@ -262,17 +266,20 @@ const QuoteModel = {
     const baseQuoteNumber = normalizeBaseQuoteNumber(existing.base_quote_number || existing.quote_number);
     const versionNumber = (existing.version_number || 0) + 1;
     const quoteNumber = buildQuoteRevisionNumber(baseQuoteNumber, versionNumber);
+    const amendmentDate = new Date();
+    const validUntilDate = new Date(amendmentDate);
+    validUntilDate.setDate(validUntilDate.getDate() + 10);
 
     const created = await QuoteModel.create({
       client_id: quote.client_id,
-      quote_date: quote.quote_date,
-      valid_until: quote.valid_until,
+      quote_date: toIsoDateOnly(amendmentDate),
+      valid_until: toIsoDateOnly(validUntilDate),
       notes: quote.notes,
       quote_number: quoteNumber,
       base_quote_number: baseQuoteNumber,
       version_number: versionNumber,
       parent_quote_id: id,
-      status: 'Draft',
+      status: existing.status || 'Sent',
     }, items);
 
     const { error: archiveErr } = await supabase
