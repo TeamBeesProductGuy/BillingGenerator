@@ -577,11 +577,10 @@
         if (!client) return "";
         var abbreviation = String(client.abbreviation || "").trim();
         var clientName = String(client.client_name || "").trim();
-        var address = String(client.address || "").trim();
         if (abbreviation) {
-            return address ? abbreviation + " (" + address + ")" : abbreviation;
+            return abbreviation;
         }
-        return address ? clientName + " (" + address + ")" : clientName;
+        return clientName;
     };
 
     // -----------------------------------------------------------

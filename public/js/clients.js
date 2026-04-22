@@ -10,6 +10,67 @@
 
   var clientsData = [];
 
+  function parseStructuredAddress(value) {
+    var raw = String(value || '').trim();
+    if (!raw) {
+      return { line1: '', line2: '', city: '', state: '', pincode: '' };
+    }
+
+    var parts = raw.split(/\r?\n/).map(function (part) { return part.trim(); }).filter(Boolean);
+    if (parts.length < 4) {
+      parts = raw.split(',').map(function (part) { return part.trim(); }).filter(Boolean);
+    }
+
+    return {
+      line1: parts[0] || '',
+      line2: parts.length > 4 ? (parts[1] || '') : '',
+      city: parts.length > 4 ? (parts[2] || '') : (parts[1] || ''),
+      state: parts.length > 4 ? (parts[3] || '') : (parts[2] || ''),
+      pincode: parts.length > 4 ? (parts[4] || '') : (parts[3] || ''),
+    };
+  }
+
+  function setStructuredAddress(prefix, value) {
+    var parsed = parseStructuredAddress(value);
+    document.getElementById(prefix + 'Line1').value = parsed.line1;
+    document.getElementById(prefix + 'Line2').value = parsed.line2;
+    document.getElementById(prefix + 'City').value = parsed.city;
+    document.getElementById(prefix + 'State').value = parsed.state;
+    document.getElementById(prefix + 'Pincode').value = parsed.pincode;
+  }
+
+  function buildStructuredAddress(prefix, required) {
+    var line1 = document.getElementById(prefix + 'Line1').value.trim();
+    var line2 = document.getElementById(prefix + 'Line2').value.trim();
+    var city = document.getElementById(prefix + 'City').value.trim();
+    var state = document.getElementById(prefix + 'State').value.trim();
+    var pincode = document.getElementById(prefix + 'Pincode').value.trim();
+
+    if (required) {
+      if (!city) throw new Error('City / District is required');
+      if (!state) throw new Error('State is required');
+    }
+
+    return [line1, line2, city, state, pincode].filter(Boolean).join('\n');
+  }
+
+  function renderAddressCell(value) {
+    var lines = String(value || '').split(/\r?\n/).map(function (line) { return line.trim(); }).filter(Boolean);
+    if (lines.length === 0) return '';
+    return lines.map(function (line) { return escapeHtml(line); }).join('<br>');
+  }
+
+  function setBillingAddressSameState(isSame) {
+    var checkbox = document.getElementById('permanentBillingSameAsAddress');
+    var fields = document.getElementById('permanentBillingAddressFields');
+    if (checkbox) checkbox.checked = !!isSame;
+    if (fields) fields.classList.toggle('hidden', !!isSame);
+  }
+
+  function addressesMatch(a, b) {
+    return String(a || '').trim() === String(b || '').trim();
+  }
+
   function splitPhone(fullPhone) {
     var raw = String(fullPhone || '').trim();
     if (!raw) return { code: '+91', number: '' };
@@ -73,9 +134,9 @@
       '<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">' +
         '<div><label class="block text-[11px] text-on-surface-variant mb-1">Name *</label><input type="text" class="contact-name" value="' + escapeHtml(contactData.contact_name || '') + '"></div>' +
         '<div><label class="block text-[11px] text-on-surface-variant mb-1">Email</label><input type="email" class="contact-email" value="' + escapeHtml(contactData.email || '') + '"></div>' +
-        '<div><label class="block text-[11px] text-on-surface-variant mb-1">Phone</label><div class="grid grid-cols-3 gap-2"><select class="contact-phone-code">' +
+        '<div><label class="block text-[11px] text-on-surface-variant mb-1">Phone</label><div class="client-phone-field-grid"><select class="contact-phone-code">' +
           '<option value="+91">+91</option><option value="+1">+1</option><option value="+44">+44</option><option value="+61">+61</option><option value="+65">+65</option><option value="+971">+971</option>' +
-        '</select><input type="text" class="contact-phone col-span-2" value="' + escapeHtml(parsed.number) + '"></div></div>' +
+        '</select><input type="text" class="contact-phone client-phone-input" value="' + escapeHtml(parsed.number) + '"></div></div>' +
         '<div><label class="block text-[11px] text-on-surface-variant mb-1">Designation</label><input type="text" class="contact-designation" value="' + escapeHtml(contactData.designation || '') + '"></div>' +
       '</div>';
 
@@ -170,39 +231,185 @@
     });
   }
 
-  function renderClients(rows) {
-    var tbody = document.getElementById('clientsBody');
-    if (!rows || rows.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="10" class="text-center text-on-surface-variant py-8">No clients found. Add one!</td></tr>';
-      return;
-    }
+  function updateClientSummary(rows) {
+    var summary = document.getElementById('clientsSummary');
+    if (!summary) return;
+    var permanentCount = rows.filter(function (item) { return item.contract_type === 'Permanent'; }).length;
+    var contractualCount = rows.filter(function (item) { return item.contract_type === 'Contractual'; }).length;
+    var cards = summary.querySelectorAll('.client-summary-card');
+    if (cards[0]) cards[0].querySelector('.client-summary-value').textContent = permanentCount;
+    if (cards[1]) cards[1].querySelector('.client-summary-value').textContent = contractualCount;
+  }
 
-    tbody.innerHTML = rows.map(function (c) {
-      return '<tr>' +
-        '<td><strong>' + escapeHtml(c.client_name) + '</strong></td>' +
-        '<td>' + escapeHtml(c.abbreviation || '') + '</td>' +
-        '<td>' + escapeHtml(c.contract_type) + '</td>' +
-        '<td>' + escapeHtml(c.address || '') + '</td>' +
-        '<td>' + escapeHtml(c.contact_person || '') + '</td>' +
-        '<td>' + escapeHtml(c.email || '') + '</td>' +
-        '<td>' + escapeHtml(c.phone || '') + '</td>' +
-        '<td>' + escapeHtml(c.billing_pattern || '-') + '</td>' +
-        '<td class="text-right">' + (c.billing_rate ? Number(c.billing_rate).toFixed(2) : '-') + '</td>' +
-        '<td class="text-center">' +
-          '<div class="inline-flex items-center gap-1">' +
-            '<button class="btn-secondary btn-sm inline-flex items-center" onclick="editClient(' + c.id + ', \'' + c.contract_type + '\')" title="Edit"><span class="material-symbols-outlined text-base">edit</span></button>' +
-            '<button class="btn-danger btn-sm inline-flex items-center" onclick="deleteClient(' + c.id + ', \'' + c.contract_type + '\', \'' + escapeHtml(c.client_name).replace(/'/g, "\\'") + '\')" title="Delete"><span class="material-symbols-outlined text-base">delete</span></button>' +
-          '</div>' +
-        '</td>' +
+  function renderClientActions(client) {
+    return '<div class="client-actions-wrap">' +
+      '<button class="btn-secondary btn-sm inline-flex items-center" onclick="editClient(' + client.id + ', \'' + client.contract_type + '\')" title="Edit"><span class="material-symbols-outlined text-base">edit</span></button>' +
+      '<button class="btn-danger btn-sm inline-flex items-center" onclick="deleteClient(' + client.id + ', \'' + client.contract_type + '\', \'' + escapeHtml(client.client_name).replace(/'/g, "\\'") + '\')" title="Delete"><span class="material-symbols-outlined text-base">delete</span></button>' +
+    '</div>';
+  }
+
+  function renderClientCell(content, className) {
+    return '<div class="client-cell-box ' + (className || '') + '">' + content + '</div>';
+  }
+
+  function renderPermanentRows(rows) {
+    return rows.map(function (c) {
+      return '<tr class="client-row">' +
+        '<td>' + renderClientCell('<strong>' + escapeHtml(c.client_name) + '</strong>', 'client-cell-name') + '</td>' +
+        '<td>' + renderClientCell(escapeHtml(c.abbreviation || ''), 'client-cell-muted') + '</td>' +
+        '<td>' + renderClientCell(renderAddressCell(c.address || ''), 'client-cell-address') + '</td>' +
+        '<td>' + renderClientCell(escapeHtml(c.contact_person || ''), 'client-cell-text') + '</td>' +
+        '<td>' + renderClientCell(escapeHtml(c.email || ''), 'client-cell-text') + '</td>' +
+        '<td>' + renderClientCell(escapeHtml(c.phone || ''), 'client-cell-text client-cell-phone') + '</td>' +
+        '<td>' + renderClientCell(escapeHtml(c.billing_pattern || '-'), 'client-cell-text') + '</td>' +
+        '<td>' + renderClientCell(c.billing_rate ? Number(c.billing_rate).toFixed(2) : '-', 'client-cell-text client-cell-rate') + '</td>' +
+        '<td class="text-center">' + renderClientCell(renderClientActions(c), 'client-cell-actions') + '</td>' +
       '</tr>';
     }).join('');
+  }
 
-    initTableSort('clientsTable');
+  function renderContractualRows(rows) {
+    return rows.map(function (c) {
+      return '<tr class="client-row">' +
+        '<td>' + renderClientCell('<strong>' + escapeHtml(c.client_name) + '</strong>', 'client-cell-name') + '</td>' +
+        '<td>' + renderClientCell(escapeHtml(c.abbreviation || ''), 'client-cell-muted') + '</td>' +
+        '<td>' + renderClientCell(renderAddressCell(c.address || ''), 'client-cell-address') + '</td>' +
+        '<td>' + renderClientCell(escapeHtml(c.contact_person || ''), 'client-cell-text') + '</td>' +
+        '<td>' + renderClientCell(escapeHtml(c.email || ''), 'client-cell-text') + '</td>' +
+        '<td>' + renderClientCell(escapeHtml(c.phone || ''), 'client-cell-text client-cell-phone') + '</td>' +
+        '<td>' + renderClientCell(escapeHtml(c.industry || '-'), 'client-cell-text') + '</td>' +
+        '<td class="text-center">' + renderClientCell(renderClientActions(c), 'client-cell-actions') + '</td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  function renderSection(section) {
+    var tableId = section.key + 'ClientsTable';
+    var tbodyId = section.key + 'ClientsBody';
+    var countLabel = section.rows.length === 1 ? '1 client' : section.rows.length + ' clients';
+    return '<section class="stat-card !p-0 overflow-hidden client-section-card client-section-' + section.key + '" data-client-section="' + section.key + '">' +
+      '<div class="client-section-header">' +
+        '<div>' +
+          '<h3 class="client-section-title">' + section.title + '</h3>' +
+        '</div>' +
+        '<div class="client-section-count">' + countLabel + '</div>' +
+      '</div>' +
+      (section.rows.length === 0
+        ? '<div class="client-empty-state">No ' + section.title.toLowerCase() + ' found.</div>'
+        : '<div class="overflow-x-auto styled-scrollbar client-table-scroll">' +
+            '<table class="stitch-table" id="' + tableId + '">' +
+              section.colgroup +
+              section.table +
+              '<tbody id="' + tbodyId + '">' + section.renderRows(section.rows) + '</tbody>' +
+            '</table>' +
+          '</div>') +
+    '</section>';
+  }
+
+  function applyClientsSearch() {
+    var input = document.getElementById('clientsSearch');
+    var query = input ? input.value.toLowerCase().trim() : '';
+    document.querySelectorAll('[data-client-section]').forEach(function (section) {
+      var rows = section.querySelectorAll('tbody tr.client-row');
+      var visibleCount = 0;
+      rows.forEach(function (row) {
+        var matches = row.textContent.toLowerCase().indexOf(query) !== -1;
+        row.style.display = matches ? '' : 'none';
+        if (matches) visibleCount += 1;
+      });
+      var empty = section.querySelector('.client-search-empty');
+      if (rows.length > 0 && visibleCount === 0 && query) {
+        if (!empty) {
+          empty = document.createElement('div');
+          empty.className = 'client-empty-state client-search-empty';
+          section.appendChild(empty);
+        }
+        empty.textContent = 'No clients in this section match your search.';
+      } else if (empty) {
+        empty.remove();
+      }
+    });
+  }
+
+  function renderClients(rows) {
+    var board = document.getElementById('clientsBoard');
+    if (!board) return;
+    updateClientSummary(rows || []);
+
+    var permanentRows = (rows || []).filter(function (item) { return item.contract_type === 'Permanent'; });
+    var contractualRows = (rows || []).filter(function (item) { return item.contract_type === 'Contractual'; });
+
+    var sections = [
+      {
+        key: 'permanent',
+        title: 'Permanent Clients',
+        rows: permanentRows,
+        renderRows: renderPermanentRows,
+        colgroup: '<colgroup>' +
+          '<col style="width:220px">' +
+          '<col style="width:130px">' +
+          '<col style="width:240px">' +
+          '<col style="width:170px">' +
+          '<col style="width:220px">' +
+          '<col style="width:170px">' +
+          '<col style="width:150px">' +
+          '<col style="width:140px">' +
+          '<col style="width:120px">' +
+        '</colgroup>',
+        table: '<thead><tr>' +
+          '<th class="sortable" data-sort-key="0">Name</th>' +
+          '<th class="sortable" data-sort-key="1">Abbreviation</th>' +
+          '<th class="sortable" data-sort-key="2">Address</th>' +
+          '<th class="sortable" data-sort-key="3">Contact Person</th>' +
+          '<th class="sortable" data-sort-key="4">Email</th>' +
+          '<th class="sortable" data-sort-key="5">Phone</th>' +
+          '<th class="sortable" data-sort-key="6">Billing Pattern</th>' +
+          '<th class="sortable" data-sort-key="7" data-sort-type="number">Billing Rate %</th>' +
+          '<th class="text-center">Actions</th>' +
+        '</tr></thead>',
+      },
+      {
+        key: 'contractual',
+        title: 'Contractual Clients',
+        rows: contractualRows,
+        renderRows: renderContractualRows,
+        colgroup: '<colgroup>' +
+          '<col style="width:220px">' +
+          '<col style="width:140px">' +
+          '<col style="width:240px">' +
+          '<col style="width:170px">' +
+          '<col style="width:220px">' +
+          '<col style="width:180px">' +
+          '<col style="width:150px">' +
+          '<col style="width:120px">' +
+        '</colgroup>',
+        table: '<thead><tr>' +
+          '<th class="sortable" data-sort-key="0">Name</th>' +
+          '<th class="sortable" data-sort-key="1">Abbreviation</th>' +
+          '<th class="sortable" data-sort-key="2">Address</th>' +
+          '<th class="sortable" data-sort-key="3">Contact Person</th>' +
+          '<th class="sortable" data-sort-key="4">Email</th>' +
+          '<th class="sortable" data-sort-key="5">Phone</th>' +
+          '<th class="sortable" data-sort-key="6">Industry</th>' +
+          '<th class="text-center">Actions</th>' +
+        '</tr></thead>',
+      },
+    ];
+
+    board.innerHTML = sections.map(renderSection).join('');
+    sections.forEach(function (section) {
+      if (section.rows.length > 0) {
+        initTableSort(section.key + 'ClientsTable');
+      }
+    });
+    applyClientsSearch();
   }
 
   async function loadClients() {
-    var tbody = document.getElementById('clientsBody');
-    showLoading(tbody);
+    var board = document.getElementById('clientsBoard');
+    if (board) {
+      board.innerHTML = '<div class="stat-card !p-0 overflow-hidden"><div class="p-6"><div class="loading-spinner"></div></div></div>';
+    }
     try {
       var permanentListPromise = apiCall('GET', '/api/permanent/clients')
         .catch(async function (err) {
@@ -222,7 +429,9 @@
       renderClients(clientsData);
     } catch (err) {
       showToast(err.message, 'danger');
-      hideLoading(tbody);
+      if (board) {
+        board.innerHTML = '<div class="stat-card !p-0 overflow-hidden"><div class="client-empty-state">Failed to load clients.</div></div>';
+      }
     }
   }
 
@@ -232,6 +441,7 @@
     document.getElementById('clientModalTitle').textContent = 'Add Client';
     document.getElementById('contractType').value = 'Contractual';
     clearPermanentContacts();
+    setBillingAddressSameState(true);
     updateClientFormByType();
     window.clientEdit = null;
   }
@@ -267,8 +477,9 @@
         updateClientFormByType();
         document.getElementById('permanentClientName').value = p.client_name || '';
         document.getElementById('permanentClientAbbreviation').value = p.abbreviation || '';
-        document.getElementById('permanentClientAddress').value = p.address || '';
-        document.getElementById('permanentClientBillingAddress').value = p.billing_address || '';
+        setStructuredAddress('permanentClientAddress', p.address || '');
+        setStructuredAddress('permanentClientBillingAddress', p.billing_address || '');
+        setBillingAddressSameState(addressesMatch(p.address, p.billing_address));
         document.getElementById('permanentBillingPattern').value = p.billing_pattern || 'Monthly';
         document.getElementById('permanentBillingRate').value = p.billing_rate || '';
         document.getElementById('permanentContactsList').innerHTML = '';
@@ -289,7 +500,7 @@
         var phoneParts = splitPhone(c.phone || '');
         document.getElementById('clientPhoneCountryCode').value = phoneParts.code;
         document.getElementById('clientPhone').value = phoneParts.number;
-        document.getElementById('clientAddress').value = c.address || '';
+        setStructuredAddress('clientAddress', c.address || '');
         document.getElementById('clientIndustry').value = c.industry || '';
       }
 
@@ -325,6 +536,9 @@
   };
 
   document.getElementById('contractType').addEventListener('change', updateClientFormByType);
+  document.getElementById('permanentBillingSameAsAddress').addEventListener('change', function () {
+    setBillingAddressSameState(this.checked);
+  });
 
   document.getElementById('clientForm').addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -335,8 +549,10 @@
         var permanentPayload = {
           client_name: document.getElementById('permanentClientName').value.trim(),
           abbreviation: document.getElementById('permanentClientAbbreviation').value.trim(),
-          address: document.getElementById('permanentClientAddress').value.trim(),
-          billing_address: document.getElementById('permanentClientBillingAddress').value.trim(),
+          address: buildStructuredAddress('permanentClientAddress', true),
+          billing_address: document.getElementById('permanentBillingSameAsAddress').checked
+            ? buildStructuredAddress('permanentClientAddress', true)
+            : buildStructuredAddress('permanentClientBillingAddress', true),
           billing_pattern: document.getElementById('permanentBillingPattern').value,
           billing_rate: parseFloat(document.getElementById('permanentBillingRate').value),
           contacts: readPermanentContacts(),
@@ -381,7 +597,7 @@
           contact_person: document.getElementById('contactPerson').value.trim(),
           email: document.getElementById('clientEmail').value.trim(),
           phone: buildPhone(phoneCountryCode, phoneNumber),
-          address: document.getElementById('clientAddress').value.trim(),
+          address: buildStructuredAddress('clientAddress', true),
           industry: document.getElementById('clientIndustry').value.trim(),
         };
 
@@ -401,7 +617,7 @@
     }
   });
 
-  initTableSearch('clientsSearch', 'clientsBody');
+  document.getElementById('clientsSearch').addEventListener('input', applyClientsSearch);
   resetModalState();
   loadClients();
 })();

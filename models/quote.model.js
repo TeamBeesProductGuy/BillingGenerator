@@ -1,11 +1,14 @@
 const { supabase } = require('../config/database');
 
 function buildQuoteRevisionNumber(baseQuoteNumber, versionNumber) {
-  return `${baseQuoteNumber} R(${versionNumber})`;
+  return `${baseQuoteNumber}/${versionNumber}`;
 }
 
 function normalizeBaseQuoteNumber(value) {
-  return String(value || '').replace(/\s+R\(\d+\)\s*$/i, '').trim();
+  return String(value || '')
+    .replace(/\s+R\(\d+\)\s*$/i, '')
+    .replace(/\/\d+\s*$/i, '')
+    .trim();
 }
 
 function getFinancialYearCode(dateValue) {
@@ -75,6 +78,34 @@ const QuoteModel = {
 
     if (error) throw new Error(error.message);
     return data;
+  },
+
+  async findRegister(clientId, status) {
+    let query = supabase.from('quotes_view').select('*').eq('version_number', 0);
+    if (clientId) query = query.eq('client_id', clientId);
+    if (status) query = query.eq('status', status);
+    query = query.order('created_at', { ascending: false });
+    let { data, error } = await query;
+
+    if (isMissingColumnError(error, 'version_number')) {
+      return QuoteModel.findAll(clientId, status);
+    }
+
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+
+  async findAmendments(clientId, status) {
+    let query = supabase.from('quotes_view').select('*').gt('version_number', 0);
+    if (clientId) query = query.eq('client_id', clientId);
+    if (status) query = query.eq('status', status);
+    query = query.order('created_at', { ascending: false });
+    let { data, error } = await query;
+    if (isMissingColumnError(error, 'version_number')) {
+      return [];
+    }
+    if (error) throw new Error(error.message);
+    return data || [];
   },
 
   async findById(id) {
@@ -189,43 +220,46 @@ const QuoteModel = {
     const existing = await QuoteModel.findById(id);
     if (!existing) throw new Error('Quote not found');
 
-    if (existing.base_quote_number === undefined || existing.version_number === undefined || existing.is_latest === undefined) {
-      const totalAmount = Math.round(items.reduce((sum, item) => sum + item.amount, 0) * 100) / 100;
+    const totalAmount = Math.round(items.reduce((sum, item) => sum + item.amount, 0) * 100) / 100;
 
-      const { error: qErr } = await supabase
-        .from('quotes')
-        .update({
-          client_id: quote.client_id,
-          quote_date: quote.quote_date,
-          valid_until: quote.valid_until,
-          total_amount: totalAmount,
-          notes: quote.notes || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', id);
-      if (qErr) throw new Error(qErr.message);
+    const { error: qErr } = await supabase
+      .from('quotes')
+      .update({
+        client_id: quote.client_id,
+        quote_date: quote.quote_date,
+        valid_until: quote.valid_until,
+        total_amount: totalAmount,
+        notes: quote.notes || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+    if (qErr) throw new Error(qErr.message);
 
-      const { error: dErr } = await supabase.from('quote_items').delete().eq('quote_id', id);
-      if (dErr) throw new Error(dErr.message);
+    const { error: dErr } = await supabase.from('quote_items').delete().eq('quote_id', id);
+    if (dErr) throw new Error(dErr.message);
 
-      if (items.length > 0) {
-        const itemRows = items.map((item) => ({
-          quote_id: id,
-          description: item.description,
-          quantity: item.quantity,
-          unit_rate: item.unit_rate,
-          amount: item.amount,
-          emp_code: item.emp_code || null,
-          location: item.location || null,
-        }));
-        const { error: iErr } = await supabase.from('quote_items').insert(itemRows);
-        if (iErr) throw new Error(iErr.message);
-      }
-
-      return { id, quote_number: existing.quote_number };
+    if (items.length > 0) {
+      const itemRows = items.map((item) => ({
+        quote_id: id,
+        description: item.description,
+        quantity: item.quantity,
+        unit_rate: item.unit_rate,
+        amount: item.amount,
+        emp_code: item.emp_code || null,
+        location: item.location || null,
+      }));
+      const { error: iErr } = await supabase.from('quote_items').insert(itemRows);
+      if (iErr) throw new Error(iErr.message);
     }
 
-    const baseQuoteNumber = existing.base_quote_number || existing.quote_number;
+    return { id, quote_number: existing.quote_number };
+  },
+
+  async createAmendment(id, quote, items) {
+    const existing = await QuoteModel.findById(id);
+    if (!existing) throw new Error('Quote not found');
+
+    const baseQuoteNumber = normalizeBaseQuoteNumber(existing.base_quote_number || existing.quote_number);
     const versionNumber = (existing.version_number || 0) + 1;
     const quoteNumber = buildQuoteRevisionNumber(baseQuoteNumber, versionNumber);
 

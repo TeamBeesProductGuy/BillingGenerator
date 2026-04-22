@@ -1,9 +1,26 @@
 <div class="p-5 sm:p-8 space-y-6 fade-in">
-  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-    <div></div>
+  <div class="orders-hero">
+    <div class="page-hero-copy">
+      <p class="page-hero-eyebrow">Order Ledger</p>
+    </div>
     <button class="btn-primary inline-flex items-center gap-2" onclick="window.orderEdit=null;openOrderModal()">
       <span class="material-symbols-outlined text-lg">add</span>Create Order
     </button>
+  </div>
+
+  <div id="ordersSummary" class="grid gap-4 md:grid-cols-3">
+    <div class="table-summary-card">
+      <div class="table-summary-label">Total Orders</div>
+      <div class="table-summary-value">0</div>
+    </div>
+    <div class="table-summary-card">
+      <div class="table-summary-label">Clients Covered</div>
+      <div class="table-summary-value">0</div>
+    </div>
+    <div class="table-summary-card">
+      <div class="table-summary-label">Upcoming Bills</div>
+      <div class="table-summary-value">0</div>
+    </div>
   </div>
 
   <div class="stat-card !p-4">
@@ -13,8 +30,12 @@
     </div>
   </div>
 
-  <div class="stat-card !p-0 overflow-hidden">
-    <div class="overflow-x-auto">
+  <div class="stat-card !p-0 overflow-hidden table-section-card">
+    <div class="table-section-header">
+      <h3 class="table-section-title">Order Ledger</h3>
+      <div class="table-section-count" id="ordersTableCount">0 rows</div>
+    </div>
+    <div class="overflow-x-auto styled-scrollbar orders-table-scroll">
       <table class="stitch-table" id="ordersTable">
         <thead>
           <tr>
@@ -125,6 +146,34 @@
 
       <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
         <button type="button" class="btn-secondary" onclick="closeOrderModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="orderInvoiceSentModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-sm mx-4 border border-outline-variant/15 shadow-2xl">
+    <form id="orderInvoiceSentForm">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8">
+        <h5 class="font-headline font-bold text-lg text-on-surface">Update Invoice</h5>
+        <button type="button" onclick="closeOrderInvoiceSentModal()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="p-6 space-y-4">
+        <input type="hidden" id="orderInvoiceReminderId">
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Invoice No. *</label>
+          <input type="text" id="orderInvoiceNumber" required>
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Invoice Date *</label>
+          <input type="date" id="orderInvoiceDate" required>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
+        <button type="button" class="btn-secondary" onclick="closeOrderInvoiceSentModal()">Cancel</button>
         <button type="submit" class="btn-primary">Save</button>
       </div>
     </form>

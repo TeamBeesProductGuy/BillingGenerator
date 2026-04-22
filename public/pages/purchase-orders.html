@@ -1,11 +1,28 @@
 <div class="p-5 sm:p-8 space-y-6 fade-in">
 
   <!-- Header with Add button -->
-  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-    <div><!-- Title handled by shell --></div>
+  <div class="purchaseorders-hero">
+    <div class="page-hero-copy">
+      <p class="page-hero-eyebrow">PO Command Center</p>
+    </div>
     <button class="btn-primary inline-flex items-center gap-2" onclick="window.poEdit=null;openPOModal()">
       <span class="material-symbols-outlined text-lg">add_link</span>LINK PO
     </button>
+  </div>
+
+  <div id="poSummary" class="grid gap-4 md:grid-cols-3">
+    <div class="table-summary-card">
+      <div class="table-summary-label">Total POs</div>
+      <div class="table-summary-value">0</div>
+    </div>
+    <div class="table-summary-card">
+      <div class="table-summary-label">Active</div>
+      <div class="table-summary-value">0</div>
+    </div>
+    <div class="table-summary-card">
+      <div class="table-summary-label">Visible Rows</div>
+      <div class="table-summary-value">0</div>
+    </div>
   </div>
 
   <!-- Alerts -->
@@ -46,8 +63,12 @@
   </div>
 
   <!-- PO Table -->
-  <div class="stat-card !p-0 overflow-hidden">
-    <div class="overflow-x-auto">
+  <div class="stat-card !p-0 overflow-hidden table-section-card">
+    <div class="table-section-header">
+      <h3 class="table-section-title">Purchase Order Register</h3>
+      <div class="table-section-count" id="poTableCount">0 rows</div>
+    </div>
+    <div class="overflow-x-auto styled-scrollbar purchaseorders-table-scroll">
       <table class="stitch-table" id="poTable">
         <thead>
           <tr>

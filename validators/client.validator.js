@@ -57,7 +57,7 @@ const createClient = Joi.object({
 
   address: Joi.string()
     .trim()
-    .max(200)
+    .max(500)
     .allow('', null),
 
   industry: Joi.string()

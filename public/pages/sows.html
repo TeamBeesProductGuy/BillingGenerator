@@ -1,8 +1,10 @@
 <div class="p-5 sm:p-8 space-y-6 fade-in">
 
   <!-- Header with Add button -->
-  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-    <div><!-- Title handled by shell --></div>
+  <div class="sows-hero">
+    <div class="page-hero-copy">
+      <p class="page-hero-eyebrow">SOW Command Center</p>
+    </div>
     <div class="flex flex-wrap items-center gap-3">
       <button class="btn-secondary inline-flex items-center gap-2" onclick="openSowDocumentUploadModal()">
         <span class="material-symbols-outlined text-lg">upload_file</span>Upload SOW Docs
@@ -10,6 +12,21 @@
       <button class="btn-primary inline-flex items-center gap-2" onclick="window.sowEdit=null;openSOWModal()">
         <span class="material-symbols-outlined text-lg">add_link</span>LINK SOW
       </button>
+    </div>
+  </div>
+
+  <div id="sowsSummary" class="grid gap-4 md:grid-cols-3">
+    <div class="table-summary-card">
+      <div class="table-summary-label">Total SOWs</div>
+      <div class="table-summary-value">0</div>
+    </div>
+    <div class="table-summary-card">
+      <div class="table-summary-label">Signed</div>
+      <div class="table-summary-value">0</div>
+    </div>
+    <div class="table-summary-card">
+      <div class="table-summary-label">Visible Rows</div>
+      <div class="table-summary-value">0</div>
     </div>
   </div>
 
@@ -42,8 +59,12 @@
   </div>
 
   <!-- SOW Table -->
-  <div class="stat-card !p-0 overflow-hidden">
-    <div class="overflow-x-auto">
+  <div class="stat-card !p-0 overflow-hidden table-section-card">
+    <div class="table-section-header">
+      <h3 class="table-section-title">SOW Register</h3>
+      <div class="table-section-count" id="sowsTableCount">0 rows</div>
+    </div>
+    <div class="overflow-x-auto styled-scrollbar sows-table-scroll">
       <table class="stitch-table" id="sowsTable">
         <thead>
           <tr>

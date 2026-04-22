@@ -1,5 +1,6 @@
 (function () {
   // openModal / closeModal provided by app.js (with scroll lock + Escape + backdrop)
+  var rateCardClientMap = {};
 
   function toggleRateMode(mode) {
     var monthlySection = document.getElementById('rcMonthlyRateSection');
@@ -84,6 +85,10 @@
   async function loadClients() {
     try {
       var res = await apiCall('GET', '/api/clients');
+      rateCardClientMap = {};
+      (res.data || []).forEach(function (client) {
+        rateCardClientMap[String(client.id)] = client;
+      });
       ['rcFilterClient', 'rcClient', 'uploadRCClient'].forEach(function (id) {
         var sel = document.getElementById(id);
         if (!sel) return;
@@ -156,6 +161,35 @@
     }
   }
 
+  function updateRateCardSummary(rows) {
+    var summary = document.getElementById('rcSummary');
+    var count = document.getElementById('rcTableCount');
+    var items = rows || [];
+    var uniqueClients = new Set(items.map(function (row) { return row.client_name || ''; }).filter(Boolean)).size;
+    if (summary) {
+      var cards = summary.querySelectorAll('.table-summary-value');
+      if (cards[0]) cards[0].textContent = items.length;
+      if (cards[1]) cards[1].textContent = uniqueClients;
+      if (cards[2]) cards[2].textContent = items.length;
+    }
+    if (count) count.textContent = items.length === 1 ? '1 row' : items.length + ' rows';
+  }
+
+  function updateRateCardVisibleCount() {
+    var tbody = document.getElementById('rcBody');
+    var summary = document.getElementById('rcSummary');
+    var count = document.getElementById('rcTableCount');
+    if (!tbody) return;
+    var visible = Array.from(tbody.querySelectorAll('tr')).filter(function (row) {
+      return !row.querySelector('td[colspan]') && row.style.display !== 'none';
+    }).length;
+    if (summary) {
+      var cards = summary.querySelectorAll('.table-summary-value');
+      if (cards[2]) cards[2].textContent = visible;
+    }
+    if (count) count.textContent = visible === 1 ? '1 row' : visible + ' rows';
+  }
+
   async function loadRateCards() {
     var tbody = document.getElementById('rcBody');
     showLoading(tbody);
@@ -163,31 +197,33 @@
       var clientId = document.getElementById('rcFilterClient').value;
       var url = clientId ? '/api/rate-cards?clientId=' + clientId : '/api/rate-cards';
       var res = await apiCall('GET', url);
+      updateRateCardSummary(res.data || []);
       if (res.data.length === 0) {
         tbody.innerHTML = '<tr><td colspan="11" class="text-center text-on-surface-variant py-8">No rate cards found</td></tr>';
       } else {
         tbody.innerHTML = res.data.map(function (r) {
+          var client = rateCardClientMap[String(r.client_id)] || null;
+          var clientDisplay = client ? getClientDisplayName(client) : (r.client_name || '');
           return '<tr>' +
-            '<td>' + escapeHtml(r.client_name) + '</td>' +
-            '<td><strong>' + escapeHtml(r.emp_code) + '</strong></td>' +
-            '<td>' + escapeHtml(r.emp_name) + '</td>' +
-            '<td>' + (r.doj ? formatDate(r.doj) : '') + '</td>' +
-            '<td>' + escapeHtml(r.reporting_manager || '') + '</td>' +
-            '<td class="text-right">' + formatCurrency(r.monthly_rate) + '</td>' +
-            '<td class="text-center">' + r.leaves_allowed + '</td>' +
-            '<td>' + escapeHtml(r.sow_number || '---') + '</td>' +
-            '<td>' + (r.charging_date ? formatDate(r.charging_date) : '') + '</td>' +
-            '<td>' + escapeHtml(r.po_number || '---') + '</td>' +
-            '<td class="text-center">' +
-              '<div class="inline-flex items-center gap-1">' +
+            '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(clientDisplay) + '">' + escapeHtml(clientDisplay) + '</span></div></td>' +
+            '<td><div class="table-cell-box"><span class="entity-pill entity-pill-strong" title="' + escapeHtml(r.emp_code || '') + '">' + escapeHtml(r.emp_code || '') + '</span></div></td>' +
+            '<td><div class="table-cell-box table-cell-stack"><span class="table-cell-primary">' + escapeHtml(r.emp_name || '') + '</span><span class="table-cell-secondary">' + escapeHtml(r.sow_number ? ('SOW ' + r.sow_number) : 'No SOW linked') + '</span></div></td>' +
+            '<td><div class="table-cell-box"><span class="table-date-chip">' + (r.doj ? formatDate(r.doj) : 'Not set') + '</span></div></td>' +
+            '<td><div class="table-cell-box table-cell-text">' + escapeHtml(r.reporting_manager || '---') + '</div></td>' +
+            '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(r.monthly_rate) + '</span></div></td>' +
+            '<td class="text-center"><div class="table-cell-box table-cell-center"><span class="table-count-badge">' + r.leaves_allowed + '</span></div></td>' +
+            '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(r.sow_number || 'Not linked') + '">' + escapeHtml(r.sow_number || 'Not linked') + '</span></div></td>' +
+            '<td><div class="table-cell-box"><span class="table-date-chip">' + (r.charging_date ? formatDate(r.charging_date) : 'Pending') + '</span></div></td>' +
+            '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(r.po_number || 'Not linked') + '">' + escapeHtml(r.po_number || 'Not linked') + '</span></div></td>' +
+            '<td class="text-center"><div class="table-cell-box table-cell-center"><div class="table-action-group">' +
               '<button class="btn-secondary btn-sm inline-flex items-center" onclick="editRC(' + r.id + ')" title="Edit"><span class="material-symbols-outlined text-base">edit</span></button>' +
               '<button class="btn-danger btn-sm inline-flex items-center" onclick="deleteRC(' + r.id + ')" title="Delete"><span class="material-symbols-outlined text-base">delete</span></button>' +
-              '</div>' +
-            '</td>' +
+              '</div></div></td>' +
             '</tr>';
         }).join('');
       }
       initTableSort('rcTable');
+      updateRateCardVisibleCount();
     } catch (err) { showToast(err.message, 'danger'); hideLoading(tbody); }
   }
 
@@ -302,6 +338,9 @@
 
   // Initialize search
   initTableSearch('rcSearch', 'rcBody');
+  document.getElementById('rcSearch').addEventListener('input', function () {
+    setTimeout(updateRateCardVisibleCount, 250);
+  });
 
   loadClients().then(loadRateCards);
 })();

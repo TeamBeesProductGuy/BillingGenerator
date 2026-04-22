@@ -14,6 +14,7 @@
   ];
   var defaultQuoteBody = quoteMailBodyLines.join('\n');
   var quoteValidUntilTouched = false;
+  var quoteClientMap = {};
 
   var quoteNotesTemplate = [
     'Subject:',
@@ -293,6 +294,7 @@
     document.getElementById('quoteForm').reset();
     document.getElementById('quoteItemsBody').innerHTML = '';
     document.getElementById('quoteModalTitle').textContent = 'Create Quote';
+    document.getElementById('quoteFormSubmitBtn').textContent = 'Save';
     document.getElementById('quoteId').value = '';
     quoteValidUntilTouched = false;
     setQuoteMailFormFields(getDefaultQuoteFormFields());
@@ -300,20 +302,33 @@
     syncQuoteBodyAutofills(true);
     document.getElementById('quoteSideNote').value = '';
     window.quoteEdit = null;
+    window.quoteAmendSource = null;
     addItemRow();
     openModal('quoteModal');
   };
-  window.closeQuoteModal = function () { closeModal('quoteModal'); };
+  window.closeQuoteModal = function () {
+    window.quoteEdit = null;
+    window.quoteAmendSource = null;
+    closeModal('quoteModal');
+  };
   window.closeConvertSowModal = function () { closeModal('convertSowModal'); };
+
+  function getStatusDisplayText(status) {
+    return status === 'Draft' ? 'To Be Sent' : status;
+  }
 
   var statusBadge = function (s) {
     var map = { Draft: 'badge-processing', Sent: 'badge-processing', Accepted: 'badge-success', Rejected: 'badge-error', Expired: 'badge-warning' };
-    return '<span class="' + (map[s] || 'badge-processing') + '">' + s + '</span>';
+    return '<span class="' + (map[s] || 'badge-processing') + '">' + getStatusDisplayText(s) + '</span>';
   };
 
   async function loadClients() {
     try {
       var res = await apiCall('GET', '/api/clients');
+      quoteClientMap = {};
+      (res.data || []).forEach(function (client) {
+        quoteClientMap[String(client.id)] = client;
+      });
       ['quoteFilterClient', 'quoteClient'].forEach(function (id) {
         var sel = document.getElementById(id);
         if (!sel) return;
@@ -345,59 +360,206 @@
     document.getElementById('convertNewSowSection').classList.toggle('hidden', mode !== 'new');
   }
 
+  function getQuoteDisplayContext(q) {
+    var parsedNotes = splitStoredQuoteNotes(q.notes || '');
+    var mailFields = parseQuoteMailFormat(parsedNotes.mailFormat);
+    var candidateName = mailFields.candidateName || '';
+    var client = quoteClientMap[String(q.client_id)] || null;
+    var clientDisplay = client ? getClientDisplayName(client) : (q.client_name || '');
+    var baseQuoteNumber = q.base_quote_number || q.quote_number || '';
+    return {
+      parsedNotes: parsedNotes,
+      mailFields: mailFields,
+      candidateName: candidateName,
+      clientDisplay: clientDisplay,
+      baseQuoteNumber: baseQuoteNumber,
+    };
+  }
+
+  function getQuoteVersionNumber(q) {
+    return parseInt(q && q.version_number, 10) || 0;
+  }
+
+  function getLatestAmendmentMap(amendments) {
+    var map = {};
+    (amendments || []).forEach(function (row) {
+      var base = String(row.base_quote_number || '').trim();
+      if (!base) return;
+      var current = map[base];
+      if (!current || getQuoteVersionNumber(row) > getQuoteVersionNumber(current)) {
+        map[base] = row;
+      }
+    });
+    return map;
+  }
+
+  function getQuoteChainState(q, latestAmendmentMap) {
+    var base = String(q.base_quote_number || q.quote_number || '').trim();
+    var latest = latestAmendmentMap[base] || null;
+    var rowVersion = getQuoteVersionNumber(q);
+    var latestVersion = latest ? getQuoteVersionNumber(latest) : rowVersion;
+    var isSuperseded = Boolean(latest && latestVersion > rowVersion);
+    return {
+      baseQuoteNumber: base,
+      latestAmendment: latest,
+      isSuperseded: isSuperseded,
+      latestAmendmentId: isSuperseded ? latest.id : null,
+    };
+  }
+
+  function renderQuoteStatus(q, chainState) {
+    if (chainState && chainState.isSuperseded && chainState.latestAmendmentId) {
+      return '<button type="button" class="status-link-button badge-warning" onclick="openLatestAmendment(' + chainState.latestAmendmentId + ')" title="Open latest amendment">Amended</button>';
+    }
+    return statusBadge(q.status);
+  }
+
+  function buildQuoteActions(q, chainState) {
+    var actionsHtml = '<div class="table-action-group">';
+    if (!(chainState && chainState.isSuperseded)) {
+      if (q.status === 'Draft') {
+        actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="editQuote(' + q.id + ')" title="Edit"><span class="material-symbols-outlined text-base">edit</span></button>';
+      }
+      if (q.status === 'Sent') {
+        actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="amendQuote(' + q.id + ')" title="Amend Quote"><span class="material-symbols-outlined text-base">edit_document</span></button>';
+      }
+    }
+    actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="viewQuote(' + q.id + ')" title="View"><span class="material-symbols-outlined text-base">visibility</span></button>';
+    actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="downloadFile(\'/api/quotes/' + q.id + '/download\')" title="Download DOCX"><span class="material-symbols-outlined text-base">description</span></button>';
+    if (!(chainState && chainState.isSuperseded)) {
+      var VALID_TRANSITIONS = {
+        Draft: ['Sent'],
+        Sent: ['Accepted', 'Rejected'],
+        Rejected: ['Draft'],
+        Accepted: [],
+        Expired: []
+      };
+      quoteActionMap[q.id] = {
+        id: q.id,
+        status: q.status,
+        allowed: (VALID_TRANSITIONS[q.status] || []).slice(),
+      };
+      actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="openQuoteActions(' + q.id + ')" title="More"><span class="material-symbols-outlined text-base">more_vert</span></button>';
+    }
+    actionsHtml += '</div>';
+    return actionsHtml;
+  }
+
+  function updateQuotesSummary(rows, amendmentRows) {
+    var items = rows || [];
+    var amendments = amendmentRows || [];
+    var summary = document.getElementById('quotesSummary');
+    var count = document.getElementById('quotesTableCount');
+    var accepted = items.filter(function (q) { return q.status === 'Accepted'; }).length;
+    var amendedFamilies = new Set(amendments.map(function (q) { return String(q.base_quote_number || '').trim(); }).filter(Boolean)).size;
+    if (summary) {
+      var cards = summary.querySelectorAll('.table-summary-value');
+      if (cards[0]) cards[0].textContent = items.length;
+      if (cards[1]) cards[1].textContent = accepted;
+      if (cards[2]) cards[2].textContent = amendedFamilies;
+    }
+    if (count) count.textContent = items.length === 1 ? '1 row' : items.length + ' rows';
+  }
+
+  function updateQuotesVisibleCount() {
+    var tbody = document.getElementById('quotesBody');
+    var count = document.getElementById('quotesTableCount');
+    if (!tbody) return;
+    var visible = Array.from(tbody.querySelectorAll('tr')).filter(function (row) {
+      return !row.querySelector('td[colspan]') && row.style.display !== 'none';
+    }).length;
+    if (count) count.textContent = visible === 1 ? '1 row' : visible + ' rows';
+  }
+
+  function renderAmendments(rows) {
+    var tbody = document.getElementById('quotesAmendmentsBody');
+    var count = document.getElementById('quotesAmendmentsCount');
+    if (!tbody) return;
+    var items = rows || [];
+    if (count) count.textContent = items.length === 1 ? '1 amendment' : items.length + ' amendments';
+    if (items.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="9" class="text-center text-on-surface-variant py-8">No amended quotes yet</td></tr>';
+      return;
+    }
+
+    var latestAmendmentMap = getLatestAmendmentMap(items);
+    tbody.innerHTML = items.map(function (q) {
+      var view = getQuoteDisplayContext(q);
+      var chainState = getQuoteChainState(q, latestAmendmentMap);
+      var actionsHtml = buildQuoteActions(q, chainState);
+
+      return '<tr>' +
+        '<td><div class="table-cell-box"><span class="entity-pill entity-pill-strong">' + escapeHtml(q.quote_number || '') + '</span></div></td>' +
+        '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(view.baseQuoteNumber) + '">' + escapeHtml(view.baseQuoteNumber || '-') + '</span></div></td>' +
+        '<td><div class="table-cell-box table-cell-client"><span class="entity-pill quote-client-pill" title="' + escapeHtml(view.clientDisplay) + '">' + escapeHtml(view.clientDisplay) + '</span></div></td>' +
+        '<td><div class="table-cell-box table-cell-candidate"><span class="table-cell-text" title="' + escapeHtml(view.candidateName) + '">' + escapeHtml(view.candidateName || '-') + '</span></div></td>' +
+        '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(q.quote_date) + '</span></div></td>' +
+        '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(q.valid_until) + '</span></div></td>' +
+        '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(q.total_amount) + '</span></div></td>' +
+        '<td><div class="table-cell-box">' + renderQuoteStatus(q, chainState) + '</div></td>' +
+        '<td class="text-center"><div class="table-cell-box table-cell-center">' + actionsHtml + '</div></td>' +
+        '</tr>';
+    }).join('');
+  }
+
   async function loadQuotes() {
     var tbody = document.getElementById('quotesBody');
     showLoading(tbody);
+    var amendmentsBody = document.getElementById('quotesAmendmentsBody');
+    if (amendmentsBody) showLoading(amendmentsBody);
     try {
       var cid = document.getElementById('quoteFilterClient').value;
       var status = document.getElementById('quoteFilterStatus').value;
-      var url = '/api/quotes?';
-      if (cid) url += 'clientId=' + cid + '&';
-      if (status) url += 'status=' + status;
-      var res = await apiCall('GET', url);
-      if (res.data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-on-surface-variant py-8">No quotes found</td></tr>';
+      var query = [];
+      if (cid) query.push('clientId=' + encodeURIComponent(cid));
+      if (status) query.push('status=' + encodeURIComponent(status));
+      var suffix = query.length ? ('?' + query.join('&')) : '';
+      var registerSuffix = suffix ? (suffix + '&mode=register') : '?mode=register';
+      var quotesResponse = await apiCall('GET', '/api/quotes' + registerSuffix);
+      var quotes = quotesResponse.data || [];
+      var amendments = [];
+      try {
+        var amendmentsResponse = await apiCall('GET', '/api/quotes/amendments' + suffix);
+        amendments = amendmentsResponse.data || [];
+      } catch (amendmentErr) {
+        amendments = [];
+        if (amendmentsBody) {
+          amendmentsBody.innerHTML = '<tr><td colspan="9" class="text-center text-on-surface-variant py-8">No amended quotes yet</td></tr>';
+        }
+      }
+      updateQuotesSummary(quotes, amendments);
+      quoteActionMap = {};
+      if (!(amendmentsBody && amendmentsBody.textContent.indexOf('No amended quotes yet') !== -1 && amendments.length === 0)) {
+        renderAmendments(amendments);
+      }
+      if (quotes.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-on-surface-variant py-8">No quotes found</td></tr>';
       } else {
-        quoteActionMap = {};
-        tbody.innerHTML = res.data.map(function (q) {
-          var actionsHtml = '<div class="inline-flex items-center gap-1">';
-          if (q.status === 'Draft') {
-            actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="editQuote(' + q.id + ')" title="Edit"><span class="material-symbols-outlined text-base">edit</span></button>';
-          }
-          actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="viewQuote(' + q.id + ')" title="View"><span class="material-symbols-outlined text-base">visibility</span></button>';
-          actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="downloadFile(\'/api/quotes/' + q.id + '/download\')" title="Download DOCX"><span class="material-symbols-outlined text-base">description</span></button>';
-
-          // Status actions — show only valid transitions
-          var VALID_TRANSITIONS = {
-            Draft: ['Sent'],
-            Sent: ['Accepted', 'Rejected'],
-            Rejected: ['Draft'],
-            Accepted: [],
-            Expired: []
-          };
-          var STATUS_LABELS = { Sent: 'Mark Sent', Accepted: 'Accept', Rejected: 'Reject', Draft: 'Revert to Draft', Expired: 'Mark Expired' };
-          var allowed = VALID_TRANSITIONS[q.status] || [];
-          quoteActionMap[q.id] = {
-            id: q.id,
-            status: q.status,
-            allowed: allowed.slice(),
-          };
-          actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="openQuoteActions(' + q.id + ')" title="More"><span class="material-symbols-outlined text-base">more_vert</span></button>';
-          actionsHtml += '</div>';
+        var latestAmendmentMap = getLatestAmendmentMap(amendments);
+        tbody.innerHTML = quotes.map(function (q) {
+          var view = getQuoteDisplayContext(q);
+          var chainState = getQuoteChainState(q, latestAmendmentMap);
+          var actionsHtml = buildQuoteActions(q, chainState);
 
           return '<tr>' +
-            '<td><strong>' + escapeHtml(q.quote_number) + '</strong></td>' +
-            '<td>' + escapeHtml(q.client_name) + '</td>' +
-            '<td>' + formatDate(q.quote_date) + '</td>' +
-            '<td>' + formatDate(q.valid_until) + '</td>' +
-            '<td>' + statusBadge(q.status) + '</td>' +
-            '<td class="text-right font-bold">' + formatCurrency(q.total_amount) + '</td>' +
-            '<td class="text-center">' + actionsHtml + '</td>' +
+            '<td><div class="table-cell-box"><span class="entity-pill entity-pill-strong">' + escapeHtml(q.quote_number) + '</span></div></td>' +
+            '<td><div class="table-cell-box table-cell-client"><span class="entity-pill quote-client-pill" title="' + escapeHtml(view.clientDisplay) + '">' + escapeHtml(view.clientDisplay) + '</span></div></td>' +
+            '<td><div class="table-cell-box table-cell-candidate"><span class="table-cell-text" title="' + escapeHtml(view.candidateName) + '">' + escapeHtml(view.candidateName || '-') + '</span></div></td>' +
+            '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(q.quote_date) + '</span></div></td>' +
+            '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(q.valid_until) + '</span></div></td>' +
+            '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(q.total_amount) + '</span></div></td>' +
+            '<td><div class="table-cell-box">' + renderQuoteStatus(q, chainState) + '</div></td>' +
+            '<td class="text-center"><div class="table-cell-box table-cell-center">' + actionsHtml + '</div></td>' +
             '</tr>';
         }).join('');
       }
       initTableSort('quotesTable');
-    } catch (err) { showToast(err.message, 'danger'); hideLoading(tbody); }
+      updateQuotesVisibleCount();
+    } catch (err) {
+      showToast(err.message, 'danger');
+      hideLoading(tbody);
+      if (amendmentsBody) hideLoading(amendmentsBody);
+    }
   }
 
   window.openQuoteActions = function (id) {
@@ -451,30 +613,74 @@
     deleteQuote(id);
   };
 
-  function addItemRow(item) {
-    var tbody = document.getElementById('quoteItemsBody');
-    var row = document.createElement('tr');
-    row.innerHTML =
-      '<td><input type="text" class="qi-desc" value="' + (item ? escapeHtml(item.description) : '') + '" required></td>' +
-      '<td><input type="text" class="qi-loc" value="' + (item && item.location ? escapeHtml(item.location) : '') + '" placeholder="Location"></td>' +
-      '<td><input type="number" class="qi-qty" value="' + (item ? item.quantity : 1) + '" min="1"></td>' +
-      '<td><input type="number" class="qi-rate" value="' + (item ? item.unit_rate : '') + '" step="0.01" min="0"></td>' +
-      '<td><input type="number" class="qi-amt" value="' + (item ? item.amount : '') + '" step="0.01" readonly></td>' +
-      '<td><button type="button" class="btn-danger btn-sm inline-flex items-center" onclick="this.closest(\'tr\').remove();recalcQuote();updateQuoteLocationLine()"><span class="material-symbols-outlined text-base">close</span></button></td>';
-    tbody.appendChild(row);
+  window.openLatestAmendment = function (id) {
+    viewQuote(id);
+  };
 
-    row.querySelector('.qi-qty').addEventListener('input', function () {
-      var rate = parseFloat(row.querySelector('.qi-rate').value) || 0;
-      row.querySelector('.qi-amt').value = (parseInt(this.value, 10) || 0) * rate;
+  function addItemRow(item) {
+    var container = document.getElementById('quoteItemsBody');
+    var card = document.createElement('div');
+    var itemIndex = container.querySelectorAll('.quote-item-card').length + 1;
+    card.className = 'quote-item-card';
+    card.innerHTML =
+      '<div class="quote-item-card-header">' +
+      '<div>' +
+      '<div class="quote-item-card-label">Line Item</div>' +
+      '<div class="quote-item-card-title">Item ' + itemIndex + '</div>' +
+      '</div>' +
+      '<button type="button" class="btn-danger btn-sm inline-flex items-center gap-1 quote-item-remove">' +
+      '<span class="material-symbols-outlined text-base">close</span>Remove' +
+      '</button>' +
+      '</div>' +
+      '<div class="quote-item-grid">' +
+      '<div class="quote-item-field quote-item-field-wide">' +
+      '<label class="quote-item-input-label">Role / Description</label>' +
+      '<textarea class="qi-desc" rows="3" required placeholder="Enter role, skillset, or description">' + (item ? escapeHtml(item.description) : '') + '</textarea>' +
+      '</div>' +
+      '<div class="quote-item-field">' +
+      '<label class="quote-item-input-label">Location</label>' +
+      '<input type="text" class="qi-loc" value="' + (item && item.location ? escapeHtml(item.location) : '') + '" placeholder="Enter location">' +
+      '</div>' +
+      '<div class="quote-item-field">' +
+      '<label class="quote-item-input-label">Quantity</label>' +
+      '<input type="number" class="qi-qty" value="' + (item ? item.quantity : 1) + '" min="1">' +
+      '</div>' +
+      '<div class="quote-item-field">' +
+      '<label class="quote-item-input-label">Unit Rate</label>' +
+      '<input type="number" class="qi-rate" value="' + (item ? item.unit_rate : '') + '" step="0.01" min="0" placeholder="Enter unit rate">' +
+      '</div>' +
+      '<div class="quote-item-field">' +
+      '<label class="quote-item-input-label">Amount</label>' +
+      '<input type="number" class="qi-amt" value="' + (item ? item.amount : '') + '" step="0.01" readonly>' +
+      '</div>' +
+      '</div>';
+    container.appendChild(card);
+
+    function updateItemAmount() {
+      var qty = parseInt(card.querySelector('.qi-qty').value, 10) || 0;
+      var rate = parseFloat(card.querySelector('.qi-rate').value) || 0;
+      card.querySelector('.qi-amt').value = qty * rate;
       recalcQuote();
-    });
-    row.querySelector('.qi-rate').addEventListener('input', function () {
-      var qty = parseInt(row.querySelector('.qi-qty').value, 10) || 0;
-      row.querySelector('.qi-amt').value = qty * (parseFloat(this.value) || 0);
-      recalcQuote();
-    });
-    row.querySelector('.qi-loc').addEventListener('input', function () {
+    }
+
+    card.querySelector('.qi-qty').addEventListener('input', updateItemAmount);
+    card.querySelector('.qi-rate').addEventListener('input', updateItemAmount);
+    card.querySelector('.qi-loc').addEventListener('input', function () {
       updateQuoteLocationLine();
+    });
+    card.querySelector('.quote-item-remove').addEventListener('click', function () {
+      card.remove();
+      refreshQuoteItemTitles();
+      recalcQuote();
+      updateQuoteLocationLine();
+    });
+    updateItemAmount();
+  }
+
+  function refreshQuoteItemTitles() {
+    document.querySelectorAll('#quoteItemsBody .quote-item-card').forEach(function (card, index) {
+      var title = card.querySelector('.quote-item-card-title');
+      if (title) title.textContent = 'Item ' + (index + 1);
     });
   }
 
@@ -489,8 +695,34 @@
       var res = await apiCall('GET', '/api/quotes/' + id);
       var q = res.data;
       window.quoteEdit = id;
+      window.quoteAmendSource = null;
       document.getElementById('quoteModalTitle').textContent = 'Edit Quote';
+      document.getElementById('quoteFormSubmitBtn').textContent = 'Save Changes';
       document.getElementById('quoteId').value = id;
+      document.getElementById('quoteClient').value = q.client_id;
+      document.getElementById('quoteDate').value = q.quote_date;
+      document.getElementById('quoteValidUntil').value = q.valid_until;
+      quoteValidUntilTouched = true;
+      var parsedNotes = splitStoredQuoteNotes(q.notes || '');
+      setQuoteMailFormFields(parseQuoteMailFormat(parsedNotes.mailFormat));
+      document.getElementById('quoteSideNote').value = parsedNotes.sideNote;
+      document.getElementById('quoteItemsBody').innerHTML = '';
+      q.items.forEach(function (item) { addItemRow(item); });
+      syncQuoteBodyAutofills(false);
+      recalcQuote();
+      openModal('quoteModal');
+    } catch (err) { showToast(err.message, 'danger'); }
+  };
+
+  window.amendQuote = async function (id) {
+    try {
+      var res = await apiCall('GET', '/api/quotes/' + id);
+      var q = res.data;
+      window.quoteEdit = null;
+      window.quoteAmendSource = id;
+      document.getElementById('quoteModalTitle').textContent = 'Amend Quote';
+      document.getElementById('quoteFormSubmitBtn').textContent = 'Create Amendment';
+      document.getElementById('quoteId').value = q.id;
       document.getElementById('quoteClient').value = q.client_id;
       document.getElementById('quoteDate').value = q.quote_date;
       document.getElementById('quoteValidUntil').value = q.valid_until;
@@ -593,7 +825,7 @@
   document.getElementById('quoteForm').addEventListener('submit', async function (e) {
     e.preventDefault();
     var items = [];
-    document.querySelectorAll('#quoteItemsBody tr').forEach(function (row) {
+    document.querySelectorAll('#quoteItemsBody .quote-item-card').forEach(function (row) {
       items.push({
         description: row.querySelector('.qi-desc').value.trim(),
         location: row.querySelector('.qi-loc').value.trim() || null,
@@ -618,7 +850,10 @@
     try {
       if (window.quoteEdit) {
         await apiCall('PUT', '/api/quotes/' + window.quoteEdit, data);
-        showToast('New quote version created', 'success');
+        showToast('Quote updated', 'success');
+      } else if (window.quoteAmendSource) {
+        await apiCall('POST', '/api/quotes/' + window.quoteAmendSource + '/amend', data);
+        showToast('Quote amendment created', 'success');
       } else {
         await apiCall('POST', '/api/quotes', data);
         showToast('Quote created', 'success');
@@ -663,5 +898,8 @@
 
   // Initialize search
   initTableSearch('quotesSearch', 'quotesBody');
+  document.getElementById('quotesSearch').addEventListener('input', function () {
+    setTimeout(updateQuotesVisibleCount, 250);
+  });
   loadClients().then(loadQuotes);
 })();

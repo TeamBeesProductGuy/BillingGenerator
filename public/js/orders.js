@@ -48,8 +48,34 @@
     document.getElementById('orderBillAmount').value = billAmount > 0 ? formatCurrency(billAmount) : '';
   }
 
+  function updateOrdersSummary(data) {
+    var items = data || [];
+    var summary = document.getElementById('ordersSummary');
+    var count = document.getElementById('ordersTableCount');
+    var clientCount = new Set(items.map(function (order) { return order.client_id; }).filter(Boolean)).size;
+    var upcomingCount = items.filter(function (order) { return !!order.next_bill_date; }).length;
+    if (summary) {
+      var cards = summary.querySelectorAll('.table-summary-value');
+      if (cards[0]) cards[0].textContent = items.length;
+      if (cards[1]) cards[1].textContent = clientCount;
+      if (cards[2]) cards[2].textContent = upcomingCount;
+    }
+    if (count) count.textContent = items.length === 1 ? '1 row' : items.length + ' rows';
+  }
+
+  function updateOrdersVisibleCount() {
+    var tbody = document.getElementById('ordersBody');
+    var count = document.getElementById('ordersTableCount');
+    if (!tbody || !count) return;
+    var visible = Array.from(tbody.querySelectorAll('tr')).filter(function (row) {
+      return !row.querySelector('td[colspan]') && row.style.display !== 'none';
+    }).length;
+    count.textContent = visible === 1 ? '1 row' : visible + ' rows';
+  }
+
   function renderOrders(data) {
     var tbody = document.getElementById('ordersBody');
+    updateOrdersSummary(data);
     if (!data || data.length === 0) {
       tbody.innerHTML = '<tr><td colspan="11" class="text-center text-on-surface-variant py-8">No orders found. Create one!</td></tr>';
       return;
@@ -58,25 +84,31 @@
     orderActionMap = {};
     tbody.innerHTML = data.map(function (order) {
       var clientName = order.client ? getClientDisplayName(order.client) : ('Client #' + order.client_id);
-      orderActionMap[order.id] = { id: order.id };
+      orderActionMap[order.id] = {
+        id: order.id,
+        reminderId: order.reminder ? order.reminder.id : null,
+        invoiceNumber: order.reminder ? (order.reminder.invoice_number || '') : '',
+        invoiceDate: order.reminder ? (order.reminder.invoice_date || '') : '',
+      };
       return '<tr>' +
-        '<td><span class="entity-pill" title="' + escapeHtml(clientName) + '">' + escapeHtml(clientName) + '</span></td>' +
-        '<td><span class="entity-pill entity-pill-strong" title="' + escapeHtml(order.candidate_name || '') + '">' + escapeHtml(order.candidate_name || '') + '</span></td>' +
-        '<td>' + escapeHtml(order.requisition_description || '') + '</td>' +
-        '<td>' + escapeHtml(order.position_role || '') + '</td>' +
-        '<td>' + formatDate(order.date_of_offer) + '</td>' +
-        '<td>' + formatDate(order.date_of_joining) + '</td>' +
-        '<td class="text-right"><span class="table-amount-pill">' + formatCurrency(order.ctc_offered) + '</span></td>' +
-        '<td>' + formatDate(order.next_bill_date) + '</td>' +
-        '<td class="text-right"><span class="table-amount-pill">' + formatCurrency(order.bill_amount) + '</span></td>' +
-        '<td>' + escapeHtml(order.remarks || '') + '</td>' +
-        '<td class="text-center">' +
+        '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(clientName) + '">' + escapeHtml(clientName) + '</span></div></td>' +
+        '<td><div class="table-cell-box table-cell-stack"><span class="table-cell-primary">' + escapeHtml(order.candidate_name || '') + '</span><span class="table-cell-secondary">' + escapeHtml(order.position_role || '') + '</span></div></td>' +
+        '<td><div class="table-cell-box table-cell-text">' + escapeHtml(order.requisition_description || '---') + '</div></td>' +
+        '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(order.position_role || '') + '">' + escapeHtml(order.position_role || '---') + '</span></div></td>' +
+        '<td><div class="table-cell-box"><span class="table-date-chip">' + (order.date_of_offer ? formatDate(order.date_of_offer) : 'Pending') + '</span></div></td>' +
+        '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(order.date_of_joining) + '</span></div></td>' +
+        '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(order.ctc_offered) + '</span></div></td>' +
+        '<td><div class="table-cell-box"><span class="table-date-chip">' + (order.next_bill_date ? formatDate(order.next_bill_date) : 'TBD') + '</span></div></td>' +
+        '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(order.bill_amount) + '</span></div></td>' +
+        '<td><div class="table-cell-box table-cell-text table-cell-remarks">' + escapeHtml(order.remarks || '---') + '</div></td>' +
+        '<td class="text-center"><div class="table-cell-box table-cell-center">' +
           '<button class="btn-secondary btn-sm table-action-trigger inline-flex items-center justify-center" title="Open order actions" aria-label="Open order actions" onclick="openOrderActions(' + order.id + ')"><span class="material-symbols-outlined text-base">more_horiz</span></button>' +
-        '</td>' +
+        '</div></td>' +
       '</tr>';
     }).join('');
 
     initTableSort('ordersTable');
+    updateOrdersVisibleCount();
   }
 
   async function loadPermanentClients() {
@@ -112,6 +144,7 @@
     title.textContent = 'Order Actions';
     container.innerHTML = '';
     container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runOrderActionEdit(' + id + ')"><span class="material-symbols-outlined">edit</span><span><strong>Edit order</strong><small>Update candidate, role, billing, and dates</small></span></button>';
+    container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runOrderActionInvoice(' + id + ')"><span class="material-symbols-outlined">receipt_long</span><span><strong>Set Invoice Details</strong><small>Save invoice number and invoice date</small></span></button>';
     container.innerHTML += '<button type="button" class="action-sheet-btn action-sheet-btn-danger" onclick="runOrderActionDelete(' + id + ')"><span class="material-symbols-outlined">delete</span><span><strong>Delete order</strong><small>Remove this order from the active list</small></span></button>';
     openModal('orderActionModal');
   };
@@ -130,6 +163,16 @@
     deleteOrder(id);
   };
 
+  window.runOrderActionInvoice = function (id) {
+    var state = orderActionMap[id] || {};
+    closeOrderActions();
+    if (!state.reminderId) {
+      showToast('No open reminder found for this order', 'warning');
+      return;
+    }
+    openOrderInvoiceSentModal(state.reminderId, state.invoiceNumber || '', state.invoiceDate || '');
+  };
+
   window.openOrderModal = function () {
     document.getElementById('orderForm').reset();
     document.getElementById('orderId').value = '';
@@ -144,6 +187,18 @@
     closeModal('orderModal');
     document.getElementById('orderForm').reset();
     window.orderEdit = null;
+  };
+
+  window.openOrderInvoiceSentModal = function (reminderId, invoiceNumber, invoiceDate) {
+    document.getElementById('orderInvoiceSentForm').reset();
+    document.getElementById('orderInvoiceReminderId').value = reminderId;
+    document.getElementById('orderInvoiceNumber').value = invoiceNumber || '';
+    document.getElementById('orderInvoiceDate').value = invoiceDate || '';
+    openModal('orderInvoiceSentModal');
+  };
+
+  window.closeOrderInvoiceSentModal = function () {
+    closeModal('orderInvoiceSentModal');
   };
 
   window.editOrder = async function (id) {
@@ -212,7 +267,28 @@
     }
   });
 
+  document.getElementById('orderInvoiceSentForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var reminderId = document.getElementById('orderInvoiceReminderId').value;
+    var invoiceNumber = document.getElementById('orderInvoiceNumber').value.trim();
+    var invoiceDate = document.getElementById('orderInvoiceDate').value;
+    try {
+      await apiCall('PATCH', '/api/permanent/reminders/' + reminderId + '/invoice-sent', {
+        invoice_number: invoiceNumber,
+        invoice_date: invoiceDate,
+      });
+      showToast('Invoice status updated', 'success');
+      closeOrderInvoiceSentModal();
+      loadOrders();
+    } catch (err) {
+      showToast(err.message, 'danger');
+    }
+  });
+
   initTableSearch('ordersSearch', 'ordersBody');
+  document.getElementById('ordersSearch').addEventListener('input', function () {
+    setTimeout(updateOrdersVisibleCount, 250);
+  });
 
   loadPermanentClients()
     .then(loadOrders)

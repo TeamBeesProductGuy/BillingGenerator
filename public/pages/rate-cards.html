@@ -1,8 +1,10 @@
 <div class="p-5 sm:p-8 space-y-6 fade-in">
 
   <!-- Header with actions -->
-  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-    <div><!-- Title handled by shell --></div>
+  <div class="ratecards-hero">
+    <div class="page-hero-copy">
+      <p class="page-hero-eyebrow">Rate Card Hub</p>
+    </div>
     <div class="flex flex-wrap gap-2">
       <button onclick="downloadFile('/api/rate-cards/export', 'RateCards_Export.xlsx')" class="btn-secondary inline-flex items-center gap-1.5">
         <span class="material-symbols-outlined text-base">download</span>Export
@@ -13,6 +15,21 @@
       <button class="btn-primary inline-flex items-center gap-2" onclick="window.rcEdit=null;openRCModal()">
         <span class="material-symbols-outlined text-lg">add</span>Add Rate Card
       </button>
+    </div>
+  </div>
+
+  <div id="rcSummary" class="grid gap-4 md:grid-cols-3">
+    <div class="table-summary-card">
+      <div class="table-summary-label">Total Rate Cards</div>
+      <div class="table-summary-value">0</div>
+    </div>
+    <div class="table-summary-card">
+      <div class="table-summary-label">Clients Covered</div>
+      <div class="table-summary-value">0</div>
+    </div>
+    <div class="table-summary-card">
+      <div class="table-summary-label">Current Rows</div>
+      <div class="table-summary-value">0</div>
     </div>
   </div>
 
@@ -34,8 +51,12 @@
   </div>
 
   <!-- Rate Cards Table -->
-  <div class="stat-card !p-0 overflow-hidden">
-    <div class="overflow-x-auto">
+  <div class="stat-card !p-0 overflow-hidden table-section-card">
+    <div class="table-section-header">
+      <h3 class="table-section-title">Rate Card Directory</h3>
+      <div class="table-section-count" id="rcTableCount">0 rows</div>
+    </div>
+    <div class="overflow-x-auto styled-scrollbar ratecards-table-scroll">
       <table class="stitch-table" id="rcTable">
         <thead>
           <tr>

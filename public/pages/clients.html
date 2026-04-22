@@ -1,10 +1,22 @@
 <div class="p-5 sm:p-8 space-y-6 fade-in">
-
-  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-    <div></div>
+  <div class="client-board-hero">
+    <div class="page-hero-copy">
+      <p class="page-hero-eyebrow">Client Directory</p>
+    </div>
     <button class="btn-primary inline-flex items-center gap-2" onclick="window.clientEdit=null;openClientModal()">
       <span class="material-symbols-outlined text-lg">add</span>Add Client
     </button>
+  </div>
+
+  <div id="clientsSummary" class="grid gap-4 md:grid-cols-2">
+    <div class="client-summary-card client-summary-card-permanent">
+      <div class="client-summary-label">Permanent Clients</div>
+      <div class="client-summary-value">0</div>
+    </div>
+    <div class="client-summary-card client-summary-card-contractual">
+      <div class="client-summary-label">Contractual Clients</div>
+      <div class="client-summary-value">0</div>
+    </div>
   </div>
 
   <div class="stat-card !p-4">
@@ -14,27 +26,9 @@
     </div>
   </div>
 
-  <div class="stat-card !p-0 overflow-hidden">
-    <div class="overflow-x-auto">
-      <table class="stitch-table" id="clientsTable">
-        <thead>
-          <tr>
-            <th class="sortable" data-sort-key="0">Name</th>
-            <th class="sortable" data-sort-key="1">Abbreviation</th>
-            <th class="sortable" data-sort-key="2">Contract Type</th>
-            <th class="sortable" data-sort-key="3">Location / Address</th>
-            <th class="sortable" data-sort-key="4">Contact Person</th>
-            <th class="sortable" data-sort-key="5">Email</th>
-            <th class="sortable" data-sort-key="6">Phone</th>
-            <th class="sortable" data-sort-key="7">Billing Pattern</th>
-            <th class="sortable text-right" data-sort-key="8" data-sort-type="number">Billing Rate %</th>
-            <th class="text-center">Actions</th>
-          </tr>
-        </thead>
-        <tbody id="clientsBody">
-          <tr><td colspan="10"><div class="loading-spinner"></div></td></tr>
-        </tbody>
-      </table>
+  <div id="clientsBoard" class="space-y-6">
+    <div class="stat-card !p-0 overflow-hidden">
+      <div class="p-6"><div class="loading-spinner"></div></div>
     </div>
   </div>
 </div>
@@ -79,7 +73,7 @@
           </div>
           <div>
             <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Phone</label>
-            <div class="grid grid-cols-3 gap-2">
+            <div class="client-phone-field-grid">
               <select id="clientPhoneCountryCode">
                 <option value="+91">+91 (India)</option>
                 <option value="+1">+1 (US/CA)</option>
@@ -88,7 +82,7 @@
                 <option value="+65">+65 (Singapore)</option>
                 <option value="+971">+971 (UAE)</option>
               </select>
-              <input type="text" id="clientPhone" class="col-span-2" placeholder="Phone number">
+              <input type="text" id="clientPhone" class="client-phone-input" placeholder="Phone number">
             </div>
           </div>
           <div class="grid grid-cols-2 gap-4">
@@ -96,9 +90,31 @@
               <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Industry</label>
               <input type="text" id="clientIndustry" placeholder="e.g. IT Services, Healthcare...">
             </div>
-            <div>
-              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Location</label>
-              <textarea id="clientAddress" rows="2" placeholder="e.g. Delhi"></textarea>
+            <div></div>
+          </div>
+          <div class="space-y-4">
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Address *</label>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">Address Line 1</label>
+                <input type="text" id="clientAddressLine1">
+              </div>
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">Address Line 2</label>
+                <input type="text" id="clientAddressLine2">
+              </div>
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">City / District *</label>
+                <input type="text" id="clientAddressCity">
+              </div>
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">State *</label>
+                <input type="text" id="clientAddressState">
+              </div>
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">Pincode</label>
+                <input type="text" id="clientAddressPincode">
+              </div>
             </div>
           </div>
         </div>
@@ -112,13 +128,59 @@
             <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Abbreviation *</label>
             <input type="text" id="permanentClientAbbreviation" placeholder="Used for search">
           </div>
-          <div>
-            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Address</label>
-            <textarea id="permanentClientAddress" rows="2"></textarea>
+          <div class="space-y-4">
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Address *</label>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">Address Line 1</label>
+                <input type="text" id="permanentClientAddressLine1">
+              </div>
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">Address Line 2</label>
+                <input type="text" id="permanentClientAddressLine2">
+              </div>
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">City / District *</label>
+                <input type="text" id="permanentClientAddressCity">
+              </div>
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">State *</label>
+                <input type="text" id="permanentClientAddressState">
+              </div>
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">Pincode</label>
+                <input type="text" id="permanentClientAddressPincode">
+              </div>
+            </div>
           </div>
           <div>
             <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Billing Address</label>
-            <textarea id="permanentClientBillingAddress" rows="2"></textarea>
+            <label class="inline-flex items-center gap-2 mb-3 text-sm text-on-surface-variant">
+              <input type="checkbox" id="permanentBillingSameAsAddress" checked>
+              <span>Same as address</span>
+            </label>
+            <div id="permanentBillingAddressFields" class="grid grid-cols-1 sm:grid-cols-2 gap-4 hidden">
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">Address Line 1</label>
+                <input type="text" id="permanentClientBillingAddressLine1">
+              </div>
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">Address Line 2</label>
+                <input type="text" id="permanentClientBillingAddressLine2">
+              </div>
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">City / District *</label>
+                <input type="text" id="permanentClientBillingAddressCity">
+              </div>
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">State *</label>
+                <input type="text" id="permanentClientBillingAddressState">
+              </div>
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">Pincode</label>
+                <input type="text" id="permanentClientBillingAddressPincode">
+              </div>
+            </div>
           </div>
 
           <div class="stat-card !p-4 !bg-surface-container">

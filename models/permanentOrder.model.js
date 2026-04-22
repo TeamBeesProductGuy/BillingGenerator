@@ -16,9 +16,28 @@ async function mapOrdersWithClients(orders) {
     clientMap[client.id] = client;
   });
 
+  const orderIds = Array.from(new Set(orders.map((order) => order.id)));
+  let reminders = [];
+  if (orderIds.length > 0) {
+    const reminderResult = await supabase
+      .from('permanent_reminders')
+      .select('id, order_id, status, due_date, invoice_status, invoice_number, invoice_date')
+      .in('order_id', orderIds)
+      .eq('status', 'Open')
+      .order('id', { ascending: false });
+    if (reminderResult.error) throw new Error(reminderResult.error.message);
+    reminders = reminderResult.data || [];
+  }
+
+  const reminderMap = {};
+  reminders.forEach((reminder) => {
+    if (!reminderMap[reminder.order_id]) reminderMap[reminder.order_id] = reminder;
+  });
+
   return orders.map((order) => ({
     ...order,
     client: clientMap[order.client_id] || null,
+    reminder: reminderMap[order.id] || null,
   }));
 }
 
