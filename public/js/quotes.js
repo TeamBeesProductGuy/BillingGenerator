@@ -1,0 +1,905 @@
+(function () {
+  // openModal / closeModal provided by app.js (with scroll lock + Escape + backdrop)
+  var quoteActionMap = {};
+  var quoteSideNoteMarker = '\n\n---SIDE_NOTE---\n';
+  var quoteMailBodyLines = [
+    'Please refer to the following quote with best fitment to the requirements:',
+    '1. Cost of resource (per man month):',
+    '[Quote table will be inserted automatically in the Word document]',
+    '2. Prevailing taxes, GST extra as applicable',
+    '3. Location: [Auto-filled from line item locations]',
+    '4. This Quote is valid till 10 days',
+    '',
+    'Kindly issue the Purchase Order (PO).'
+  ];
+  var defaultQuoteBody = quoteMailBodyLines.join('\n');
+  var quoteValidUntilTouched = false;
+  var quoteClientMap = {};
+
+  var quoteNotesTemplate = [
+    'Subject:',
+    '[Write subject here]',
+    '',
+    'Candidate:',
+    '[Write candidate name here]',
+    '',
+    'Dear:',
+    '[Write recipient name here]',
+    '',
+    'Body:',
+    defaultQuoteBody,
+    '',
+    'Regards:',
+    '[Write sender name here]',
+    '',
+    'Designation:',
+    '[Write designation here]'
+  ].join('\n');
+
+  function getDefaultQuoteFormFields() {
+    return {
+      subject: '',
+      candidateName: '',
+      recipient: '',
+      body: defaultQuoteBody,
+      sender: '',
+      designation: '',
+    };
+  }
+
+  function escapeRegex(value) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function extractStructuredField(mailText, label, nextLabels) {
+    var lookAhead = nextLabels.map(function (item) {
+      return '\\n' + escapeRegex(item) + ':';
+    }).join('|');
+    var endOfInput = '(?![\\s\\S])';
+    var pattern = new RegExp(
+      '^\\s*' + escapeRegex(label) + ':\\s*\\n?([\\s\\S]*?)(?=' + (lookAhead || endOfInput) + '|' + endOfInput + ')',
+      'im'
+    );
+    var match = String(mailText || '').match(pattern);
+    return match ? match[1].trim() : '';
+  }
+
+  function collectQuoteItemLocations() {
+    var locations = [];
+    document.querySelectorAll('#quoteItemsBody .qi-loc').forEach(function (input) {
+      var value = String(input.value || '').trim();
+      if (!value) return;
+      var exists = locations.some(function (item) { return item.toLowerCase() === value.toLowerCase(); });
+      if (!exists) locations.push(value);
+    });
+    return locations;
+  }
+
+  function toLocalDateInputValue(date) {
+    var year = date.getFullYear();
+    var month = String(date.getMonth() + 1).padStart(2, '0');
+    var day = String(date.getDate()).padStart(2, '0');
+    return year + '-' + month + '-' + day;
+  }
+
+  function addDaysToInputDate(dateValue, days) {
+    if (!dateValue) return '';
+    var parts = String(dateValue).split('-').map(function (item) { return parseInt(item, 10); });
+    if (parts.length !== 3 || parts.some(isNaN)) return '';
+    var date = new Date(parts[0], parts[1] - 1, parts[2]);
+    date.setDate(date.getDate() + days);
+    return toLocalDateInputValue(date);
+  }
+
+  function getValidityDaysText() {
+    var quoteDate = document.getElementById('quoteDate').value;
+    var validUntil = document.getElementById('quoteValidUntil').value;
+    if (!quoteDate || !validUntil) return '10 days';
+    var start = new Date(quoteDate + 'T00:00:00');
+    var end = new Date(validUntil + 'T00:00:00');
+    var diffMs = end.getTime() - start.getTime();
+    var diffDays = Number.isFinite(diffMs) ? Math.round(diffMs / 86400000) : 10;
+    if (diffDays <= 0) return '0 days';
+    return diffDays === 1 ? '1 day' : diffDays + ' days';
+  }
+
+  function updateQuoteValidityLine() {
+    var bodyEl = document.getElementById('quoteBody');
+    if (!bodyEl) return;
+    var lines = String(bodyEl.value || '').split(/\r?\n/);
+    var validityLine = '4. This Quote is valid till ' + getValidityDaysText();
+    var found = false;
+    lines = lines.map(function (line) {
+      if (/^4\.\s*This Quote is valid till\b/i.test(String(line).trim())) {
+        found = true;
+        return validityLine;
+      }
+      return line;
+    });
+    if (!found) {
+      var insertAt = -1;
+      lines.forEach(function (line, index) {
+        if (/^3\.\s*Location\s*:/i.test(String(line).trim())) insertAt = index + 1;
+      });
+      if (insertAt === -1) {
+        lines.push(validityLine);
+      } else {
+        lines.splice(insertAt, 0, validityLine);
+      }
+    }
+    bodyEl.value = lines.join('\n');
+  }
+
+  function updateQuoteLocationLine() {
+    var bodyEl = document.getElementById('quoteBody');
+    if (!bodyEl) return;
+    var locations = collectQuoteItemLocations();
+    var locationLine = '3. Location: ' + (locations.length ? locations.join(', ') : '[Auto-filled from line item locations]');
+    var lines = String(bodyEl.value || '').split(/\r?\n/);
+    var found = false;
+    lines = lines.map(function (line) {
+      if (/^3\.\s*Location\s*:/i.test(String(line).trim())) {
+        found = true;
+        return locationLine;
+      }
+      return line;
+    });
+    if (!found) {
+      var insertAt = -1;
+      lines.forEach(function (line, index) {
+        if (/^2\.\s*Prevailing taxes\b/i.test(String(line).trim())) insertAt = index + 1;
+      });
+      if (insertAt === -1) {
+        lines.push(locationLine);
+      } else {
+        lines.splice(insertAt, 0, locationLine);
+      }
+    }
+    bodyEl.value = lines.join('\n');
+  }
+  if (typeof window !== 'undefined') {
+    window.updateQuoteLocationLine = updateQuoteLocationLine;
+  }
+
+  function syncValidUntilFromQuoteDate(force) {
+    var quoteDate = document.getElementById('quoteDate').value;
+    var validUntilEl = document.getElementById('quoteValidUntil');
+    if (!quoteDate || !validUntilEl) return;
+    if (!force && quoteValidUntilTouched && validUntilEl.value) {
+      updateQuoteValidityLine();
+      return;
+    }
+    validUntilEl.value = addDaysToInputDate(quoteDate, 10);
+    updateQuoteValidityLine();
+  }
+
+  function syncQuoteBodyAutofills(forceValidity) {
+    updateQuoteLocationLine();
+    if (forceValidity === true) {
+      syncValidUntilFromQuoteDate(true);
+      return;
+    }
+    if (forceValidity === false) {
+      updateQuoteValidityLine();
+      return;
+    }
+    syncValidUntilFromQuoteDate(false);
+  }
+
+  function buildQuoteMailFormat(fields) {
+    var resolved = fields || getDefaultQuoteFormFields();
+    return [
+      'Subject:',
+      resolved.subject || '[Write subject here]',
+      '',
+      'Candidate:',
+      resolved.candidateName || '[Write candidate name here]',
+      '',
+      'Dear:',
+      resolved.recipient || '[Write recipient name here]',
+      '',
+      'Body:',
+      resolved.body || defaultQuoteBody,
+      '',
+      'Regards:',
+      resolved.sender || '[Write sender name here]',
+      '',
+      'Designation:',
+      resolved.designation || '[Write designation here]'
+    ].join('\n');
+  }
+
+  function parseQuoteMailFormat(mailText) {
+    var normalized = String(mailText || '').trim();
+    if (!normalized) return getDefaultQuoteFormFields();
+    var structuredSubject = extractStructuredField(normalized, 'Subject', ['Candidate', 'Dear', 'Body', 'Regards', 'Designation']);
+    var structuredCandidate = extractStructuredField(normalized, 'Candidate', ['Dear', 'Body', 'Regards', 'Designation']);
+    var structuredRecipient = extractStructuredField(normalized, 'Dear', ['Body', 'Regards', 'Designation']);
+    var structuredBody = extractStructuredField(normalized, 'Body', ['Regards', 'Designation']);
+    var structuredSender = extractStructuredField(normalized, 'Regards', ['Designation']);
+    var structuredDesignation = extractStructuredField(normalized, 'Designation', []);
+
+    if (structuredSubject || structuredCandidate || structuredRecipient || structuredBody || structuredSender || structuredDesignation) {
+      return {
+        subject: structuredSubject === '[Write subject here]' ? '' : structuredSubject,
+        candidateName: (structuredCandidate || '') === '[Write candidate name here]'
+          ? ''
+          : structuredCandidate,
+        recipient: structuredRecipient === '[Write recipient name here]' ? '' : structuredRecipient,
+        body: structuredBody || defaultQuoteBody,
+        sender: structuredSender === '[Write sender name here]' ? '' : structuredSender,
+        designation: structuredDesignation === '[Write designation here]' ? '' : structuredDesignation,
+      };
+    }
+
+    return {
+      subject: extractStructuredField(normalized, 'Subject', ['Candidate', 'Dear', 'Body', 'Regards', 'Designation']).replace(/^Subject:\s*/i, '').trim(),
+      candidateName: '',
+      recipient: (function () {
+        var dearLine = String(normalized || '').match(/^\s*Dear\s+(.+)$/im);
+        return dearLine ? dearLine[1].replace(/,\s*$/, '').trim() : '';
+      })(),
+      body: defaultQuoteBody,
+      sender: normalized.split(/\r?\n/).filter(Boolean).slice(-1)[0] === '[Write sender name here]'
+        ? ''
+        : normalized.split(/\r?\n/).filter(Boolean).slice(-1)[0] || '',
+      designation: '',
+    };
+  }
+
+  function setQuoteMailFormFields(fields) {
+    var values = fields || getDefaultQuoteFormFields();
+    document.getElementById('quoteSubject').value = values.subject || '';
+    document.getElementById('quoteCandidateName').value = values.candidateName || '';
+    document.getElementById('quoteRecipient').value = values.recipient || '';
+    document.getElementById('quoteBody').value = values.body || defaultQuoteBody;
+    document.getElementById('quoteSender').value = values.sender || '';
+    document.getElementById('quoteDesignation').value = values.designation || '';
+  }
+
+  function getQuoteMailFormFields() {
+    return {
+      subject: document.getElementById('quoteSubject').value.trim(),
+      candidateName: document.getElementById('quoteCandidateName').value.trim(),
+      recipient: document.getElementById('quoteRecipient').value.trim(),
+      body: document.getElementById('quoteBody').value.trim() || defaultQuoteBody,
+      sender: document.getElementById('quoteSender').value.trim(),
+      designation: document.getElementById('quoteDesignation').value.trim(),
+    };
+  }
+
+  function splitStoredQuoteNotes(notes) {
+    var raw = String(notes || '');
+    var markerIndex = raw.indexOf(quoteSideNoteMarker);
+    if (markerIndex === -1) {
+      return {
+        mailFormat: raw || quoteNotesTemplate,
+        sideNote: '',
+      };
+    }
+    return {
+      mailFormat: raw.slice(0, markerIndex).trim() || quoteNotesTemplate,
+      sideNote: raw.slice(markerIndex + quoteSideNoteMarker.length).trim(),
+    };
+  }
+
+  function buildStoredQuoteNotes(mailFormat, sideNote) {
+    var mail = String(mailFormat || '').trim();
+    var side = String(sideNote || '').trim();
+    if (!side) return mail;
+    return mail + quoteSideNoteMarker + side;
+  }
+
+  window.openQuoteModal = function () {
+    document.getElementById('quoteForm').reset();
+    document.getElementById('quoteItemsBody').innerHTML = '';
+    document.getElementById('quoteModalTitle').textContent = 'Create Quote';
+    document.getElementById('quoteFormSubmitBtn').textContent = 'Save';
+    document.getElementById('quoteId').value = '';
+    quoteValidUntilTouched = false;
+    setQuoteMailFormFields(getDefaultQuoteFormFields());
+    document.getElementById('quoteDate').value = toLocalDateInputValue(new Date());
+    syncQuoteBodyAutofills(true);
+    document.getElementById('quoteSideNote').value = '';
+    window.quoteEdit = null;
+    window.quoteAmendSource = null;
+    addItemRow();
+    openModal('quoteModal');
+  };
+  window.closeQuoteModal = function () {
+    window.quoteEdit = null;
+    window.quoteAmendSource = null;
+    closeModal('quoteModal');
+  };
+  window.closeConvertSowModal = function () { closeModal('convertSowModal'); };
+
+  function getStatusDisplayText(status) {
+    return status === 'Draft' ? 'To Be Sent' : status;
+  }
+
+  var statusBadge = function (s) {
+    var map = { Draft: 'badge-processing', Sent: 'badge-processing', Accepted: 'badge-success', Rejected: 'badge-error', Expired: 'badge-warning' };
+    return '<span class="' + (map[s] || 'badge-processing') + '">' + getStatusDisplayText(s) + '</span>';
+  };
+
+  async function loadClients() {
+    try {
+      var res = await apiCall('GET', '/api/clients');
+      quoteClientMap = {};
+      (res.data || []).forEach(function (client) {
+        quoteClientMap[String(client.id)] = client;
+      });
+      ['quoteFilterClient', 'quoteClient'].forEach(function (id) {
+        var sel = document.getElementById(id);
+        if (!sel) return;
+        var first = sel.querySelector('option');
+        sel.innerHTML = first ? first.outerHTML : '';
+        res.data.forEach(function (c) {
+          sel.innerHTML += '<option value="' + c.id + '">' + escapeHtml(getClientDisplayName(c)) + '</option>';
+        });
+      });
+    } catch (e) { /* ignore */ }
+  }
+
+  async function loadSowsForClient(clientId) {
+    var sel = document.getElementById('convertExistingSowId');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Select SOW</option>';
+    if (!clientId) return;
+    try {
+      var res = await apiCall('GET', '/api/sows?clientId=' + clientId);
+      res.data.forEach(function (s) {
+        sel.innerHTML += '<option value="' + s.id + '">' + escapeHtml(s.sow_number) + ' (' + escapeHtml(s.status) + ')</option>';
+      });
+    } catch (e) { /* ignore */ }
+  }
+
+  function syncConvertSowMode() {
+    var mode = document.getElementById('convertSowMode').value;
+    document.getElementById('convertExistingSowSection').classList.toggle('hidden', mode !== 'existing');
+    document.getElementById('convertNewSowSection').classList.toggle('hidden', mode !== 'new');
+  }
+
+  function getQuoteDisplayContext(q) {
+    var parsedNotes = splitStoredQuoteNotes(q.notes || '');
+    var mailFields = parseQuoteMailFormat(parsedNotes.mailFormat);
+    var candidateName = mailFields.candidateName || '';
+    var client = quoteClientMap[String(q.client_id)] || null;
+    var clientDisplay = client ? getClientDisplayName(client) : (q.client_name || '');
+    var baseQuoteNumber = q.base_quote_number || q.quote_number || '';
+    return {
+      parsedNotes: parsedNotes,
+      mailFields: mailFields,
+      candidateName: candidateName,
+      clientDisplay: clientDisplay,
+      baseQuoteNumber: baseQuoteNumber,
+    };
+  }
+
+  function getQuoteVersionNumber(q) {
+    return parseInt(q && q.version_number, 10) || 0;
+  }
+
+  function getLatestAmendmentMap(amendments) {
+    var map = {};
+    (amendments || []).forEach(function (row) {
+      var base = String(row.base_quote_number || '').trim();
+      if (!base) return;
+      var current = map[base];
+      if (!current || getQuoteVersionNumber(row) > getQuoteVersionNumber(current)) {
+        map[base] = row;
+      }
+    });
+    return map;
+  }
+
+  function getQuoteChainState(q, latestAmendmentMap) {
+    var base = String(q.base_quote_number || q.quote_number || '').trim();
+    var latest = latestAmendmentMap[base] || null;
+    var rowVersion = getQuoteVersionNumber(q);
+    var latestVersion = latest ? getQuoteVersionNumber(latest) : rowVersion;
+    var isSuperseded = Boolean(latest && latestVersion > rowVersion);
+    return {
+      baseQuoteNumber: base,
+      latestAmendment: latest,
+      isSuperseded: isSuperseded,
+      latestAmendmentId: isSuperseded ? latest.id : null,
+    };
+  }
+
+  function renderQuoteStatus(q, chainState) {
+    if (chainState && chainState.isSuperseded && chainState.latestAmendmentId) {
+      return '<button type="button" class="status-link-button badge-warning" onclick="openLatestAmendment(' + chainState.latestAmendmentId + ')" title="Open latest amendment">Amended</button>';
+    }
+    return statusBadge(q.status);
+  }
+
+  function buildQuoteActions(q, chainState) {
+    var actionsHtml = '<div class="table-action-group">';
+    if (!(chainState && chainState.isSuperseded)) {
+      if (q.status === 'Draft') {
+        actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="editQuote(' + q.id + ')" title="Edit"><span class="material-symbols-outlined text-base">edit</span></button>';
+      }
+      if (q.status === 'Sent') {
+        actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="amendQuote(' + q.id + ')" title="Amend Quote"><span class="material-symbols-outlined text-base">edit_document</span></button>';
+      }
+    }
+    actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="viewQuote(' + q.id + ')" title="View"><span class="material-symbols-outlined text-base">visibility</span></button>';
+    actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="downloadFile(\'/api/quotes/' + q.id + '/download\')" title="Download DOCX"><span class="material-symbols-outlined text-base">description</span></button>';
+    if (!(chainState && chainState.isSuperseded)) {
+      var VALID_TRANSITIONS = {
+        Draft: ['Sent'],
+        Sent: ['Accepted', 'Rejected'],
+        Rejected: ['Draft'],
+        Accepted: [],
+        Expired: []
+      };
+      quoteActionMap[q.id] = {
+        id: q.id,
+        status: q.status,
+        allowed: (VALID_TRANSITIONS[q.status] || []).slice(),
+      };
+      actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="openQuoteActions(' + q.id + ')" title="More"><span class="material-symbols-outlined text-base">more_vert</span></button>';
+    }
+    actionsHtml += '</div>';
+    return actionsHtml;
+  }
+
+  function updateQuotesSummary(rows, amendmentRows) {
+    var items = rows || [];
+    var amendments = amendmentRows || [];
+    var summary = document.getElementById('quotesSummary');
+    var count = document.getElementById('quotesTableCount');
+    var accepted = items.filter(function (q) { return q.status === 'Accepted'; }).length;
+    var amendedFamilies = new Set(amendments.map(function (q) { return String(q.base_quote_number || '').trim(); }).filter(Boolean)).size;
+    if (summary) {
+      var cards = summary.querySelectorAll('.table-summary-value');
+      if (cards[0]) cards[0].textContent = items.length;
+      if (cards[1]) cards[1].textContent = accepted;
+      if (cards[2]) cards[2].textContent = amendedFamilies;
+    }
+    if (count) count.textContent = items.length === 1 ? '1 row' : items.length + ' rows';
+  }
+
+  function updateQuotesVisibleCount() {
+    var tbody = document.getElementById('quotesBody');
+    var count = document.getElementById('quotesTableCount');
+    if (!tbody) return;
+    var visible = Array.from(tbody.querySelectorAll('tr')).filter(function (row) {
+      return !row.querySelector('td[colspan]') && row.style.display !== 'none';
+    }).length;
+    if (count) count.textContent = visible === 1 ? '1 row' : visible + ' rows';
+  }
+
+  function renderAmendments(rows) {
+    var tbody = document.getElementById('quotesAmendmentsBody');
+    var count = document.getElementById('quotesAmendmentsCount');
+    if (!tbody) return;
+    var items = rows || [];
+    if (count) count.textContent = items.length === 1 ? '1 amendment' : items.length + ' amendments';
+    if (items.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="9" class="text-center text-on-surface-variant py-8">No amended quotes yet</td></tr>';
+      return;
+    }
+
+    var latestAmendmentMap = getLatestAmendmentMap(items);
+    tbody.innerHTML = items.map(function (q) {
+      var view = getQuoteDisplayContext(q);
+      var chainState = getQuoteChainState(q, latestAmendmentMap);
+      var actionsHtml = buildQuoteActions(q, chainState);
+
+      return '<tr>' +
+        '<td><div class="table-cell-box"><span class="entity-pill entity-pill-strong">' + escapeHtml(q.quote_number || '') + '</span></div></td>' +
+        '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(view.baseQuoteNumber) + '">' + escapeHtml(view.baseQuoteNumber || '-') + '</span></div></td>' +
+        '<td><div class="table-cell-box table-cell-client"><span class="entity-pill quote-client-pill" title="' + escapeHtml(view.clientDisplay) + '">' + escapeHtml(view.clientDisplay) + '</span></div></td>' +
+        '<td><div class="table-cell-box table-cell-candidate"><span class="table-cell-text" title="' + escapeHtml(view.candidateName) + '">' + escapeHtml(view.candidateName || '-') + '</span></div></td>' +
+        '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(q.quote_date) + '</span></div></td>' +
+        '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(q.valid_until) + '</span></div></td>' +
+        '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(q.total_amount) + '</span></div></td>' +
+        '<td><div class="table-cell-box">' + renderQuoteStatus(q, chainState) + '</div></td>' +
+        '<td class="text-center"><div class="table-cell-box table-cell-center">' + actionsHtml + '</div></td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  async function loadQuotes() {
+    var tbody = document.getElementById('quotesBody');
+    showLoading(tbody);
+    var amendmentsBody = document.getElementById('quotesAmendmentsBody');
+    if (amendmentsBody) showLoading(amendmentsBody);
+    try {
+      var cid = document.getElementById('quoteFilterClient').value;
+      var status = document.getElementById('quoteFilterStatus').value;
+      var query = [];
+      if (cid) query.push('clientId=' + encodeURIComponent(cid));
+      if (status) query.push('status=' + encodeURIComponent(status));
+      var suffix = query.length ? ('?' + query.join('&')) : '';
+      var registerSuffix = suffix ? (suffix + '&mode=register') : '?mode=register';
+      var quotesResponse = await apiCall('GET', '/api/quotes' + registerSuffix);
+      var quotes = quotesResponse.data || [];
+      var amendments = [];
+      try {
+        var amendmentsResponse = await apiCall('GET', '/api/quotes/amendments' + suffix);
+        amendments = amendmentsResponse.data || [];
+      } catch (amendmentErr) {
+        amendments = [];
+        if (amendmentsBody) {
+          amendmentsBody.innerHTML = '<tr><td colspan="9" class="text-center text-on-surface-variant py-8">No amended quotes yet</td></tr>';
+        }
+      }
+      updateQuotesSummary(quotes, amendments);
+      quoteActionMap = {};
+      if (!(amendmentsBody && amendmentsBody.textContent.indexOf('No amended quotes yet') !== -1 && amendments.length === 0)) {
+        renderAmendments(amendments);
+      }
+      if (quotes.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-on-surface-variant py-8">No quotes found</td></tr>';
+      } else {
+        var latestAmendmentMap = getLatestAmendmentMap(amendments);
+        tbody.innerHTML = quotes.map(function (q) {
+          var view = getQuoteDisplayContext(q);
+          var chainState = getQuoteChainState(q, latestAmendmentMap);
+          var actionsHtml = buildQuoteActions(q, chainState);
+
+          return '<tr>' +
+            '<td><div class="table-cell-box"><span class="entity-pill entity-pill-strong">' + escapeHtml(q.quote_number) + '</span></div></td>' +
+            '<td><div class="table-cell-box table-cell-client"><span class="entity-pill quote-client-pill" title="' + escapeHtml(view.clientDisplay) + '">' + escapeHtml(view.clientDisplay) + '</span></div></td>' +
+            '<td><div class="table-cell-box table-cell-candidate"><span class="table-cell-text" title="' + escapeHtml(view.candidateName) + '">' + escapeHtml(view.candidateName || '-') + '</span></div></td>' +
+            '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(q.quote_date) + '</span></div></td>' +
+            '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(q.valid_until) + '</span></div></td>' +
+            '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(q.total_amount) + '</span></div></td>' +
+            '<td><div class="table-cell-box">' + renderQuoteStatus(q, chainState) + '</div></td>' +
+            '<td class="text-center"><div class="table-cell-box table-cell-center">' + actionsHtml + '</div></td>' +
+            '</tr>';
+        }).join('');
+      }
+      initTableSort('quotesTable');
+      updateQuotesVisibleCount();
+    } catch (err) {
+      showToast(err.message, 'danger');
+      hideLoading(tbody);
+      if (amendmentsBody) hideLoading(amendmentsBody);
+    }
+  }
+
+  window.openQuoteActions = function (id) {
+    var actionState = quoteActionMap[id];
+    var container = document.getElementById('quoteActionList');
+    var title = document.getElementById('quoteActionTitle');
+    var STATUS_LABELS = { Sent: 'Mark Sent', Accepted: 'Accept', Rejected: 'Reject', Draft: 'Revert to Draft', Expired: 'Mark Expired' };
+
+    if (!actionState || !container || !title) return;
+
+    title.textContent = 'Quote Actions';
+    container.innerHTML = '';
+
+    actionState.allowed.forEach(function (status) {
+      container.innerHTML += '<button type="button" class="w-full text-left rounded-xl px-4 py-3 text-sm font-medium text-on-surface bg-surface hover:bg-surface-container-highest transition-colors" onclick="runQuoteActionStatus(' + actionState.id + ', \'' + status + '\')">' + (STATUS_LABELS[status] || status) + '</button>';
+    });
+
+    if (actionState.status === 'Accepted') {
+      container.innerHTML += '<button type="button" class="w-full text-left rounded-xl px-4 py-3 text-sm font-medium text-on-surface bg-surface hover:bg-surface-container-highest transition-colors" onclick="runQuoteActionConvertToSow(' + actionState.id + ')">Link to SOW</button>';
+      container.innerHTML += '<button type="button" class="w-full text-left rounded-xl px-4 py-3 text-sm font-medium text-error bg-surface hover:bg-surface-container-highest transition-colors" onclick="runQuoteActionTerminate(' + actionState.id + ')">Terminate</button>';
+    }
+
+    if (actionState.status === 'Draft') {
+      container.innerHTML += '<button type="button" class="w-full text-left rounded-xl px-4 py-3 text-sm font-medium text-error bg-surface hover:bg-surface-container-highest transition-colors" onclick="runQuoteActionDelete(' + actionState.id + ')">Delete</button>';
+    }
+
+    openModal('quoteActionModal');
+  };
+
+  window.closeQuoteActions = function () {
+    closeModal('quoteActionModal');
+  };
+
+  window.runQuoteActionStatus = function (id, status) {
+    closeQuoteActions();
+    changeQuoteStatus(id, status);
+  };
+
+  window.runQuoteActionConvertToSow = function (id) {
+    closeQuoteActions();
+    convertToSOW(id);
+  };
+
+  window.runQuoteActionTerminate = function (id) {
+    closeQuoteActions();
+    terminateQuote(id);
+  };
+
+  window.runQuoteActionDelete = function (id) {
+    closeQuoteActions();
+    deleteQuote(id);
+  };
+
+  window.openLatestAmendment = function (id) {
+    viewQuote(id);
+  };
+
+  function addItemRow(item) {
+    var container = document.getElementById('quoteItemsBody');
+    var card = document.createElement('div');
+    var itemIndex = container.querySelectorAll('.quote-item-card').length + 1;
+    card.className = 'quote-item-card';
+    card.innerHTML =
+      '<div class="quote-item-card-header">' +
+      '<div>' +
+      '<div class="quote-item-card-label">Line Item</div>' +
+      '<div class="quote-item-card-title">Item ' + itemIndex + '</div>' +
+      '</div>' +
+      '<button type="button" class="btn-danger btn-sm inline-flex items-center gap-1 quote-item-remove">' +
+      '<span class="material-symbols-outlined text-base">close</span>Remove' +
+      '</button>' +
+      '</div>' +
+      '<div class="quote-item-grid">' +
+      '<div class="quote-item-field quote-item-field-wide">' +
+      '<label class="quote-item-input-label">Role / Description</label>' +
+      '<textarea class="qi-desc" rows="3" required placeholder="Enter role, skillset, or description">' + (item ? escapeHtml(item.description) : '') + '</textarea>' +
+      '</div>' +
+      '<div class="quote-item-field">' +
+      '<label class="quote-item-input-label">Location</label>' +
+      '<input type="text" class="qi-loc" value="' + (item && item.location ? escapeHtml(item.location) : '') + '" placeholder="Enter location">' +
+      '</div>' +
+      '<div class="quote-item-field">' +
+      '<label class="quote-item-input-label">Quantity</label>' +
+      '<input type="number" class="qi-qty" value="' + (item ? item.quantity : 1) + '" min="1">' +
+      '</div>' +
+      '<div class="quote-item-field">' +
+      '<label class="quote-item-input-label">Unit Rate</label>' +
+      '<input type="number" class="qi-rate" value="' + (item ? item.unit_rate : '') + '" step="0.01" min="0" placeholder="Enter unit rate">' +
+      '</div>' +
+      '<div class="quote-item-field">' +
+      '<label class="quote-item-input-label">Amount</label>' +
+      '<input type="number" class="qi-amt" value="' + (item ? item.amount : '') + '" step="0.01" readonly>' +
+      '</div>' +
+      '</div>';
+    container.appendChild(card);
+
+    function updateItemAmount() {
+      var qty = parseInt(card.querySelector('.qi-qty').value, 10) || 0;
+      var rate = parseFloat(card.querySelector('.qi-rate').value) || 0;
+      card.querySelector('.qi-amt').value = qty * rate;
+      recalcQuote();
+    }
+
+    card.querySelector('.qi-qty').addEventListener('input', updateItemAmount);
+    card.querySelector('.qi-rate').addEventListener('input', updateItemAmount);
+    card.querySelector('.qi-loc').addEventListener('input', function () {
+      updateQuoteLocationLine();
+    });
+    card.querySelector('.quote-item-remove').addEventListener('click', function () {
+      card.remove();
+      refreshQuoteItemTitles();
+      recalcQuote();
+      updateQuoteLocationLine();
+    });
+    updateItemAmount();
+  }
+
+  function refreshQuoteItemTitles() {
+    document.querySelectorAll('#quoteItemsBody .quote-item-card').forEach(function (card, index) {
+      var title = card.querySelector('.quote-item-card-title');
+      if (title) title.textContent = 'Item ' + (index + 1);
+    });
+  }
+
+  window.recalcQuote = function () {
+    var total = 0;
+    document.querySelectorAll('.qi-amt').forEach(function (el) { total += parseFloat(el.value) || 0; });
+    document.getElementById('quoteTotal').textContent = formatCurrency(total);
+  };
+
+  window.editQuote = async function (id) {
+    try {
+      var res = await apiCall('GET', '/api/quotes/' + id);
+      var q = res.data;
+      window.quoteEdit = id;
+      window.quoteAmendSource = null;
+      document.getElementById('quoteModalTitle').textContent = 'Edit Quote';
+      document.getElementById('quoteFormSubmitBtn').textContent = 'Save Changes';
+      document.getElementById('quoteId').value = id;
+      document.getElementById('quoteClient').value = q.client_id;
+      document.getElementById('quoteDate').value = q.quote_date;
+      document.getElementById('quoteValidUntil').value = q.valid_until;
+      quoteValidUntilTouched = true;
+      var parsedNotes = splitStoredQuoteNotes(q.notes || '');
+      setQuoteMailFormFields(parseQuoteMailFormat(parsedNotes.mailFormat));
+      document.getElementById('quoteSideNote').value = parsedNotes.sideNote;
+      document.getElementById('quoteItemsBody').innerHTML = '';
+      q.items.forEach(function (item) { addItemRow(item); });
+      syncQuoteBodyAutofills(false);
+      recalcQuote();
+      openModal('quoteModal');
+    } catch (err) { showToast(err.message, 'danger'); }
+  };
+
+  window.amendQuote = async function (id) {
+    try {
+      var res = await apiCall('GET', '/api/quotes/' + id);
+      var q = res.data;
+      window.quoteEdit = null;
+      window.quoteAmendSource = id;
+      document.getElementById('quoteModalTitle').textContent = 'Amend Quote';
+      document.getElementById('quoteFormSubmitBtn').textContent = 'Create Amendment';
+      document.getElementById('quoteId').value = q.id;
+      document.getElementById('quoteClient').value = q.client_id;
+      document.getElementById('quoteDate').value = q.quote_date;
+      document.getElementById('quoteValidUntil').value = q.valid_until;
+      quoteValidUntilTouched = true;
+      var parsedNotes = splitStoredQuoteNotes(q.notes || '');
+      setQuoteMailFormFields(parseQuoteMailFormat(parsedNotes.mailFormat));
+      document.getElementById('quoteSideNote').value = parsedNotes.sideNote;
+      document.getElementById('quoteItemsBody').innerHTML = '';
+      q.items.forEach(function (item) { addItemRow(item); });
+      syncQuoteBodyAutofills(false);
+      recalcQuote();
+      openModal('quoteModal');
+    } catch (err) { showToast(err.message, 'danger'); }
+  };
+
+  window.viewQuote = async function (id) {
+    try {
+      var res = await apiCall('GET', '/api/quotes/' + id);
+      var q = res.data;
+      var parsedNotes = splitStoredQuoteNotes(q.notes || '');
+      document.getElementById('quoteDetailTitle').textContent = 'Quote: ' + q.quote_number;
+
+      var html = '<div class="space-y-4">';
+      html += '<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">';
+      html += '<div><span class="text-on-surface-variant">Quote #:</span> <strong>' + escapeHtml(q.quote_number) + '</strong></div>';
+      html += '<div><span class="text-on-surface-variant">Client:</span> <strong>' + escapeHtml(q.client_name) + '</strong></div>';
+      html += '<div><span class="text-on-surface-variant">Quote Date:</span> ' + formatDate(q.quote_date) + '</div>';
+      html += '<div><span class="text-on-surface-variant">Valid Until:</span> ' + formatDate(q.valid_until) + '</div>';
+      html += '<div><span class="text-on-surface-variant">Status:</span> ' + statusBadge(q.status) + '</div>';
+      html += '<div><span class="text-on-surface-variant">Total:</span> <strong>' + formatCurrency(q.total_amount) + '</strong></div>';
+      html += '</div>';
+
+      html += '<h6 class="text-sm font-bold uppercase tracking-[0.2em] text-on-surface-variant pt-2">Line Items</h6>';
+      html += '<table class="stitch-table"><thead><tr><th>Description</th><th>Location</th><th class="text-center">Qty</th><th class="text-right">Unit Rate</th><th class="text-right">Amount</th></tr></thead><tbody>';
+      q.items.forEach(function (item) {
+        html += '<tr>' +
+          '<td>' + escapeHtml(item.description) + '</td>' +
+          '<td>' + escapeHtml(item.location || '') + '</td>' +
+          '<td class="text-center">' + item.quantity + '</td>' +
+          '<td class="text-right">' + formatCurrency(item.unit_rate) + '</td>' +
+          '<td class="text-right">' + formatCurrency(item.amount) + '</td>' +
+          '</tr>';
+      });
+      html += '<tr><td colspan="4" class="text-right font-bold">Total</td><td class="text-right font-bold">' + formatCurrency(q.total_amount) + '</td></tr>';
+      html += '</tbody></table>';
+
+      html += '<div class="grid grid-cols-1 gap-4 pt-2">';
+      html += '<div><h6 class="text-sm font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-2">Mail Format</h6><div class="rounded-xl bg-surface-container-high p-4 text-sm whitespace-pre-wrap">' + escapeHtml(parsedNotes.mailFormat || '') + '</div></div>';
+      if (parsedNotes.sideNote) {
+        html += '<div><h6 class="text-sm font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-2">Side Note</h6><div class="rounded-xl bg-surface-container-high p-4 text-sm whitespace-pre-wrap">' + escapeHtml(parsedNotes.sideNote) + '</div></div>';
+      }
+      html += '</div>';
+      html += '</div>';
+
+      document.getElementById('quoteDetailContent').innerHTML = html;
+      openModal('quoteDetailModal');
+    } catch (err) { showToast(err.message, 'danger'); }
+  };
+
+  window.changeQuoteStatus = async function (id, status) {
+    try {
+      await apiCall('PATCH', '/api/quotes/' + id + '/status', { status: status });
+      showToast('Quote status updated to ' + status, 'success');
+      loadQuotes();
+    } catch (err) { showToast(err.message, 'danger'); }
+  };
+
+  window.terminateQuote = async function (id) {
+    var confirmed = await confirmAction('Terminate Quote', 'Are you sure you want to terminate this quote? Its linked document folder will also be deleted.');
+    if (!confirmed) return;
+    try {
+      await apiCall('PATCH', '/api/quotes/' + id + '/status', { status: 'Expired' });
+      showToast('Quote terminated', 'success');
+      loadQuotes();
+    } catch (err) { showToast(err.message, 'danger'); }
+  };
+
+  window.deleteQuote = async function (id) {
+    var confirmed = await confirmAction('Delete Quote', 'Are you sure you want to delete this quote? This cannot be undone.');
+    if (!confirmed) return;
+    try {
+      await apiCall('DELETE', '/api/quotes/' + id);
+      showToast('Quote deleted', 'success');
+      loadQuotes();
+    } catch (err) { showToast(err.message, 'danger'); }
+  };
+
+  window.convertToSOW = async function (id) {
+    document.getElementById('convertSowForm').reset();
+    document.getElementById('convertQuoteId').value = id;
+    document.getElementById('convertSowMode').value = 'new';
+    syncConvertSowMode();
+    try {
+      var res = await apiCall('GET', '/api/quotes/' + id);
+      await loadSowsForClient(res.data.client_id);
+    } catch (e) { /* ignore */ }
+    openModal('convertSowModal');
+  };
+
+  document.getElementById('quoteForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var items = [];
+    document.querySelectorAll('#quoteItemsBody .quote-item-card').forEach(function (row) {
+      items.push({
+        description: row.querySelector('.qi-desc').value.trim(),
+        location: row.querySelector('.qi-loc').value.trim() || null,
+        quantity: parseInt(row.querySelector('.qi-qty').value, 10) || 1,
+        unit_rate: parseFloat(row.querySelector('.qi-rate').value) || 0,
+        amount: parseFloat(row.querySelector('.qi-amt').value) || 0,
+      });
+    });
+    var data = {
+      client_id: parseInt(document.getElementById('quoteClient').value, 10),
+      quote_date: document.getElementById('quoteDate').value,
+      valid_until: document.getElementById('quoteValidUntil').value,
+      notes: buildStoredQuoteNotes(
+        (function () {
+          syncQuoteBodyAutofills(false);
+          return buildQuoteMailFormat(getQuoteMailFormFields());
+        })(),
+        document.getElementById('quoteSideNote').value
+      ),
+      items: items,
+    };
+    try {
+      if (window.quoteEdit) {
+        await apiCall('PUT', '/api/quotes/' + window.quoteEdit, data);
+        showToast('Quote updated', 'success');
+      } else if (window.quoteAmendSource) {
+        await apiCall('POST', '/api/quotes/' + window.quoteAmendSource + '/amend', data);
+        showToast('Quote amendment created', 'success');
+      } else {
+        await apiCall('POST', '/api/quotes', data);
+        showToast('Quote created', 'success');
+      }
+      closeQuoteModal();
+      loadQuotes();
+    } catch (err) { showToast(err.message, 'danger'); }
+  });
+
+  document.getElementById('convertSowForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var quoteId = document.getElementById('convertQuoteId').value;
+    var mode = document.getElementById('convertSowMode').value;
+    var payload = {
+      mode: mode,
+      sow_id: document.getElementById('convertExistingSowId').value ? parseInt(document.getElementById('convertExistingSowId').value, 10) : null,
+      sow_number: document.getElementById('convertSowNumber').value.trim() || null,
+      sow_date: document.getElementById('convertSowDate').value || null,
+      effective_start: document.getElementById('convertEffectiveStart').value || null,
+      effective_end: document.getElementById('convertEffectiveEnd').value || null,
+      notes: document.getElementById('convertSowNotes').value.trim() || null,
+    };
+    try {
+      await apiCall('POST', '/api/quotes/' + quoteId + '/convert-to-sow', payload);
+      showToast(mode === 'existing' ? 'Quote linked to existing SOW' : 'Statement of Work created!', 'success');
+      closeConvertSowModal();
+      loadQuotes();
+    } catch (err) { showToast(err.message, 'danger'); }
+  });
+
+  document.getElementById('convertSowMode').addEventListener('change', syncConvertSowMode);
+  document.getElementById('btnAddQuoteItem').addEventListener('click', function () { addItemRow(); });
+  document.getElementById('quoteFilterClient').addEventListener('change', loadQuotes);
+  document.getElementById('quoteFilterStatus').addEventListener('change', loadQuotes);
+  document.getElementById('quoteDate').addEventListener('input', function () {
+    syncValidUntilFromQuoteDate(false);
+  });
+  document.getElementById('quoteValidUntil').addEventListener('input', function () {
+    quoteValidUntilTouched = true;
+    updateQuoteValidityLine();
+  });
+
+  // Initialize search
+  initTableSearch('quotesSearch', 'quotesBody');
+  document.getElementById('quotesSearch').addEventListener('input', function () {
+    setTimeout(updateQuotesVisibleCount, 250);
+  });
+  loadClients().then(loadQuotes);
+})();

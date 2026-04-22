@@ -1,0 +1,181 @@
+<div class="p-5 sm:p-8 space-y-6 fade-in">
+  <div class="orders-hero">
+    <div class="page-hero-copy">
+      <p class="page-hero-eyebrow">Order Ledger</p>
+    </div>
+    <button class="btn-primary inline-flex items-center gap-2" onclick="window.orderEdit=null;openOrderModal()">
+      <span class="material-symbols-outlined text-lg">add</span>Create Order
+    </button>
+  </div>
+
+  <div id="ordersSummary" class="grid gap-4 md:grid-cols-3">
+    <div class="table-summary-card">
+      <div class="table-summary-label">Total Orders</div>
+      <div class="table-summary-value">0</div>
+    </div>
+    <div class="table-summary-card">
+      <div class="table-summary-label">Clients Covered</div>
+      <div class="table-summary-value">0</div>
+    </div>
+    <div class="table-summary-card">
+      <div class="table-summary-label">Upcoming Bills</div>
+      <div class="table-summary-value">0</div>
+    </div>
+  </div>
+
+  <div class="stat-card !p-4">
+    <div class="flex items-center gap-3 max-w-md">
+      <span class="material-symbols-outlined text-on-surface-variant">search</span>
+      <input type="text" id="ordersSearch" placeholder="Search orders..." class="flex-1">
+    </div>
+  </div>
+
+  <div class="stat-card !p-0 overflow-hidden table-section-card">
+    <div class="table-section-header">
+      <h3 class="table-section-title">Order Ledger</h3>
+      <div class="table-section-count" id="ordersTableCount">0 rows</div>
+    </div>
+    <div class="overflow-x-auto styled-scrollbar orders-table-scroll">
+      <table class="stitch-table" id="ordersTable">
+        <thead>
+          <tr>
+            <th class="sortable" data-sort-key="0">Client</th>
+            <th class="sortable" data-sort-key="1">Candidate</th>
+            <th class="sortable" data-sort-key="2">Requisition / Description</th>
+            <th class="sortable" data-sort-key="3">Position / Role</th>
+            <th class="sortable" data-sort-key="4" data-sort-type="date">Date of Offer</th>
+            <th class="sortable" data-sort-key="5" data-sort-type="date">Date of Joining</th>
+            <th class="sortable text-right" data-sort-key="6" data-sort-type="currency">CTC Offered</th>
+            <th class="sortable" data-sort-key="7" data-sort-type="date">Next Bill Date</th>
+            <th class="sortable text-right" data-sort-key="8" data-sort-type="currency">Bill Amount</th>
+            <th class="sortable" data-sort-key="9">Remarks</th>
+            <th class="text-center">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="ordersBody">
+          <tr><td colspan="11"><div class="loading-spinner"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="orderActionModal" class="fixed inset-0 z-[220] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-md mx-4 border border-outline-variant/15 shadow-2xl">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8">
+      <h5 class="font-headline font-bold text-lg text-on-surface" id="orderActionTitle">Order Actions</h5>
+      <button type="button" onclick="closeOrderActions()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="p-4">
+      <div id="orderActionList" class="space-y-2"></div>
+    </div>
+  </div>
+</div>
+
+<div id="orderModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-xl mx-4 border border-outline-variant/15 shadow-2xl">
+    <form id="orderForm">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8">
+        <h5 class="font-headline font-bold text-lg text-on-surface" id="orderModalTitle">Create Order</h5>
+        <button type="button" onclick="closeOrderModal()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+
+      <div class="p-6 space-y-4">
+        <input type="hidden" id="orderId">
+
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Client *</label>
+          <select id="orderClient" required>
+            <option value="">Select client</option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Candidate Name *</label>
+            <input type="text" id="orderCandidateName" required>
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Requisition / Description</label>
+            <input type="text" id="orderRequisitionDescription">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Position / Role *</label>
+            <input type="text" id="orderPositionRole" required>
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Date of Offer</label>
+            <input type="date" id="orderDateOfOffer">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Date of Joining *</label>
+            <input type="date" id="orderDateOfJoining" required>
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">CTC Offered *</label>
+            <input type="number" id="orderCTCOffered" min="0.01" step="0.01" required>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Next Bill Date (Auto)</label>
+            <input type="date" id="orderNextBillDate" disabled>
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Bill Amount (Auto)</label>
+            <input type="text" id="orderBillAmount" disabled>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Remarks</label>
+          <textarea id="orderRemarks" rows="3"></textarea>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
+        <button type="button" class="btn-secondary" onclick="closeOrderModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="orderInvoiceSentModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-sm mx-4 border border-outline-variant/15 shadow-2xl">
+    <form id="orderInvoiceSentForm">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8">
+        <h5 class="font-headline font-bold text-lg text-on-surface">Update Invoice</h5>
+        <button type="button" onclick="closeOrderInvoiceSentModal()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="p-6 space-y-4">
+        <input type="hidden" id="orderInvoiceReminderId">
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Invoice No. *</label>
+          <input type="text" id="orderInvoiceNumber" required>
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Invoice Date *</label>
+          <input type="date" id="orderInvoiceDate" required>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
+        <button type="button" class="btn-secondary" onclick="closeOrderInvoiceSentModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>

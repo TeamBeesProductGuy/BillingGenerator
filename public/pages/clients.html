@@ -1,0 +1,218 @@
+<div class="p-5 sm:p-8 space-y-6 fade-in">
+  <div class="client-board-hero">
+    <div class="page-hero-copy">
+      <p class="page-hero-eyebrow">Client Directory</p>
+    </div>
+    <button class="btn-primary inline-flex items-center gap-2" onclick="window.clientEdit=null;openClientModal()">
+      <span class="material-symbols-outlined text-lg">add</span>Add Client
+    </button>
+  </div>
+
+  <div id="clientsSummary" class="grid gap-4 md:grid-cols-2">
+    <div class="client-summary-card client-summary-card-permanent">
+      <div class="client-summary-label">Permanent Clients</div>
+      <div class="client-summary-value">0</div>
+    </div>
+    <div class="client-summary-card client-summary-card-contractual">
+      <div class="client-summary-label">Contractual Clients</div>
+      <div class="client-summary-value">0</div>
+    </div>
+  </div>
+
+  <div class="stat-card !p-4">
+    <div class="flex items-center gap-3 max-w-md">
+      <span class="material-symbols-outlined text-on-surface-variant">search</span>
+      <input type="text" id="clientsSearch" placeholder="Search clients..." class="flex-1">
+    </div>
+  </div>
+
+  <div id="clientsBoard" class="space-y-6">
+    <div class="stat-card !p-0 overflow-hidden">
+      <div class="p-6"><div class="loading-spinner"></div></div>
+    </div>
+  </div>
+</div>
+
+<div id="clientModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-3xl mx-4 border border-outline-variant/15 shadow-2xl max-h-[90vh] overflow-y-auto styled-scrollbar">
+    <form id="clientForm">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8">
+        <h5 class="font-headline font-bold text-lg text-on-surface" id="clientModalTitle">Add Client</h5>
+        <button type="button" onclick="closeClientModal()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="p-6 space-y-4">
+        <input type="hidden" id="clientId">
+        <input type="hidden" id="clientEntityType" value="Contractual">
+
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Contract Type *</label>
+          <select id="contractType" required>
+            <option value="Contractual">Contractual</option>
+            <option value="Permanent">Permanent</option>
+          </select>
+        </div>
+
+        <div id="contractualFields" class="space-y-4">
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Client Name *</label>
+            <input type="text" id="clientName">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Abbreviation</label>
+            <input type="text" id="clientAbbreviation" placeholder="e.g. NTT">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Contact Person</label>
+            <input type="text" id="contactPerson">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Email</label>
+            <input type="email" id="clientEmail">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Phone</label>
+            <div class="client-phone-field-grid">
+              <select id="clientPhoneCountryCode">
+                <option value="+91">+91 (India)</option>
+                <option value="+1">+1 (US/CA)</option>
+                <option value="+44">+44 (UK)</option>
+                <option value="+61">+61 (Australia)</option>
+                <option value="+65">+65 (Singapore)</option>
+                <option value="+971">+971 (UAE)</option>
+              </select>
+              <input type="text" id="clientPhone" class="client-phone-input" placeholder="Phone number">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Industry</label>
+              <input type="text" id="clientIndustry" placeholder="e.g. IT Services, Healthcare...">
+            </div>
+            <div></div>
+          </div>
+          <div class="space-y-4">
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Address *</label>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">Address Line 1</label>
+                <input type="text" id="clientAddressLine1">
+              </div>
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">Address Line 2</label>
+                <input type="text" id="clientAddressLine2">
+              </div>
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">City / District *</label>
+                <input type="text" id="clientAddressCity">
+              </div>
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">State *</label>
+                <input type="text" id="clientAddressState">
+              </div>
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">Pincode</label>
+                <input type="text" id="clientAddressPincode">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="permanentFields" class="hidden space-y-4">
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Name *</label>
+            <input type="text" id="permanentClientName">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Abbreviation *</label>
+            <input type="text" id="permanentClientAbbreviation" placeholder="Used for search">
+          </div>
+          <div class="space-y-4">
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Address *</label>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">Address Line 1</label>
+                <input type="text" id="permanentClientAddressLine1">
+              </div>
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">Address Line 2</label>
+                <input type="text" id="permanentClientAddressLine2">
+              </div>
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">City / District *</label>
+                <input type="text" id="permanentClientAddressCity">
+              </div>
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">State *</label>
+                <input type="text" id="permanentClientAddressState">
+              </div>
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">Pincode</label>
+                <input type="text" id="permanentClientAddressPincode">
+              </div>
+            </div>
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Billing Address</label>
+            <label class="inline-flex items-center gap-2 mb-3 text-sm text-on-surface-variant">
+              <input type="checkbox" id="permanentBillingSameAsAddress" checked>
+              <span>Same as address</span>
+            </label>
+            <div id="permanentBillingAddressFields" class="grid grid-cols-1 sm:grid-cols-2 gap-4 hidden">
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">Address Line 1</label>
+                <input type="text" id="permanentClientBillingAddressLine1">
+              </div>
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">Address Line 2</label>
+                <input type="text" id="permanentClientBillingAddressLine2">
+              </div>
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">City / District *</label>
+                <input type="text" id="permanentClientBillingAddressCity">
+              </div>
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">State *</label>
+                <input type="text" id="permanentClientBillingAddressState">
+              </div>
+              <div>
+                <label class="block text-[11px] text-on-surface-variant mb-1">Pincode</label>
+                <input type="text" id="permanentClientBillingAddressPincode">
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card !p-4 !bg-surface-container">
+            <div class="flex items-center justify-between mb-3">
+              <h6 class="section-label !mb-0">Contact Person(s)</h6>
+              <button type="button" class="btn-secondary btn-sm inline-flex items-center gap-1" onclick="addPermanentContactRow()">
+                <span class="material-symbols-outlined text-base">add</span>Add Contact
+              </button>
+            </div>
+            <div id="permanentContactsList" class="space-y-3"></div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Billing Pattern *</label>
+              <select id="permanentBillingPattern">
+                <option value="Weekly">Weekly</option>
+                <option value="Monthly">Monthly</option>
+                <option value="Quarterly">Quarterly (3 months)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Billing Rate (% of CTC) *</label>
+              <input type="number" id="permanentBillingRate" min="0.01" max="100" step="0.01">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
+        <button type="button" class="btn-secondary" onclick="closeClientModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>

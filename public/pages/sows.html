@@ -1,0 +1,318 @@
+<div class="p-5 sm:p-8 space-y-6 fade-in">
+
+  <!-- Header with Add button -->
+  <div class="sows-hero">
+    <div class="page-hero-copy">
+      <p class="page-hero-eyebrow">SOW Command Center</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-3">
+      <button class="btn-secondary inline-flex items-center gap-2" onclick="openSowDocumentUploadModal()">
+        <span class="material-symbols-outlined text-lg">upload_file</span>Upload SOW Docs
+      </button>
+      <button class="btn-primary inline-flex items-center gap-2" onclick="window.sowEdit=null;openSOWModal()">
+        <span class="material-symbols-outlined text-lg">add_link</span>LINK SOW
+      </button>
+    </div>
+  </div>
+
+  <div id="sowsSummary" class="grid gap-4 md:grid-cols-3">
+    <div class="table-summary-card">
+      <div class="table-summary-label">Total SOWs</div>
+      <div class="table-summary-value">0</div>
+    </div>
+    <div class="table-summary-card">
+      <div class="table-summary-label">Signed</div>
+      <div class="table-summary-value">0</div>
+    </div>
+    <div class="table-summary-card">
+      <div class="table-summary-label">Visible Rows</div>
+      <div class="table-summary-value">0</div>
+    </div>
+  </div>
+
+  <!-- Filters & Search -->
+  <div class="stat-card !p-4">
+    <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+      <div class="flex items-center gap-2">
+        <span class="material-symbols-outlined text-on-surface-variant text-lg">filter_list</span>
+        <label class="text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Client:</label>
+        <select id="sowFilterClient" class="w-auto">
+          <option value="">All</option>
+        </select>
+      </div>
+      <div class="flex items-center gap-2">
+        <label class="text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Status:</label>
+        <select id="sowFilterStatus" class="w-auto">
+          <option value="">All</option>
+          <option>Draft</option>
+          <option>Amendment Draft</option>
+          <option>Signed</option>
+          <option>Expired</option>
+          <option>Terminated</option>
+        </select>
+      </div>
+      <div class="flex items-center gap-3 sm:ml-auto w-full sm:w-auto max-w-sm">
+        <span class="material-symbols-outlined text-on-surface-variant">search</span>
+        <input type="text" id="sowsSearch" placeholder="Search SOWs..." class="flex-1">
+      </div>
+    </div>
+  </div>
+
+  <!-- SOW Table -->
+  <div class="stat-card !p-0 overflow-hidden table-section-card">
+    <div class="table-section-header">
+      <h3 class="table-section-title">SOW Register</h3>
+      <div class="table-section-count" id="sowsTableCount">0 rows</div>
+    </div>
+    <div class="overflow-x-auto styled-scrollbar sows-table-scroll">
+      <table class="stitch-table" id="sowsTable">
+        <thead>
+          <tr>
+            <th class="sortable" data-sort-key="0">SOW #</th>
+            <th class="sortable" data-sort-key="1">Client</th>
+            <th class="sortable" data-sort-key="2" data-sort-type="date">Date</th>
+            <th class="sortable" data-sort-key="3" data-sort-type="date">Start</th>
+            <th class="sortable" data-sort-key="4" data-sort-type="date">End</th>
+            <th class="sortable text-right" data-sort-key="5" data-sort-type="currency">Total Value</th>
+            <th class="sortable" data-sort-key="6">Status</th>
+            <th class="text-center">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="sowsBody">
+          <tr>
+            <td colspan="8">
+              <div class="loading-spinner"></div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="stat-card !p-0 overflow-hidden">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-5 py-4 border-b border-outline-variant/8">
+      <div>
+        <h3 class="text-base font-semibold text-on-surface">Saved SOW Documents</h3>
+        <p class="text-sm text-on-surface-variant">Browse linked quote, SOW, and PO files with advanced folder filtering.</p>
+      </div>
+      <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div class="flex items-center gap-3 w-full sm:w-72">
+          <span class="material-symbols-outlined text-on-surface-variant">search</span>
+          <input type="text" id="sowDocumentSearch" placeholder="Search folder name..." class="flex-1">
+        </div>
+        <button type="button" class="btn-secondary inline-flex items-center gap-2" onclick="loadLinkedDocumentLibrary()">
+          <span class="material-symbols-outlined text-lg">refresh</span>Refresh Library
+        </button>
+      </div>
+    </div>
+    <div class="px-5 py-4 border-b border-outline-variant/8">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <input type="text" id="sowDocumentFilterClient" placeholder="Filter by company/client">
+        <input type="text" id="sowDocumentFilterCandidate" placeholder="Filter by candidate name">
+        <input type="text" id="sowDocumentFilterRole" placeholder="Filter by role">
+        <input type="text" id="sowDocumentFilterSow" placeholder="Filter by SOW number">
+      </div>
+    </div>
+    <div id="sowDocumentLibrary" class="p-5">
+      <div class="loading-spinner"></div>
+    </div>
+  </div>
+</div>
+
+<!-- SOW Actions Modal -->
+<div id="sowActionModal" class="fixed inset-0 z-[220] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-sm mx-4 border border-outline-variant/15 shadow-2xl">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8">
+      <h5 class="font-headline font-bold text-lg text-on-surface" id="sowActionTitle">SOW Actions</h5>
+      <button type="button" onclick="closeSOWActions()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="p-4">
+      <div id="sowActionList" class="space-y-2"></div>
+    </div>
+  </div>
+</div>
+
+<!-- SOW Document Upload Modal -->
+<div id="sowDocumentUploadModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-lg mx-4 border border-outline-variant/15 shadow-2xl">
+    <form id="sowDocumentUploadForm">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8">
+        <h5 class="font-headline font-bold text-lg text-on-surface">Upload SOW Documents</h5>
+        <button type="button" onclick="closeSowDocumentUploadModal()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="p-6 space-y-4">
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Associated Quote *</label>
+          <select id="sowDocumentQuote" required>
+            <option value="">Select Accepted Quote</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">SOW File *</label>
+          <input type="file" id="sowDocumentFile" accept=".pdf,.doc,.docx" required>
+          <p class="mt-2 text-xs text-on-surface-variant">Accepted formats: PDF, DOC, DOCX. The app will create one folder and store the generated quote DOCX together with this uploaded file. You can later add PO files to the same folder using Link PO.</p>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
+        <button type="button" class="btn-secondary" onclick="closeSowDocumentUploadModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Upload</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Link PO File Modal -->
+<div id="sowLinkPOModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-lg mx-4 border border-outline-variant/15 shadow-2xl">
+    <form id="sowLinkPOForm">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8">
+        <h5 class="font-headline font-bold text-lg text-on-surface">Link PO Document</h5>
+        <button type="button" onclick="closeSowLinkPOModal()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="p-6 space-y-4">
+        <input type="hidden" id="sowLinkPOFolderName">
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Target Folder</label>
+          <input type="text" id="sowLinkPOFolderLabel" disabled>
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">PO Number *</label>
+          <input type="text" id="sowLinkPONumber" required>
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">PO File *</label>
+          <input type="file" id="sowLinkPOFile" accept=".pdf,.doc,.docx" required>
+          <p class="mt-2 text-xs text-on-surface-variant">Accepted formats: PDF, DOC, DOCX.</p>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
+        <button type="button" class="btn-secondary" onclick="closeSowLinkPOModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Upload PO</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- SOW Modal -->
+<div id="sowModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
+  <div
+    class="bg-surface-container-high rounded-2xl w-full max-w-3xl mx-4 border border-outline-variant/15 shadow-2xl max-h-[90vh] overflow-y-auto styled-scrollbar">
+    <form id="sowForm">
+      <div
+        class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8 sticky top-0 bg-surface-container-high z-10">
+        <h5 class="font-headline font-bold text-lg text-on-surface" id="sowModalTitle">Create SOW</h5>
+        <button type="button" onclick="closeSOWModal()"
+          class="text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="p-6 space-y-4">
+        <input type="hidden" id="sowId">
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <div>
+            <label
+              class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">SOW ID
+              *</label>
+            <input type="text" id="sowNumber" required>
+          </div>
+          <div>
+            <label
+              class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Client
+              *</label>
+            <select id="sowClient" required>
+              <option value="">Select</option>
+            </select>
+          </div>
+          <div>
+            <label
+              class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Quote
+              (Optional)</label>
+            <select id="sowQuote">
+              <option value="">None</option>
+            </select>
+          </div>
+          <div>
+            <label
+              class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">SOW
+              Date *</label>
+            <input type="date" id="sowDate" required>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label
+              class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Effective
+              Start *</label>
+            <input type="date" id="sowStart" required>
+          </div>
+          <div>
+            <label
+              class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Effective
+              End *</label>
+            <input type="date" id="sowEnd" required>
+          </div>
+        </div>
+        <div>
+          <label
+            class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Notes</label>
+          <textarea id="sowNotes" rows="2"></textarea>
+        </div>
+
+        <h6 class="section-label pt-2">Line Items</h6>
+        <div class="overflow-x-auto">
+          <table class="stitch-table" id="sowItemsTable">
+            <thead>
+              <tr>
+                <th>Role / Position</th>
+                <th style="width:80px">Qty</th>
+                <th style="width:140px">Amount</th>
+                <th style="width:40px"></th>
+              </tr>
+            </thead>
+            <tbody id="sowItemsBody"></tbody>
+          </table>
+        </div>
+        <button type="button" class="btn-secondary btn-sm inline-flex items-center gap-1.5" id="btnAddSowItem">
+          <span class="material-symbols-outlined text-base">add</span>Add Item
+        </button>
+
+        <div class="flex justify-end">
+          <div class="w-full max-w-xs">
+            <table class="w-full text-sm">
+              <tr class="border-t border-outline-variant/8">
+                <td class="py-2 text-on-surface font-bold">Total Value:</td>
+                <td class="py-2 text-right text-on-surface font-bold text-lg" id="sowTotal">&#8377;0.00</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
+        <button type="button" class="btn-secondary" onclick="closeSOWModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- SOW Detail Modal -->
+<div id="sowDetailModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
+  <div
+    class="bg-surface-container-high rounded-2xl w-full max-w-2xl mx-4 border border-outline-variant/15 shadow-2xl max-h-[90vh] overflow-y-auto styled-scrollbar">
+    <div
+      class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8 sticky top-0 bg-surface-container-high z-10">
+      <h5 class="font-headline font-bold text-lg text-on-surface" id="sowDetailTitle">SOW Details</h5>
+      <button type="button" onclick="closeModal('sowDetailModal')"
+        class="text-on-surface-variant hover:text-on-surface transition-colors">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="p-6" id="sowDetailContent"></div>
+  </div>
+</div>

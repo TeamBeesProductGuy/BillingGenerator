@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>TeamBees Dashboard | Service Request Engine</title>
+    <meta name="description" content="TeamBees Service Request Engine — Automate monthly invoice calculations, manage rate cards, attendance, quotes, SOWs and purchase orders.">
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface-dim": "#080e1e",
+                        "primary-container": "#4f46e5",
+                        "surface-container": "#131b2e",
+                        "surface-container-lowest": "#050b18",
+                        "surface-container-highest": "#2a3146",
+                        "primary": "#c3c0ff",
+                        "tertiary": "#ffb695",
+                        "on-surface": "#dae2fd",
+                        "surface-container-high": "#1d2538",
+                        "outline": "#6b6a82",
+                        "outline-variant": "#3a3950",
+                        "background": "#080e1e",
+                        "on-background": "#dae2fd",
+                        "on-primary-fixed": "#ffffff",
+                        "secondary": "#b8b6d0",
+                        "on-surface-variant": "#8b89a8",
+                        "error": "#ffb4ab",
+                        "error-container": "#93000a",
+                        "on-error": "#690005",
+                        "surface": "#080e1e",
+                        "surface-bright": "#2a3146",
+                        "surface-variant": "#1d2538",
+                    },
+                    fontFamily: {
+                        "headline": ["Plus Jakarta Sans"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+    <link href="/css/styles.css" rel="stylesheet">
+</head>
+<body class="bg-background text-on-surface h-screen flex overflow-hidden font-body antialiased">
+
+<!-- Sidebar -->
+<aside id="sidebar" style="display:none" class="w-[240px] bg-surface-container flex flex-col border-r border-outline-variant/8 z-50 fixed md:relative h-full transition-transform -translate-x-full md:translate-x-0">
+    <!-- Brand -->
+    <div class="px-5 pt-6 pb-4">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#7c3aed] flex items-center justify-center shadow-lg shadow-[#4f46e5]/20">
+                <span class="material-symbols-outlined text-white text-lg" style="font-variation-settings: 'FILL' 1">hive</span>
+            </div>
+            <div>
+                <h1 class="font-headline font-bold text-[15px] leading-tight text-on-surface">TeamBees</h1>
+                <p class="text-[9px] uppercase tracking-[0.25em] text-on-surface-variant font-semibold mt-0.5">Service Request Engine</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="gradient-divider mx-5"></div>
+
+    <!-- Navigation -->
+    <nav class="flex-1 px-3 pt-5 overflow-y-auto styled-scrollbar space-y-0.5">
+        <div class="sidebar-section-label">Overview</div>
+        <a href="#dashboard" data-page="dashboard" class="sidebar-link flex items-center px-3 py-2.5 rounded-lg transition-all cursor-pointer no-underline active">
+            <span class="material-symbols-outlined mr-3 text-[20px]">space_dashboard</span>
+            <span class="font-medium text-[13px]">Dashboard</span>
+        </a>
+        <a href="#billing" data-page="billing" class="sidebar-link flex items-center px-3 py-2.5 rounded-lg transition-all cursor-pointer no-underline">
+            <span class="material-symbols-outlined mr-3 text-[20px]">receipt_long</span>
+            <span class="font-medium text-[13px]">Service Requests</span>
+        </a>
+
+        <div class="sidebar-section-label">Client Directory</div>
+        <a href="#clients" data-page="clients" class="sidebar-link flex items-center px-3 py-2.5 rounded-lg transition-all cursor-pointer no-underline">
+            <span class="material-symbols-outlined mr-3 text-[20px]">apartment</span>
+            <span class="font-medium text-[13px]">Clients</span>
+        </a>
+
+        <div class="sidebar-section-label">Contractual Operations</div>
+        <a href="#rate-cards" data-page="rate-cards" class="sidebar-link flex items-center px-3 py-2.5 rounded-lg transition-all cursor-pointer no-underline">
+            <span class="material-symbols-outlined mr-3 text-[20px]">credit_card</span>
+            <span class="font-medium text-[13px]">Rate Cards</span>
+        </a>
+        <a href="#attendance" data-page="attendance" class="sidebar-link flex items-center px-3 py-2.5 rounded-lg transition-all cursor-pointer no-underline">
+            <span class="material-symbols-outlined mr-3 text-[20px]">event_available</span>
+            <span class="font-medium text-[13px]">Attendance</span>
+        </a>
+
+        <div class="sidebar-section-label">Commercial Documents</div>
+        <a href="#quotes" data-page="quotes" class="sidebar-link flex items-center px-3 py-2.5 rounded-lg transition-all cursor-pointer no-underline">
+            <span class="material-symbols-outlined mr-3 text-[20px]">request_quote</span>
+            <span class="font-medium text-[13px]">Quotes</span>
+        </a>
+        <a href="#sows" data-page="sows" class="sidebar-link flex items-center px-3 py-2.5 rounded-lg transition-all cursor-pointer no-underline">
+            <span class="material-symbols-outlined mr-3 text-[20px]">description</span>
+            <span class="font-medium text-[13px]">SOW</span>
+        </a>
+        <a href="#purchase-orders" data-page="purchase-orders" class="sidebar-link flex items-center px-3 py-2.5 rounded-lg transition-all cursor-pointer no-underline">
+            <span class="material-symbols-outlined mr-3 text-[20px]">local_shipping</span>
+            <span class="font-medium text-[13px]">Purchase Orders</span>
+        </a>
+
+        <div class="sidebar-section-label">Permanent Operations</div>
+        <a href="#orders" data-page="orders" class="sidebar-link flex items-center px-3 py-2.5 rounded-lg transition-all cursor-pointer no-underline">
+            <span class="material-symbols-outlined mr-3 text-[20px]">assignment</span>
+            <span class="font-medium text-[13px]">Orders</span>
+        </a>
+        <a href="#reminders" data-page="reminders" class="sidebar-link flex items-center px-3 py-2.5 rounded-lg transition-all cursor-pointer no-underline">
+            <span class="material-symbols-outlined mr-3 text-[20px]">notifications_active</span>
+            <span class="font-medium text-[13px]">Reminders</span>
+        </a>
+    </nav>
+
+    <!-- User Section -->
+    <div class="p-4 border-t border-outline-variant/8">
+        <div id="userInfo" class="flex items-center gap-2.5 px-2">
+            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-[#4f46e5] to-[#7c3aed] flex items-center justify-center flex-shrink-0 shadow-md shadow-[#4f46e5]/15">
+                <span class="material-symbols-outlined text-white text-sm">person</span>
+            </div>
+            <div class="flex-1 min-w-0">
+                <span id="userEmail" class="text-[11px] text-on-surface-variant truncate block"></span>
+            </div>
+            <button onclick="handleLogout()" class="text-on-surface-variant hover:text-error transition-colors flex-shrink-0 p-1 rounded-lg hover:bg-error/5" title="Logout">
+                <span class="material-symbols-outlined text-base">logout</span>
+            </button>
+        </div>
+    </div>
+</aside>
+
+<!-- Sidebar Overlay (mobile) -->
+<div id="sidebar-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden md:hidden"></div>
+
+<!-- Main Content -->
+<main style="display:none" class="flex-1 flex flex-col relative overflow-y-auto styled-scrollbar min-h-0">
+    <!-- Top Nav Bar -->
+    <header class="sticky top-0 z-30 glass border-b border-outline-variant/6 px-5 sm:px-8 py-3.5 flex items-center justify-between">
+        <div class="flex items-center gap-4">
+            <button id="sidebar-toggle" class="md:hidden text-on-surface-variant hover:text-on-surface transition-colors p-1">
+                <span class="material-symbols-outlined text-2xl">menu</span>
+            </button>
+            <div class="flex flex-col">
+                <nav id="breadcrumb" class="flex items-center text-[11px] text-on-surface-variant mb-0.5 space-x-1.5">
+                    <span>Home</span>
+                    <span class="material-symbols-outlined text-[10px] opacity-40">chevron_right</span>
+                    <span class="text-on-surface font-medium" id="breadcrumbPage">Dashboard</span>
+                </nav>
+                <h2 id="pageTitle" class="text-xl font-headline font-bold text-on-surface leading-tight">Dashboard</h2>
+            </div>
+        </div>
+    </header>
+
+    <!-- Page Content -->
+    <div id="app-content" class="flex-1">
+        <div class="flex items-center justify-center min-h-[60vh]">
+            <div class="text-center">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-[3px] border-primary border-t-transparent mb-3"></div>
+                <p class="text-on-surface-variant text-sm">Loading application...</p>
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- Toast Container -->
+<div id="toast-container" class="fixed bottom-6 right-6 z-[100] flex flex-col gap-3"></div>
+
+<!-- Confirm Modal -->
+<div id="confirmModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div class="bg-surface-container-high rounded-2xl p-6 w-full max-w-md mx-4 border border-outline-variant/15 shadow-2xl">
+        <h3 id="confirmTitle" class="font-headline font-bold text-lg mb-2 text-on-surface">Confirm</h3>
+        <p id="confirmBody" class="text-on-surface-variant text-sm mb-6 leading-relaxed"></p>
+        <div class="flex justify-end gap-3">
+            <button id="confirmCancelBtn" class="px-5 py-2 rounded-lg bg-surface-container text-on-surface-variant hover:bg-surface-container-highest transition-colors font-medium text-sm">Cancel</button>
+            <button id="confirmOkBtn" class="px-5 py-2 rounded-lg bg-error text-white font-bold hover:brightness-110 transition-all text-sm">Confirm</button>
+        </div>
+    </div>
+</div>
+
+<!-- Background Ambient Glow -->
+<div class="fixed top-0 right-0 -z-10 w-[500px] h-[500px] bg-[#4f46e5]/[0.03] rounded-full blur-[150px] pointer-events-none"></div>
+<div class="fixed bottom-0 left-[240px] -z-10 w-[350px] h-[350px] bg-[#7c3aed]/[0.02] rounded-full blur-[120px] pointer-events-none"></div>
+
+<!-- Supabase Auth Client -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Application JS -->
+<script src="/js/app.js"></script>
+</body>
+</html>

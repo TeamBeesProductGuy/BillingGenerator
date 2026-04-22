@@ -1,0 +1,140 @@
+<div class="p-5 sm:p-8 space-y-6 fade-in">
+  <div class="reminder-hero">
+    <div class="reminder-hero-copy">
+      <p class="reminder-eyebrow">Reminder Command Center</p>
+    </div>
+    <button class="btn-secondary inline-flex items-center gap-2" onclick="reloadReminders()">
+      <span class="material-symbols-outlined text-lg">refresh</span>Refresh
+    </button>
+  </div>
+
+  <div id="reminderSummary" class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div class="reminder-summary-card reminder-summary-card-active">
+      <div class="reminder-summary-label">Active reminders</div>
+      <div class="reminder-summary-value">0</div>
+      <div class="reminder-summary-meta">Current reminders around today</div>
+    </div>
+    <div class="reminder-summary-card reminder-summary-card-upcoming">
+      <div class="reminder-summary-label">Upcoming reminders</div>
+      <div class="reminder-summary-value">0</div>
+      <div class="reminder-summary-meta">Scheduled for later dates</div>
+    </div>
+    <div class="reminder-summary-card reminder-summary-card-past">
+      <div class="reminder-summary-label">Past reminders</div>
+      <div class="reminder-summary-value">0</div>
+      <div class="reminder-summary-meta">Older open reminders waiting for action</div>
+    </div>
+    <div class="reminder-summary-card reminder-summary-card-closed">
+      <div class="reminder-summary-label">Closed reminders</div>
+      <div class="reminder-summary-value">0</div>
+      <div class="reminder-summary-meta">Completed reminders always stay visible</div>
+    </div>
+  </div>
+
+  <div class="stat-card !p-4">
+    <div class="flex items-center gap-3 max-w-md">
+      <span class="material-symbols-outlined text-on-surface-variant">search</span>
+      <input type="text" id="remindersSearch" placeholder="Search reminders..." class="flex-1">
+    </div>
+  </div>
+
+  <div id="remindersBoard" class="space-y-6">
+    <div class="stat-card !p-0 overflow-hidden">
+      <div class="p-6"><div class="loading-spinner"></div></div>
+    </div>
+  </div>
+</div>
+
+<div id="reminderActionModal" class="fixed inset-0 z-[220] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-md mx-4 border border-outline-variant/15 shadow-2xl">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8">
+      <h5 class="font-headline font-bold text-lg text-on-surface" id="reminderActionTitle">Reminder Actions</h5>
+      <button type="button" onclick="closeReminderActions()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="p-4">
+      <div id="reminderActionList" class="space-y-2"></div>
+    </div>
+  </div>
+</div>
+
+<div id="reminderEmailModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-lg mx-4 border border-outline-variant/15 shadow-2xl">
+    <form id="reminderEmailForm">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8">
+        <h5 class="font-headline font-bold text-lg text-on-surface">Edit Reminder Emails</h5>
+        <button type="button" onclick="closeReminderEmailModal()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="p-6 space-y-4">
+        <input type="hidden" id="reminderEmailReminderId">
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Primary Email</label>
+          <input type="email" id="reminderEmailPrimary" placeholder="Enter primary recipient email">
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Secondary Email</label>
+          <input type="email" id="reminderEmailSecondary" placeholder="Enter secondary recipient email">
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
+        <button type="button" class="btn-secondary" onclick="closeReminderEmailModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="extendReminderModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-sm mx-4 border border-outline-variant/15 shadow-2xl">
+    <form id="extendReminderForm">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8">
+        <h5 class="font-headline font-bold text-lg text-on-surface">Extend Reminder</h5>
+        <button type="button" onclick="closeExtendReminderModal()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="p-6 space-y-4">
+        <input type="hidden" id="extendReminderId">
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">New Reminder Date *</label>
+          <input type="date" id="extendReminderDate" required>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
+        <button type="button" class="btn-secondary" onclick="closeExtendReminderModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Extend</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="invoiceSentModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-sm mx-4 border border-outline-variant/15 shadow-2xl">
+    <form id="invoiceSentForm">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8">
+        <h5 class="font-headline font-bold text-lg text-on-surface">Invoice Sent</h5>
+        <button type="button" onclick="closeInvoiceSentModal()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="p-6 space-y-4">
+        <input type="hidden" id="invoiceSentReminderId">
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Invoice No. *</label>
+          <input type="text" id="invoiceNumber" required>
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Invoice Date *</label>
+          <input type="date" id="invoiceDate" required>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
+        <button type="button" class="btn-secondary" onclick="closeInvoiceSentModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
