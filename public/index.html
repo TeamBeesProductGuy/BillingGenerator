@@ -1,10 +1,12 @@
 <!DOCTYPE html>
-<html class="dark" lang="en">
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <title>TeamBees Dashboard | Service Request Engine</title>
     <meta name="description" content="TeamBees Service Request Engine — Automate monthly invoice calculations, manage rate cards, attendance, quotes, SOWs and purchase orders.">
+    <link rel="icon" type="image/png" href="/images/TeamBeesLOgo.png">
+    <link rel="apple-touch-icon" href="/images/TeamBeesLOgo.png">
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
@@ -14,28 +16,39 @@
             theme: {
                 extend: {
                     colors: {
-                        "surface-dim": "#080e1e",
-                        "primary-container": "#4f46e5",
-                        "surface-container": "#131b2e",
-                        "surface-container-lowest": "#050b18",
-                        "surface-container-highest": "#2a3146",
-                        "primary": "#c3c0ff",
-                        "tertiary": "#ffb695",
-                        "on-surface": "#dae2fd",
-                        "surface-container-high": "#1d2538",
-                        "outline": "#6b6a82",
-                        "outline-variant": "#3a3950",
-                        "background": "#080e1e",
-                        "on-background": "#dae2fd",
-                        "on-primary-fixed": "#ffffff",
-                        "secondary": "#b8b6d0",
-                        "on-surface-variant": "#8b89a8",
-                        "error": "#ffb4ab",
-                        "error-container": "#93000a",
-                        "on-error": "#690005",
-                        "surface": "#080e1e",
-                        "surface-bright": "#2a3146",
-                        "surface-variant": "#1d2538",
+                        "primary": "rgb(var(--color-primary-rgb) / <alpha-value>)",
+                        "primary-hover": "rgb(var(--color-primary-hover-rgb) / <alpha-value>)",
+                        "secondary": "rgb(var(--color-secondary-rgb) / <alpha-value>)",
+                        "accent": "rgb(var(--color-accent-rgb) / <alpha-value>)",
+                        "background": "rgb(var(--color-bg-rgb) / <alpha-value>)",
+                        "surface": "rgb(var(--color-surface-rgb) / <alpha-value>)",
+                        "surface-muted": "rgb(var(--color-surface-muted-rgb) / <alpha-value>)",
+                        "surface-strong": "rgb(var(--color-surface-strong-rgb) / <alpha-value>)",
+                        "text-primary": "rgb(var(--color-text-primary-rgb) / <alpha-value>)",
+                        "text-muted": "rgb(var(--color-text-muted-rgb) / <alpha-value>)",
+                        "text-inverse": "rgb(var(--color-text-inverse-rgb) / <alpha-value>)",
+                        "border": "rgb(var(--color-border-rgb) / <alpha-value>)",
+                        "success": "rgb(var(--color-success-rgb) / <alpha-value>)",
+                        "warning": "rgb(var(--color-warning-rgb) / <alpha-value>)",
+                        "error": "rgb(var(--color-error-rgb) / <alpha-value>)",
+                        "info": "rgb(var(--color-info-rgb) / <alpha-value>)",
+                        "on-surface": "rgb(var(--color-text-primary-rgb) / <alpha-value>)",
+                        "on-surface-variant": "rgb(var(--color-text-muted-rgb) / <alpha-value>)",
+                        "on-background": "rgb(var(--color-text-primary-rgb) / <alpha-value>)",
+                        "on-primary-fixed": "rgb(var(--color-text-inverse-rgb) / <alpha-value>)",
+                        "outline": "rgb(var(--color-border-rgb) / <alpha-value>)",
+                        "outline-variant": "rgb(var(--color-border-strong-rgb) / <alpha-value>)",
+                        "surface-container": "rgb(var(--color-surface-rgb) / <alpha-value>)",
+                        "surface-container-lowest": "rgb(var(--color-bg-rgb) / <alpha-value>)",
+                        "surface-container-high": "rgb(var(--color-surface-muted-rgb) / <alpha-value>)",
+                        "surface-container-highest": "rgb(var(--color-surface-strong-rgb) / <alpha-value>)",
+                        "surface-bright": "rgb(var(--color-surface-strong-rgb) / <alpha-value>)",
+                        "surface-variant": "rgb(var(--color-surface-muted-rgb) / <alpha-value>)",
+                        "surface-dim": "rgb(var(--color-surface-muted-rgb) / <alpha-value>)",
+                        "primary-container": "rgb(var(--color-primary-rgb) / <alpha-value>)",
+                        "tertiary": "rgb(var(--color-accent-rgb) / <alpha-value>)",
+                        "error-container": "rgb(var(--color-error-rgb) / <alpha-value>)",
+                        "on-error": "rgb(var(--color-text-inverse-rgb) / <alpha-value>)",
                     },
                     fontFamily: {
                         "headline": ["Plus Jakarta Sans"],
@@ -49,19 +62,17 @@
     </script>
     <link href="/css/styles.css" rel="stylesheet">
 </head>
-<body class="bg-background text-on-surface h-screen flex overflow-hidden font-body antialiased">
+<body class="bg-background text-text-primary h-screen flex overflow-hidden font-body antialiased">
 
 <!-- Sidebar -->
-<aside id="sidebar" style="display:none" class="w-[240px] bg-surface-container flex flex-col border-r border-outline-variant/8 z-50 fixed md:relative h-full transition-transform -translate-x-full md:translate-x-0">
+<aside id="sidebar" style="display:none" class="w-[240px] bg-background flex flex-col border-r border-border z-50 fixed md:relative h-full transition-transform -translate-x-full md:translate-x-0">
     <!-- Brand -->
     <div class="px-5 pt-6 pb-4">
         <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#7c3aed] flex items-center justify-center shadow-lg shadow-[#4f46e5]/20">
-                <span class="material-symbols-outlined text-white text-lg" style="font-variation-settings: 'FILL' 1">hive</span>
-            </div>
+            <img src="/images/TeamBeesLOgo.png" alt="TeamBees" class="h-10 w-auto object-contain">
             <div>
-                <h1 class="font-headline font-bold text-[15px] leading-tight text-on-surface">TeamBees</h1>
-                <p class="text-[9px] uppercase tracking-[0.25em] text-on-surface-variant font-semibold mt-0.5">Service Request Engine</p>
+                <h1 class="font-headline font-bold text-[15px] leading-tight text-text-primary">TeamBees</h1>
+                <p class="text-[9px] uppercase tracking-[0.25em] text-text-muted font-semibold mt-0.5">Service Request Engine</p>
             </div>
         </div>
     </div>
@@ -122,15 +133,15 @@
     </nav>
 
     <!-- User Section -->
-    <div class="p-4 border-t border-outline-variant/8">
+    <div class="p-4 border-t border-border">
         <div id="userInfo" class="flex items-center gap-2.5 px-2">
-            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-[#4f46e5] to-[#7c3aed] flex items-center justify-center flex-shrink-0 shadow-md shadow-[#4f46e5]/15">
-                <span class="material-symbols-outlined text-white text-sm">person</span>
+            <div class="w-8 h-8 rounded-full bg-primary/15 border border-primary/25 flex items-center justify-center flex-shrink-0">
+                <span class="material-symbols-outlined text-secondary text-sm">person</span>
             </div>
             <div class="flex-1 min-w-0">
-                <span id="userEmail" class="text-[11px] text-on-surface-variant truncate block"></span>
+                <span id="userEmail" class="text-[11px] text-text-muted truncate block"></span>
             </div>
-            <button onclick="handleLogout()" class="text-on-surface-variant hover:text-error transition-colors flex-shrink-0 p-1 rounded-lg hover:bg-error/5" title="Logout">
+            <button onclick="handleLogout()" class="text-text-muted hover:text-error transition-colors flex-shrink-0 p-1 rounded-lg hover:bg-error/8" title="Logout">
                 <span class="material-symbols-outlined text-base">logout</span>
             </button>
         </div>
@@ -138,23 +149,23 @@
 </aside>
 
 <!-- Sidebar Overlay (mobile) -->
-<div id="sidebar-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden md:hidden"></div>
+<div id="sidebar-overlay" class="fixed inset-0 bg-secondary/25 backdrop-blur-sm z-40 hidden md:hidden"></div>
 
 <!-- Main Content -->
 <main style="display:none" class="flex-1 flex flex-col relative overflow-y-auto styled-scrollbar min-h-0">
     <!-- Top Nav Bar -->
-    <header class="sticky top-0 z-30 glass border-b border-outline-variant/6 px-5 sm:px-8 py-3.5 flex items-center justify-between">
+    <header class="sticky top-0 z-30 glass border-b border-border px-5 sm:px-8 py-3.5 flex items-center justify-between">
         <div class="flex items-center gap-4">
-            <button id="sidebar-toggle" class="md:hidden text-on-surface-variant hover:text-on-surface transition-colors p-1">
+            <button id="sidebar-toggle" class="md:hidden text-text-muted hover:text-text-primary transition-colors p-1">
                 <span class="material-symbols-outlined text-2xl">menu</span>
             </button>
             <div class="flex flex-col">
-                <nav id="breadcrumb" class="flex items-center text-[11px] text-on-surface-variant mb-0.5 space-x-1.5">
+                <nav id="breadcrumb" class="flex items-center text-[11px] text-text-muted mb-0.5 space-x-1.5">
                     <span>Home</span>
                     <span class="material-symbols-outlined text-[10px] opacity-40">chevron_right</span>
-                    <span class="text-on-surface font-medium" id="breadcrumbPage">Dashboard</span>
+                    <span class="text-text-primary font-medium" id="breadcrumbPage">Dashboard</span>
                 </nav>
-                <h2 id="pageTitle" class="text-xl font-headline font-bold text-on-surface leading-tight">Dashboard</h2>
+                <h2 id="pageTitle" class="text-xl font-headline font-bold text-text-primary leading-tight">Dashboard</h2>
             </div>
         </div>
     </header>
@@ -164,7 +175,7 @@
         <div class="flex items-center justify-center min-h-[60vh]">
             <div class="text-center">
                 <div class="inline-block animate-spin rounded-full h-8 w-8 border-[3px] border-primary border-t-transparent mb-3"></div>
-                <p class="text-on-surface-variant text-sm">Loading application...</p>
+                <p class="text-text-muted text-sm">Loading application...</p>
             </div>
         </div>
     </div>
@@ -175,19 +186,19 @@
 
 <!-- Confirm Modal -->
 <div id="confirmModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
-    <div class="bg-surface-container-high rounded-2xl p-6 w-full max-w-md mx-4 border border-outline-variant/15 shadow-2xl">
-        <h3 id="confirmTitle" class="font-headline font-bold text-lg mb-2 text-on-surface">Confirm</h3>
-        <p id="confirmBody" class="text-on-surface-variant text-sm mb-6 leading-relaxed"></p>
+    <div class="bg-surface rounded-2xl p-6 w-full max-w-md mx-4 border border-border shadow-2xl">
+        <h3 id="confirmTitle" class="font-headline font-bold text-lg mb-2 text-text-primary">Confirm</h3>
+        <p id="confirmBody" class="text-text-muted text-sm mb-6 leading-relaxed"></p>
         <div class="flex justify-end gap-3">
-            <button id="confirmCancelBtn" class="px-5 py-2 rounded-lg bg-surface-container text-on-surface-variant hover:bg-surface-container-highest transition-colors font-medium text-sm">Cancel</button>
-            <button id="confirmOkBtn" class="px-5 py-2 rounded-lg bg-error text-white font-bold hover:brightness-110 transition-all text-sm">Confirm</button>
+            <button id="confirmCancelBtn" class="px-5 py-2 rounded-lg bg-surface-muted text-text-muted hover:bg-surface-strong transition-colors font-medium text-sm">Cancel</button>
+            <button id="confirmOkBtn" class="px-5 py-2 rounded-lg bg-error text-text-inverse font-bold hover:brightness-95 transition-all text-sm">Confirm</button>
         </div>
     </div>
 </div>
 
 <!-- Background Ambient Glow -->
-<div class="fixed top-0 right-0 -z-10 w-[500px] h-[500px] bg-[#4f46e5]/[0.03] rounded-full blur-[150px] pointer-events-none"></div>
-<div class="fixed bottom-0 left-[240px] -z-10 w-[350px] h-[350px] bg-[#7c3aed]/[0.02] rounded-full blur-[120px] pointer-events-none"></div>
+<div class="fixed top-0 right-0 -z-10 w-[500px] h-[500px] bg-primary/[0.08] rounded-full blur-[150px] pointer-events-none"></div>
+<div class="fixed bottom-0 left-[240px] -z-10 w-[350px] h-[350px] bg-accent/[0.06] rounded-full blur-[120px] pointer-events-none"></div>
 
 <!-- Supabase Auth Client -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

@@ -76,6 +76,14 @@ function resolveRecipients() {
 }
 
 function buildReminderEmail(reminders) {
+  const brandPrimary = '#F4B740';
+  const brandAccent = '#E39A1C';
+  const brandSecondary = '#2B2B2B';
+  const brandBackground = '#FFFDF8';
+  const brandSurface = '#FFFFFF';
+  const brandMuted = '#F5F5F5';
+  const brandBorder = '#E5E5E5';
+
   const rows = reminders.map((reminder) => {
     const clientName = reminder.client && reminder.client.client_name ? reminder.client.client_name : '-';
     const order = reminder.order || {};
@@ -83,37 +91,37 @@ function buildReminderEmail(reminders) {
 
     return `
       <tr>
-        <td style="padding:12px 14px;border:1px solid #d9e2ec;">${escapeHtml(clientName)}</td>
-        <td style="padding:12px 14px;border:1px solid #d9e2ec;">${escapeHtml(order.requisition_description || '')}</td>
-        <td style="padding:12px 14px;border:1px solid #d9e2ec;">${escapeHtml(order.candidate_name || '')}</td>
-        <td style="padding:12px 14px;border:1px solid #d9e2ec;">${escapeHtml(order.position_role || '')}</td>
-        <td style="padding:12px 14px;border:1px solid #d9e2ec;">${escapeHtml(formatDate(order.date_of_offer || ''))}</td>
-        <td style="padding:12px 14px;border:1px solid #d9e2ec;">${escapeHtml(formatDate(order.date_of_joining || ''))}</td>
-        <td style="padding:12px 14px;border:1px solid #d9e2ec;text-align:right;">${escapeHtml(formatCurrency(order.ctc_offered || 0))}</td>
-        <td style="padding:12px 14px;border:1px solid #d9e2ec;text-align:right;">${escapeHtml(formatCurrency(order.bill_amount || 0))}</td>
+        <td style="padding:12px 14px;border:1px solid ${brandBorder};">${escapeHtml(clientName)}</td>
+        <td style="padding:12px 14px;border:1px solid ${brandBorder};">${escapeHtml(order.requisition_description || '')}</td>
+        <td style="padding:12px 14px;border:1px solid ${brandBorder};">${escapeHtml(order.candidate_name || '')}</td>
+        <td style="padding:12px 14px;border:1px solid ${brandBorder};">${escapeHtml(order.position_role || '')}</td>
+        <td style="padding:12px 14px;border:1px solid ${brandBorder};">${escapeHtml(formatDate(order.date_of_offer || ''))}</td>
+        <td style="padding:12px 14px;border:1px solid ${brandBorder};">${escapeHtml(formatDate(order.date_of_joining || ''))}</td>
+        <td style="padding:12px 14px;border:1px solid ${brandBorder};text-align:right;">${escapeHtml(formatCurrency(order.ctc_offered || 0))}</td>
+        <td style="padding:12px 14px;border:1px solid ${brandBorder};text-align:right;">${escapeHtml(formatCurrency(order.bill_amount || 0))}</td>
       </tr>
     `;
   }).join('');
 
   return `
-    <div style="margin:0;padding:24px;background:#f4f7fb;font-family:Segoe UI,Arial,sans-serif;color:#243b53;">
-      <div style="max-width:920px;margin:0 auto;background:#ffffff;border:1px solid #d9e2ec;border-radius:16px;overflow:hidden;">
-        <div style="padding:24px 28px;background:#12344d;color:#ffffff;">
+    <div style="margin:0;padding:24px;background:${brandBackground};font-family:Segoe UI,Arial,sans-serif;color:${brandSecondary};">
+      <div style="max-width:920px;margin:0 auto;background:${brandSurface};border:1px solid ${brandBorder};border-radius:16px;overflow:hidden;box-shadow:0 18px 48px rgba(43,43,43,0.08);">
+        <div style="padding:24px 28px;background:linear-gradient(135deg, ${brandPrimary}, ${brandAccent});color:#ffffff;">
           <h2 style="margin:0;font-size:22px;font-weight:700;">Invoice for ${escapeHtml(reminders[0] && reminders[0].client && reminders[0].client.client_name ? reminders[0].client.client_name : 'Client')}</h2>
         </div>
         <div style="padding:28px;">
           <p style="margin:0 0 16px;line-height:1.6;">Please create the invoice to <strong>${escapeHtml(reminders[0] && reminders[0].client && reminders[0].client.client_name ? reminders[0].client.client_name : 'the client')}</strong> as per following data:</p>
           <table style="width:100%;border-collapse:collapse;font-size:14px;">
             <thead>
-              <tr style="background:#f0f4f8;">
-                <th style="padding:12px 14px;border:1px solid #d9e2ec;text-align:left;">Client Name</th>
-                <th style="padding:12px 14px;border:1px solid #d9e2ec;text-align:left;">Requisition / Description</th>
-                <th style="padding:12px 14px;border:1px solid #d9e2ec;text-align:left;">Candidate Name</th>
-                <th style="padding:12px 14px;border:1px solid #d9e2ec;text-align:left;">Role</th>
-                <th style="padding:12px 14px;border:1px solid #d9e2ec;text-align:left;">Date of Offer</th>
-                <th style="padding:12px 14px;border:1px solid #d9e2ec;text-align:left;">Date of Joining</th>
-                <th style="padding:12px 14px;border:1px solid #d9e2ec;text-align:right;">CTC</th>
-                <th style="padding:12px 14px;border:1px solid #d9e2ec;text-align:right;">Invoice Value</th>
+              <tr style="background:${brandMuted};">
+                <th style="padding:12px 14px;border:1px solid ${brandBorder};text-align:left;">Client Name</th>
+                <th style="padding:12px 14px;border:1px solid ${brandBorder};text-align:left;">Requisition / Description</th>
+                <th style="padding:12px 14px;border:1px solid ${brandBorder};text-align:left;">Candidate Name</th>
+                <th style="padding:12px 14px;border:1px solid ${brandBorder};text-align:left;">Role</th>
+                <th style="padding:12px 14px;border:1px solid ${brandBorder};text-align:left;">Date of Offer</th>
+                <th style="padding:12px 14px;border:1px solid ${brandBorder};text-align:left;">Date of Joining</th>
+                <th style="padding:12px 14px;border:1px solid ${brandBorder};text-align:right;">CTC</th>
+                <th style="padding:12px 14px;border:1px solid ${brandBorder};text-align:right;">Invoice Value</th>
               </tr>
             </thead>
             <tbody>${rows}</tbody>

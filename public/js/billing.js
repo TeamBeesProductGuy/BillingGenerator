@@ -70,7 +70,7 @@
     if (status === 'Accepted') {
       actions.classList.add('hidden');
       message.classList.remove('hidden');
-      message.className = 'text-sm font-semibold text-green-400';
+      message.className = 'text-sm font-semibold text-success';
       message.textContent = 'This service request was accepted by the client.';
       helpText.textContent = 'PO consumption has already been applied for this service request.';
       return;
@@ -79,7 +79,7 @@
     if (status === 'Rejected') {
       actions.classList.add('hidden');
       message.classList.remove('hidden');
-      message.className = 'text-sm font-semibold text-red-400';
+      message.className = 'text-sm font-semibold text-error';
       message.textContent = 'This service request was rejected by the client.';
       helpText.textContent = 'This service request remains downloadable, but no PO consumption was applied.';
       return;
@@ -207,7 +207,7 @@
       document.getElementById('decisionActions').classList.add('hidden');
       var message = document.getElementById('decisionStatusMessage');
       message.classList.remove('hidden');
-      message.className = 'text-sm font-semibold text-red-400';
+      message.className = 'text-sm font-semibold text-error';
       message.textContent = 'Errors found. Please check the error report before generating a service request.';
       document.getElementById('decisionHelpText').textContent = 'No service request was generated because the validation step found errors.';
       document.getElementById('missingPoSection').classList.add('hidden');

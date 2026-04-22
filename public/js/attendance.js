@@ -67,7 +67,7 @@
         (units === 1
           ? 'bg-error/20 border-error/40 text-error'
           : (units === 0.5
-            ? 'bg-yellow-500/20 border-yellow-500/40 text-yellow-700'
+            ? 'bg-warning/15 border-warning/30 text-warning'
             : 'bg-surface-container-high border-outline-variant/20 text-on-surface'));
       btn.textContent = d;
       cal.appendChild(btn);
@@ -201,7 +201,7 @@
       resultDiv.classList.remove('hidden');
       var isWarning = d.errors > 0;
       resultDiv.innerHTML =
-        '<div class="rounded-xl p-4 mt-3 ' + (isWarning ? 'bg-yellow-500/10 border border-yellow-500/20 text-yellow-300' : 'bg-green-500/10 border border-green-500/20 text-green-300') + '">' +
+        '<div class="rounded-xl p-4 mt-3 ' + (isWarning ? 'bg-warning/10 border border-warning/20 text-warning' : 'bg-success/10 border border-success/20 text-success') + '">' +
         'Imported: <strong>' + d.imported + '</strong> employees | Errors: <strong>' + d.errors + '</strong>' +
         (d.errorDetails && d.errorDetails.length > 0 ? '<ul class="mt-2 ml-4 list-disc text-sm">' + d.errorDetails.map(function (e) { return '<li>' + escapeHtml(e.error_message) + '</li>'; }).join('') + '</ul>' : '') +
         '</div>';
