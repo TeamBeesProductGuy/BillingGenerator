@@ -155,8 +155,9 @@ function buildPdfSubjectLine(quote) {
 }
 
 function drawQuoteTable(doc, quote) {
+  const brandSecondary = '#2B2B2B';
+  const brandBorder = '#E5E5E5';
   const startX = 70;
-  const tableWidth = 460;
   const widths = [50, 280, 130];
   const headers = ['S. No.', 'Description', 'Cost'];
   const rowHeight = 24;
@@ -174,7 +175,7 @@ function drawQuoteTable(doc, quote) {
   doc.font('Helvetica-Bold').fontSize(10);
   let x = startX;
   headers.forEach((header, index) => {
-    doc.rect(x, y, widths[index], rowHeight).stroke('#000000');
+    doc.rect(x, y, widths[index], rowHeight).stroke(brandSecondary);
     doc.text(header, x + 6, y + 6, {
       width: widths[index] - 12,
       align: 'center',
@@ -193,7 +194,7 @@ function drawQuoteTable(doc, quote) {
     ];
     cells.forEach((cell, cellIndex) => {
       const align = cellIndex === 2 ? 'right' : (cellIndex === 0 ? 'center' : 'left');
-      doc.rect(x, y, widths[cellIndex], rowHeight).stroke('#000000');
+      doc.rect(x, y, widths[cellIndex], rowHeight).stroke(brandBorder);
       doc.text(cell, x + 6, y + 6, {
         width: widths[cellIndex] - 12,
         align,
@@ -207,7 +208,7 @@ function drawQuoteTable(doc, quote) {
   doc.font('Helvetica-Bold').fontSize(10);
   ['', 'Total', Number(quote.total_amount || 0).toFixed(2)].forEach((cell, cellIndex) => {
     const align = cellIndex === 2 ? 'right' : (cellIndex === 0 ? 'center' : 'left');
-    doc.rect(x, y, widths[cellIndex], rowHeight).stroke('#000000');
+    doc.rect(x, y, widths[cellIndex], rowHeight).stroke(brandSecondary);
     doc.text(cell, x + 6, y + 6, {
       width: widths[cellIndex] - 12,
       align,
@@ -219,6 +220,8 @@ function drawQuoteTable(doc, quote) {
 }
 
 function drawQuotePdf(doc, quote, client) {
+  const brandSecondary = '#2B2B2B';
+  const brandBorder = '#E5E5E5';
   const mailNotes = getMailFormatNotes(quote.notes);
   const dear = extractStructuredField(mailNotes, 'Dear', ['Body', 'Regards', 'Designation']) || extractLegacyField(mailNotes, 'Dear').replace(/,\s*$/, '');
   const body = extractStructuredField(mailNotes, 'Body', ['Regards', 'Designation']) || [
@@ -238,7 +241,7 @@ function drawQuotePdf(doc, quote, client) {
   const quoteDateLabel = formatDisplayDate(quote.quote_date);
   const logoSize = { width: 234, height: 109.44 };
 
-  doc.font('Helvetica').fontSize(10).fillColor('#000000');
+  doc.font('Helvetica').fontSize(10).fillColor(brandSecondary);
 
   if (fs.existsSync(logoPath)) {
     doc.image(logoPath, (doc.page.width - logoSize.width) / 2, 34, {
@@ -247,34 +250,34 @@ function drawQuotePdf(doc, quote, client) {
     });
     doc.y = 34 + logoSize.height + 8;
   } else {
-    doc.font('Helvetica-Bold').fontSize(11).text('TeamBees', 70, 50);
+    doc.font('Helvetica-Bold').fontSize(11).fillColor(brandSecondary).text('TeamBees', 70, 50);
     doc.y = 88;
   }
 
-  doc.moveTo(60, doc.y + 10).lineTo(doc.page.width - 60, doc.y + 10).strokeColor('#D6DCE5').lineWidth(1).stroke();
+  doc.moveTo(60, doc.y + 10).lineTo(doc.page.width - 60, doc.y + 10).strokeColor(brandBorder).lineWidth(1).stroke();
   if (quote.quote_number) {
-    doc.font('Helvetica-Bold').fontSize(10).fillColor('#000000')
+    doc.font('Helvetica-Bold').fontSize(10).fillColor(brandSecondary)
       .text(`Quote No.: ${quote.quote_number || ''}`, 0, doc.y + 20, { align: 'right', width: doc.page.width - 60 });
   }
   if (quoteDateLabel) {
-    doc.font('Helvetica').fontSize(10).fillColor('#000000')
+    doc.font('Helvetica').fontSize(10).fillColor(brandSecondary)
       .text(`Date: ${quoteDateLabel}`, 0, doc.y + 4, { align: 'right', width: doc.page.width - 60 });
   }
 
   doc.moveDown(1.8);
-  doc.font('Helvetica').fontSize(10).fillColor('#000000').text('To,', 70);
-  doc.font('Helvetica').fontSize(10).fillColor('#000000').text(quote.client_name || '', 70);
-  doc.font('Helvetica').fontSize(10).fillColor('#000000');
+  doc.font('Helvetica').fontSize(10).fillColor(brandSecondary).text('To,', 70);
+  doc.font('Helvetica').fontSize(10).fillColor(brandSecondary).text(quote.client_name || '', 70);
+  doc.font('Helvetica').fontSize(10).fillColor(brandSecondary);
   addressLines.forEach((line) => doc.text(line, 70));
 
   doc.moveDown(1);
   if (subjectLine) {
-    doc.font('Helvetica').fontSize(10).fillColor('#000000').text(subjectLine, 70);
+    doc.font('Helvetica').fontSize(10).fillColor(brandSecondary).text(subjectLine, 70);
     doc.moveDown(0.6);
   }
   if (dear) {
     doc.moveDown(0.4);
-    doc.font('Helvetica').fontSize(10).fillColor('#000000').text(`Dear ${dear},`, 70);
+    doc.font('Helvetica').fontSize(10).fillColor(brandSecondary).text(`Dear ${dear},`, 70);
     doc.moveDown(0.8);
   }
 
@@ -292,22 +295,22 @@ function drawQuotePdf(doc, quote, client) {
       return;
     }
     if (!insertedQuoteTable && /^1\.\s*cost of resource/i.test(trimmed)) {
-      doc.font('Helvetica').fontSize(10).fillColor('#000000').text(trimmed, 70);
+      doc.font('Helvetica').fontSize(10).fillColor(brandSecondary).text(trimmed, 70);
       doc.moveDown(0.3);
       drawQuoteTable(doc, quote);
       insertedQuoteTable = true;
       return;
     }
     if (/^3\.\s*Location\s*:/i.test(trimmed)) {
-      doc.font('Helvetica').fontSize(10).fillColor('#000000').text(`3. Location: ${location || '-'}`, 70);
+      doc.font('Helvetica').fontSize(10).fillColor(brandSecondary).text(`3. Location: ${location || '-'}`, 70);
       return;
     }
-    doc.font('Helvetica').fontSize(10).fillColor('#000000').text(trimmed, 70);
+    doc.font('Helvetica').fontSize(10).fillColor(brandSecondary).text(trimmed, 70);
   });
 
   if (regards) {
     doc.moveDown(0.6);
-    doc.font('Helvetica').fontSize(10).fillColor('#000000').text('Regards,', 70);
+    doc.font('Helvetica').fontSize(10).fillColor(brandSecondary).text('Regards,', 70);
     doc.moveDown(0.5);
     doc.text(regards, 70);
     if (designation) {
@@ -316,15 +319,15 @@ function drawQuotePdf(doc, quote, client) {
   }
 
   const footerY = doc.page.height - 70;
-  doc.moveTo(70, footerY - 12).lineTo(doc.page.width - 70, footerY - 12).strokeColor('#D6DCE5').lineWidth(1).stroke();
-  doc.font('Helvetica').fontSize(8).fillColor('#000000');
+  doc.moveTo(70, footerY - 12).lineTo(doc.page.width - 70, footerY - 12).strokeColor(brandBorder).lineWidth(1).stroke();
+  doc.font('Helvetica').fontSize(8).fillColor(brandSecondary);
   doc.text('63 GF, Block-G22, Sector-7', 70, footerY);
   doc.text('Rohini, Delhi-110085', 70, footerY + 12);
-  doc.fillColor('#000000').text('www.teambeescorp.com', 70, footerY + 24, {
+  doc.fillColor(brandSecondary).text('www.teambeescorp.com', 70, footerY + 24, {
     link: 'https://www.teambeescorp.com/',
     underline: false,
   });
-  doc.fillColor('#000000').text('Confidential & Proprietary', 0, footerY + 12, {
+  doc.fillColor(brandSecondary).text('Confidential & Proprietary', 0, footerY + 12, {
     align: 'right',
     width: doc.page.width - 70,
   });

@@ -2,8 +2,8 @@
 
   <!-- Sample Download Banner -->
   <div class="stat-card !p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-    <div class="w-10 h-10 rounded-xl bg-[#4f46e5]/10 flex items-center justify-center flex-shrink-0">
-      <span class="material-symbols-outlined text-[#a78bfa]">download</span>
+    <div class="w-10 h-10 rounded-xl bg-primary/12 flex items-center justify-center flex-shrink-0">
+      <span class="material-symbols-outlined text-accent">download</span>
     </div>
     <div class="flex-1">
       <h6 class="text-sm font-bold text-on-surface mb-0.5">Need sample Excel templates?</h6>
@@ -39,27 +39,27 @@
           <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-2">Rate Card Excel File</label>
-              <div class="upload-zone cursor-pointer relative" id="rateCardZone">
+              <div class="upload-zone cursor-pointer relative !border-black !bg-white shadow-[0_16px_40px_rgba(15,23,42,0.10),0_4px_12px_rgba(15,23,42,0.08)]" id="rateCardZone">
                 <span class="material-symbols-outlined text-3xl text-on-surface-variant/30 mb-2">cloud_upload</span>
                 <div class="text-sm text-on-surface-variant">Drop Rate Card file here</div>
-                <div class="text-[11px] text-outline mt-1">.xlsx or .xls files only</div>
+                <div class="text-[11px] text-text-muted font-medium mt-1">.xlsx or .xls files only</div>
                 <div class="text-xs text-primary font-semibold mt-2" id="rateCardFileName"></div>
                 <input type="file" id="rateCardFile" name="rateCardFile" accept=".xlsx,.xls" required class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
               </div>
             </div>
             <div>
               <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-2">Attendance Excel File</label>
-              <div class="upload-zone cursor-pointer relative" id="attendanceZone">
+              <div class="upload-zone cursor-pointer relative !border-black !bg-white shadow-[0_16px_40px_rgba(15,23,42,0.10),0_4px_12px_rgba(15,23,42,0.08)]" id="attendanceZone">
                 <span class="material-symbols-outlined text-3xl text-on-surface-variant/30 mb-2">cloud_upload</span>
                 <div class="text-sm text-on-surface-variant">Drop Attendance file here</div>
-                <div class="text-[11px] text-outline mt-1">.xlsx or .xls files only</div>
+                <div class="text-[11px] text-text-muted font-medium mt-1">.xlsx or .xls files only</div>
                 <div class="text-xs text-primary font-semibold mt-2" id="attendanceFileName"></div>
                 <input type="file" id="attendanceFile" name="attendanceFile" accept=".xlsx,.xls" required class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
               </div>
             </div>
             <div>
               <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-2">Billing Month</label>
-              <input type="month" id="billingMonth" required>
+              <input type="month" id="billingMonth" required class="!border-2 !border-black !rounded-xl !bg-white shadow-[0_16px_40px_rgba(15,23,42,0.10),0_4px_12px_rgba(15,23,42,0.08)] focus:!border-black focus:!shadow-[0_16px_40px_rgba(15,23,42,0.10),0_4px_12px_rgba(15,23,42,0.08),0_0_0_3px_rgba(0,0,0,0.08)]">
             </div>
             <div class="flex items-end">
               <button type="submit" class="btn-primary w-full flex items-center justify-center gap-2" id="btnGenerate" style="height: 48px;">
@@ -78,13 +78,13 @@
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-2">Client</label>
-              <select id="dbClientId">
+              <select id="dbClientId" class="!border-2 !border-black !rounded-xl !bg-white shadow-[0_16px_40px_rgba(15,23,42,0.10),0_4px_12px_rgba(15,23,42,0.08)] focus:!border-black focus:!shadow-[0_16px_40px_rgba(15,23,42,0.10),0_4px_12px_rgba(15,23,42,0.08),0_0_0_3px_rgba(0,0,0,0.08)]">
                 <option value="">All Clients</option>
               </select>
             </div>
             <div>
               <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-2">Billing Month</label>
-              <input type="month" id="dbBillingMonth" required>
+              <input type="month" id="dbBillingMonth" required class="!border-2 !border-black !rounded-xl !bg-white shadow-[0_16px_40px_rgba(15,23,42,0.10),0_4px_12px_rgba(15,23,42,0.08)] focus:!border-black focus:!shadow-[0_16px_40px_rgba(15,23,42,0.10),0_4px_12px_rgba(15,23,42,0.08),0_0_0_3px_rgba(0,0,0,0.08)]">
             </div>
             <div class="flex items-end">
               <button type="submit" class="btn-primary w-full flex items-center justify-center gap-2" id="btnGenerateDb" style="height: 48px;">
@@ -108,8 +108,8 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 stagger-in">
       <div class="stat-card">
         <div class="flex items-center gap-3 mb-3">
-          <div class="w-9 h-9 rounded-xl bg-[#4f46e5]/10 flex items-center justify-center">
-            <span class="material-symbols-outlined text-[#a78bfa] text-lg">group</span>
+          <div class="w-9 h-9 rounded-xl bg-primary/12 flex items-center justify-center">
+            <span class="material-symbols-outlined text-accent text-lg">group</span>
           </div>
           <span class="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Total Employees</span>
         </div>
@@ -117,8 +117,8 @@
       </div>
       <div class="stat-card">
         <div class="flex items-center gap-3 mb-3">
-          <div class="w-9 h-9 rounded-xl bg-[#10b981]/10 flex items-center justify-center">
-            <span class="material-symbols-outlined text-[#6ee7b7] text-lg">currency_rupee</span>
+          <div class="w-9 h-9 rounded-xl bg-success/12 flex items-center justify-center">
+            <span class="material-symbols-outlined text-success text-lg">currency_rupee</span>
           </div>
           <span class="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Total Amount</span>
         </div>
@@ -126,8 +126,8 @@
       </div>
       <div class="stat-card">
         <div class="flex items-center gap-3 mb-3">
-          <div class="w-9 h-9 rounded-xl bg-red-500/10 flex items-center justify-center">
-            <span class="material-symbols-outlined text-red-400 text-lg">error</span>
+          <div class="w-9 h-9 rounded-xl bg-error/10 flex items-center justify-center">
+            <span class="material-symbols-outlined text-error text-lg">error</span>
           </div>
           <span class="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Errors</span>
         </div>
@@ -135,8 +135,8 @@
       </div>
       <div class="stat-card">
         <div class="flex items-center gap-3 mb-3">
-          <div class="w-9 h-9 rounded-xl bg-[#06b6d4]/10 flex items-center justify-center">
-            <span class="material-symbols-outlined text-[#67e8f9] text-lg">calendar_month</span>
+          <div class="w-9 h-9 rounded-xl bg-accent/12 flex items-center justify-center">
+            <span class="material-symbols-outlined text-accent text-lg">calendar_month</span>
           </div>
           <span class="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Days in Month</span>
         </div>

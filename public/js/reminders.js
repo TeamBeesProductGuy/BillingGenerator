@@ -454,11 +454,9 @@
     var reminderId = document.getElementById('reminderEmailReminderId').value;
     await saveReminderEmails(reminderId);
   });
-
   var searchInput = document.getElementById('remindersSearch');
   if (searchInput) {
     searchInput.addEventListener('input', applyReminderSearch);
   }
-
   loadReminders();
 })();

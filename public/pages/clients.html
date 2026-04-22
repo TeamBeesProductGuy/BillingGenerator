@@ -34,9 +34,9 @@
 </div>
 
 <div id="clientModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
-  <div class="bg-surface-container-high rounded-2xl w-full max-w-3xl mx-4 border border-outline-variant/15 shadow-2xl max-h-[90vh] overflow-y-auto styled-scrollbar">
+  <div class="bg-surface rounded-2xl w-full max-w-3xl mx-4 border border-border shadow-2xl max-h-[90vh] overflow-y-auto styled-scrollbar">
     <form id="clientForm">
-      <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-border">
         <h5 class="font-headline font-bold text-lg text-on-surface" id="clientModalTitle">Add Client</h5>
         <button type="button" onclick="closeClientModal()" class="text-on-surface-variant hover:text-on-surface transition-colors">
           <span class="material-symbols-outlined">close</span>
@@ -183,7 +183,7 @@
             </div>
           </div>
 
-          <div class="stat-card !p-4 !bg-surface-container">
+          <div class="stat-card !p-4 !bg-surface-muted !border-border">
             <div class="flex items-center justify-between mb-3">
               <h6 class="section-label !mb-0">Contact Person(s)</h6>
               <button type="button" class="btn-secondary btn-sm inline-flex items-center gap-1" onclick="addPermanentContactRow()">
@@ -209,7 +209,7 @@
           </div>
         </div>
       </div>
-      <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-border">
         <button type="button" class="btn-secondary" onclick="closeClientModal()">Cancel</button>
         <button type="submit" class="btn-primary">Save</button>
       </div>

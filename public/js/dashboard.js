@@ -20,6 +20,14 @@
 
     var chartInstance = null;
 
+    function getThemeColor(name, alpha) {
+        var value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        if (!value) return "";
+        if (alpha === undefined) return value;
+        if (value.indexOf(" ") !== -1) return "rgb(" + value + " / " + alpha + ")";
+        return value;
+    }
+
     function renderRevenueChart(billingRuns) {
         var canvas = document.getElementById("revenueChart");
         if (!canvas || !window.Chart) return;
@@ -49,8 +57,8 @@
                 datasets: [{
                     label: "Revenue",
                     data: amounts,
-                    backgroundColor: "rgba(195, 192, 255, 0.3)",
-                    borderColor: "#c3c0ff",
+                    backgroundColor: getThemeColor("--color-primary-rgb", 0.3),
+                    borderColor: getThemeColor("--color-primary"),
                     borderWidth: 1,
                     borderRadius: 8,
                     barPercentage: 0.6,
@@ -70,15 +78,15 @@
                 scales: {
                     y: {
                         beginAtZero: true,
-                        grid: { color: "rgba(70, 69, 85, 0.15)" },
+                        grid: { color: getThemeColor("--color-border-rgb", 0.9) },
                         ticks: {
-                            color: "#918fa1",
+                            color: getThemeColor("--color-text-muted"),
                             callback: function (value) { return formatCurrency(value); }
                         }
                     },
                     x: {
                         grid: { display: false },
-                        ticks: { color: "#918fa1" }
+                        ticks: { color: getThemeColor("--color-text-muted") }
                     }
                 }
             }
@@ -146,11 +154,11 @@
             var alertsList = document.getElementById("poAlertsList");
             if (poAlerts.length === 0) {
                 alertsList.innerHTML = '<div class="flex items-center justify-center gap-2 text-on-surface-variant text-sm py-2">' +
-                    '<span class="material-symbols-outlined text-emerald-400">check_circle</span> No alerts</div>';
+                    '<span class="material-symbols-outlined text-success">check_circle</span> No alerts</div>';
             } else {
                 alertsList.innerHTML = poAlerts.map(function (a) {
                     var pct = a.consumption_pct || 0;
-                    var colorClass = pct >= 80 ? "text-error" : pct >= 60 ? "text-tertiary" : "text-emerald-400";
+                    var colorClass = pct >= 80 ? "text-error" : pct >= 60 ? "text-tertiary" : "text-success";
                     return '<div class="p-3 rounded-xl bg-surface-container-high/50 border border-outline-variant/10">' +
                         '<div class="flex justify-between mb-1">' +
                         '<span class="text-sm font-semibold">' + escapeHtml(a.po_number) + '</span>' +

@@ -15,6 +15,24 @@
     var supabaseClient = null;
     var currentSession = null;
 
+    function applyStoredTheme() {
+        var savedTheme;
+        try {
+            savedTheme = localStorage.getItem("theme");
+        } catch (_e) {}
+        document.documentElement.classList.toggle("dark", savedTheme === "dark");
+    }
+
+    window.setTheme = function (theme) {
+        var useDark = theme === "dark";
+        document.documentElement.classList.toggle("dark", useDark);
+        try {
+            localStorage.setItem("theme", useDark ? "dark" : "light");
+        } catch (_e) {
+            // Ignore storage issues and keep the current class state.
+        }
+    };
+
     function initSupabase() {
         if (window.supabase && window.supabase.createClient) {
             supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -527,10 +545,10 @@
     };
 
     // -----------------------------------------------------------
-    //  Dark Mode (always on)
+    //  Theme Initialization
     // -----------------------------------------------------------
     function initDarkMode() {
-        document.documentElement.classList.add("dark");
+        applyStoredTheme();
     }
 
     // -----------------------------------------------------------
