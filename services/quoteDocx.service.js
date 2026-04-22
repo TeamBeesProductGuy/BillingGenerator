@@ -2,13 +2,13 @@ const JSZip = require('jszip');
 const fs = require('fs');
 const path = require('path');
 
-const logoPath = path.join(__dirname, '..', 'public', 'images', 'TeamBees_test.png');
+const logoPath = path.join(__dirname, '..', 'public', 'images', 'header.png');
 const sideNoteMarker = '\n\n---SIDE_NOTE---\n';
 const DEFAULT_FONT = 'Calibri';
 const DEFAULT_FONT_SIZE = 20;
 const FOOTER_FONT_SIZE = 15;
 const LOGO_WIDTH_EMU = 2121408;
-const LOGO_HEIGHT_EMU = 1106424;
+const LOGO_HEIGHT_EMU = 731520;
 const HEADER_LEFT_OFFSET_DXA = -446;
 const FOOTER_LEFT_OFFSET_DXA = 0;
 const FOOTER_TABLE_WIDTH_DXA = 10360;
@@ -629,11 +629,11 @@ async function generateQuoteDocxBuffer(quote, client) {
     </w:style>
   </w:styles>`);
   if (hasLogo) {
-    word.folder('media').file('TeamBees_test.png', fs.readFileSync(logoPath));
+    word.folder('media').file('header.png', fs.readFileSync(logoPath));
   }
   word.folder('_rels').file('header1.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
   <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-    ${hasLogo ? '<Relationship Id="rIdLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/TeamBees_test.png"/>' : ''}
+    ${hasLogo ? '<Relationship Id="rIdLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/header.png"/>' : ''}
   </Relationships>`);
   word.folder('_rels').file('footer1.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
   <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
