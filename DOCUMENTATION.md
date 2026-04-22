@@ -1,839 +1,910 @@
-# Billing Engine - Technical Documentation
+# TeamBees Billing Generator Documentation
 
-## 1. Overview
+## 1. Executive Summary
 
-A Node.js/Express-based billing engine that automates monthly invoice calculations from employee rate card and attendance data. The system supports Excel file upload and database-driven billing, generates structured Excel output, integrates with Purchase Orders for automatic value consumption tracking, and now includes a separate Permanent-client workflow (Phase 2) with Orders and Reminders.
+TeamBees Billing Generator is a business operations system built for staffing and consulting teams. It helps teams manage the full path from client documents to billing output, while also supporting follow-up workflows for permanent hiring invoices and reminders.
 
-### Key Features
-- **Excel-based Billing Generation** - Upload Rate Card + Attendance Excel files to generate billing output
-- **Database-driven Billing** - Generate billing from stored rate cards and attendance data
-- **Rate Card Management** - CRUD storage for employee rate cards with Excel import/export, mandatory SOW linkage, optional PO linkage, and frontend-only hourly-to-monthly entry support with optional cap hours
-- **Attendance Management** - Manual entry with leave calendar (full/half-day) or bulk Excel upload (including alternate legend-based formats)
-- **Quote Generation** - Create, preview, manage, and export client quotes as branded Word `.docx` documents with structured mail-format fields, FY-based quote numbering, SOW linking, and terminate workflow
-- **Statement of Work (SOW)** - Full lifecycle management with amendment support, plus linked-document library (upload/list/search/download/delete)
-- **Purchase Order Management** - PO tracking with optional manual PO numbering, threshold alerts, renewal, and SOW linkage
-- **Controlled PO Consumption** - Billing generates a pending service request first; PO consumption happens only once the client accepts it
-- **Phase 2: Permanent Flow** - Independent flow from contractual workflow: Permanent Clients → Orders → Reminders
-- **Authentication** - Supabase Auth with JWT-based API protection
-- **Downloadable Output** - Generated billing workbooks plus separate worksheet downloads for Billing_Working, Manager_Summary, and Error_Report
-- **Strict Workflow Enforcement** - Client → SOW → PO → Rate Card → Billing (each step requires the previous)
+At a simple level, the platform helps a business answer questions like:
 
----
+- Which clients are active?
+- What commercial documents exist for each client?
+- Which employees are billable under which purchase order?
+- What attendance was recorded for the month?
+- What billing should be raised?
+- Has that billing been approved?
+- Has the linked purchase order been reduced only after approval?
+- For permanent hiring work, which reminders, invoices, and payments are still pending?
 
-## 2. Setup & Installation
+This documentation is written in layers:
 
-### Prerequisites
-- Node.js v18+ (tested on v24.13.0)
-- npm
-- Supabase project (for PostgreSQL database + authentication)
+1. First, it explains the product in business language.
+2. Then, it explains the workflows and modules.
+3. Finally, it goes deeper into the technical design, APIs, and deployment approach.
 
-### Installation
-```bash
-cd "Billing Generator"
-npm install
-```
-
-### Database Setup
-1. Create a Supabase project at https://supabase.com
-2. Open the SQL Editor in the Supabase Dashboard
-3. Run the full schema from `database/supabase_schema.sql` (includes Phase 2 permanent-flow tables)
-4. Copy the project URL, anon key, and service role key
-
-### Environment Configuration
-Copy `.env.example` to `.env` and fill in values:
-```bash
-cp .env.example .env
-```
-
-### Running
-```bash
-# Development (with auto-restart)
-npm run dev
-
-# Production
-npm start
-```
-
-The application starts at `http://localhost:<PORT>`. If `PORT` is not set, the default is **3000**.
-
-### Environment Variables (.env)
-| Variable | Default | Description |
-|----------|---------|-------------|
-| PORT | 3000 | Server port |
-| NODE_ENV | development | Environment |
-| UPLOAD_DIR | ./uploads | Temporary upload directory |
-| OUTPUT_DIR | ./output | Generated billing files directory |
-| LOG_LEVEL | dev | Morgan log level |
-| MAX_FILE_SIZE | 10485760 | Max upload file size in bytes (10MB) |
-| CORS_ORIGINS | * | Comma-separated origins or * |
-| BILLING_DIVISOR | actual | `actual` = days in month, `30` = fixed 30-day divisor |
-| SUPABASE_URL | (required) | Supabase project URL |
-| SUPABASE_ANON_KEY | (required) | Supabase anonymous/public key |
-| SUPABASE_SERVICE_ROLE_KEY | (required) | Supabase service role key (bypasses RLS) |
+The goal is that a non-technical stakeholder can read the beginning and understand the product, while engineers and operations teams can continue deeper into the later sections.
 
 ---
 
-## 3. Architecture
+## 2. What the Product Does
 
-### Tech Stack
-| Layer | Technology | Purpose |
-|-------|-----------|---------|
-| Runtime | Node.js | Server-side JavaScript |
-| Framework | Express.js | HTTP server, routing, middleware |
-| Database | Supabase (PostgreSQL) | Managed PostgreSQL with views, RPC functions, triggers |
-| Auth | Supabase Auth | JWT-based authentication |
-| Excel | ExcelJS | Full-featured Excel read/write with styles |
-| Document Export | JSZip + OpenXML | Native `.docx` quote generation |
-| PDF | PDFKit | Internal/legacy quote PDF generation route (UI currently exposes DOCX download only) |
-| Upload | Multer | Multipart file upload handling |
-| Validation | Joi | Declarative schema validation |
-| Security | Helmet + CORS + express-rate-limit | HTTP headers, CORS, rate limiting |
-| Logging | Morgan | HTTP request logging |
-| Frontend | Vanilla JS + Tailwind CSS (CDN) | SPA with hash-based routing |
-| Icons | Material Symbols (Outlined) | Google Material Design icons |
-| Design System | Stitch | Custom dark theme design system |
+### 2.1 Business purpose
 
-### Design Decisions
-1. **Supabase PostgreSQL** - Managed PostgreSQL with built-in auth, views, RPC functions, and triggers. Backend uses `service_role` key (bypasses RLS) for full DB access; frontend uses `anon` key for auth only.
-2. **Normalized Attendance** - Attendance stored as one row per employee per day (vs. 31 columns). Better for queries, aggregation, and variable month lengths.
-3. **Service Layer Pattern** - Business logic isolated in services, separate from controllers (HTTP handling) and models (data access).
-4. **Error Collection over Error Throwing** - Billing errors are collected and reported (in Error_Report sheet), not thrown. The system produces output even when some employees have issues.
-5. **SPA with Hash Routing** - Single `index.html` with hash-based client-side routing. No build tools, instantly servable by Express.
-6. **Decision-based PO Consumption** - Billing generation creates a reviewable service request first. Linked PO values are consumed only after the request is explicitly accepted, preventing accidental double-consumption.
+The system replaces fragmented spreadsheet-based billing operations with a structured process.
 
-### Project Structure
-```
-billing-engine/
-├── server.js                    # Entry point - starts Express after DB init
-├── app.js                       # Express configuration, middleware, route mounting
-├── package.json                 # Dependencies and scripts
-├── .env                         # Environment configuration (not committed)
-├── .env.example                 # Environment template
-│
-├── config/
-│   ├── env.js                   # Environment variable loader
-│   └── database.js              # Supabase client initialization
-│
-├── database/
-│   ├── supabase_schema.sql      # Full PostgreSQL schema (tables, views, functions, triggers)
-│   ├── schema.sql               # Legacy SQLite schema (reference only)
-│   ├── seed.js                  # Database seed script
-│   └── migrations/              # SQL migrations (includes permanent-flow migration)
-│
-├── middleware/
-│   ├── auth.js                  # JWT authentication via Supabase Auth
-│   ├── catchAsync.js            # Async error wrapper for controllers
-│   ├── errorHandler.js          # AppError class + centralized error handler
-│   ├── upload.js                # Multer configuration for Excel uploads
-│   └── validate.js              # Joi validation middleware factory
-│
-├── models/                      # Data access layer (Supabase queries)
-│   ├── client.model.js          # Client CRUD
-│   ├── permanentClient.model.js # Permanent client CRUD + contact groups
-│   ├── permanentOrder.model.js  # Permanent orders CRUD + client mapping
-│   ├── permanentReminder.model.js # Reminder tracking for permanent orders
-│   ├── rateCard.model.js        # Rate card CRUD + bulk operations + PO linkage
-│   ├── attendance.model.js      # Attendance CRUD + summaries
-│   ├── billing.model.js         # Billing run history + items + errors
-│   ├── quote.model.js           # Quote CRUD + line items
-│   ├── purchaseOrder.model.js   # PO CRUD + consumption tracking + linked employees
-│   └── sow.model.js             # SOW CRUD + items
-│
-├── services/                    # Business logic layer
-│   ├── excelParser.service.js   # Parse Rate Card & Attendance Excel files
-│   ├── excelWriter.service.js   # Generate billing Excel workbooks + single-sheet downloads
-│   ├── billing.service.js       # Core billing calculation engine
-│   ├── permanentBilling.service.js # Permanent billing calculations (next bill date, amount)
-│   ├── quoteDocx.service.js     # Native .docx quote generation
-│   ├── validation.service.js    # Business rule validations
-│   └── poTracker.service.js     # PO consumption & expiry alert logic
-│
-├── validators/                  # Joi validation schemas
-│   ├── billing.validator.js     # Billing request schemas
-│   ├── client.validator.js      # Client request schemas
-│   ├── permanentClient.validator.js # Permanent client schemas
-│   ├── permanentOrder.validator.js # Permanent order schemas
-│   ├── permanentReminder.validator.js # Reminder action schemas
-│   ├── rateCard.validator.js    # Rate card request schemas
-│   ├── attendance.validator.js  # Attendance request schemas
-│   ├── quote.validator.js       # Quote request schemas
-│   ├── purchaseOrder.validator.js # PO request schemas
-│   └── sow.validator.js         # SOW request schemas
-│
-├── controllers/                 # HTTP request handlers
-│   ├── billing.controller.js    # Billing generation + service-request decision flow
-│   ├── client.controller.js     # Client management
-│   ├── permanentClient.controller.js # Permanent client management
-│   ├── permanentOrder.controller.js # Permanent order management
-│   ├── permanentReminder.controller.js # Permanent reminder management
-│   ├── rateCard.controller.js   # Rate card management + Excel upload/export
-│   ├── attendance.controller.js # Attendance management
-│   ├── quote.controller.js      # Quote management + DOCX/PDF export
-│   ├── purchaseOrder.controller.js # PO management + consumption + renewal
-│   └── sow.controller.js        # SOW management
-│
-├── routes/                      # Express route definitions
-│   ├── index.js                 # Route aggregator (applies auth middleware)
-│   ├── billing.routes.js
-│   ├── client.routes.js
-│   ├── permanentClient.routes.js
-│   ├── permanentOrder.routes.js
-│   ├── permanentReminder.routes.js
-│   ├── rateCard.routes.js
-│   ├── attendance.routes.js
-│   ├── quote.routes.js
-│   ├── purchaseOrder.routes.js
-│   ├── sow.routes.js
-│   ├── dashboard.routes.js
-│   └── samples.routes.js
-│
-├── public/                      # Static frontend (SPA)
-│   ├── index.html               # Main shell with sidebar navigation
-│   ├── css/styles.css           # Stitch design system + custom styles
-│   ├── js/
-│   │   ├── app.js               # Client-side router + shared utilities
-│   │   ├── login.js             # Supabase Auth login/signup
-│   │   ├── dashboard.js         # Dashboard page logic
-│   │   ├── billing.js           # Billing generation UI
-│   │   ├── clients.js           # Client management UI
-│   │   ├── orders.js            # Permanent orders UI
-│   │   ├── reminders.js         # Permanent reminders UI
-│   │   ├── rate-cards.js        # Rate card management UI
-│   │   ├── attendance.js        # Attendance management UI
-│   │   ├── quotes.js            # Quote management UI
-│   │   ├── purchase-orders.js   # PO management UI
-│   │   └── sows.js              # SOW management UI
-│   └── pages/                   # HTML partial templates
-│       ├── login.html
-│       ├── dashboard.html
-│       ├── billing.html
-│       ├── clients.html
-│       ├── orders.html
-│       ├── reminders.html
-│       ├── rate-cards.html
-│       ├── attendance.html
-│       ├── quotes.html
-│       ├── purchase-orders.html
-│       └── sows.html
-│
-├── uploads/                     # Temporary uploaded files (auto-cleaned)
-├── output/                      # Generated billing Excel files
-└── data/                        # Sample Excel files for testing
-    ├── TestRateCard.xlsx
-    └── TestAttendance.xlsx
-```
+Instead of tracking clients, quotes, agreements, purchase orders, attendance, invoices, and reminders across many disconnected sheets and emails, the platform brings them into one system.
+
+### 2.2 Main business areas
+
+The product supports two major operational areas.
+
+#### Contractual billing operations
+
+This area covers:
+
+- client records
+- quotes
+- statements of work
+- purchase orders
+- employee rate cards
+- attendance
+- billing generation
+- approval and PO consumption
+
+#### Permanent hiring follow-up
+
+This area covers:
+
+- permanent clients
+- permanent orders
+- reminders
+- invoice sent tracking
+- payment status tracking
+- email reminder follow-up
+
+### 2.3 Why this matters
+
+Without a controlled system, businesses commonly face:
+
+- billing mistakes caused by manual calculations
+- missing visibility into how much of a purchase order is already used
+- weak traceability between commercial documents and billing output
+- difficult invoice dispute resolution
+- inconsistent follow-up for permanent hiring invoices
+
+This platform improves:
+
+- accuracy
+- auditability
+- control
+- visibility
+- speed of monthly operations
 
 ---
 
-## 4. Authentication
+## 3. Product Journey in Plain Language
 
-### Architecture
-- **Backend**: Uses Supabase `service_role` key (bypasses RLS) for full database access
-- **Frontend**: Uses Supabase `anon` key for authentication only (login/signup)
-- **Middleware**: `middleware/auth.js` verifies JWT tokens via `supabaseAuth.auth.getUser(token)`
-- **Route Protection**: All `/api/*` routes require authentication (`routes/index.js` applies `requireAuth`)
-- **Frontend Auth Flow**: Login page at `public/pages/login.html`, token stored in localStorage, sent as `Authorization: Bearer <token>` via `apiCall()` in app.js
+### 3.1 Contractual billing journey
 
-### Login/Signup
-Users authenticate via the Supabase Auth UI. The frontend calls `supabase.auth.signInWithPassword()` or `supabase.auth.signUp()`.
+In simple terms, the contractual billing journey works like this:
 
----
+1. A client is created.
+2. A quote is prepared for that client.
+3. The quote becomes a statement of work.
+4. A purchase order is linked to the work.
+5. Employees are attached through rate cards.
+6. Attendance is recorded.
+7. Billing is generated.
+8. The billing is reviewed as a service request.
+9. Only after approval is the purchase order balance reduced.
 
-## 5. Data Flow
+This is an important control. The system does not immediately reduce a purchase order just because a file was generated. It waits for an acceptance decision.
 
-### Billing Generation (from files)
-```
-1. User uploads Rate Card + Attendance Excel files + billing month
-2. Multer saves files to /uploads
-3. excelParser.service parses both files → records[] + errors[]
-4. po_number strings from Excel are resolved to po_id integers via DB lookup
-5. validation.service cross-validates emp_codes between files
-6. billing.service calculates billing (pro-rata for mid-month reporting, cap at 30 days)
-7. excelWriter.service generates Billing_Working_For_YYYYMM.xlsx (3 sheets: Billing_Working, Manager_Summary, Error_Report)
-8. billing.model saves run + items + errors to database
-9. A pending billing/service request is stored for review
-10. Response includes summary, items, errors, download URL, request status, and any PO-assignment suggestions
-11. Uploaded files are cleaned up
-```
+### 3.2 Permanent hiring journey
 
-### Billing Generation (from database)
-```
-1. User selects client (optional) + billing month
-2. Rate cards fetched from rate_cards_view (includes SOW and optional PO linkage from DB)
-3. Attendance fetched from attendance table (aggregated via RPC)
-4. Same calculation → Excel generation → DB save as Pending service request
-```
+For permanent hiring, the process is different:
 
-### Service Request Decision Pipeline
-```
-Billing Generated (file upload or DB)
-    ↓
-calculateBilling() → billingItems with po_id on each item
-    ↓
-billing_runs row created with request_status = "Pending"
-    ↓
-Client reviews run in UI
-    ↓
-Accept or Reject exactly once
-    ↓
-If Accepted: consume_po RPC inserts po_consumption_log + updates consumed_value
-If Rejected: run remains downloadable but no PO value is consumed
-Both outcomes are then locked in the UI
-```
+1. A permanent client is created.
+2. A permanent order is created for a role or candidate.
+3. A reminder is tracked around the expected billing date.
+4. Teams can record whether the invoice was sent.
+5. Teams can record whether the payment is still pending or already received.
+6. Reminder emails can be sent manually or automatically.
+
+### 3.3 Why the approval step is important
+
+Many systems reduce purchase order value immediately when billing is generated. That creates financial risk if the billing is still under review.
+
+This system introduces a controlled approval step:
+
+- billing is generated first
+- the result is stored
+- the output is reviewed
+- a decision is recorded
+- only approved billing affects the purchase order balance
+
+That makes the system safer for finance and operations teams.
 
 ---
 
-## 6. Core Billing Logic
+## 4. Functional Overview
 
-### Formula
-```
-DaysInMonth    = actual calendar days in YYYYMM (e.g., Feb 2026 = 28)
-EffectiveDays  = DaysInMonth (or pro-rated if charging_date / date_of_reporting falls in billing month)
-LeavesTaken    = count of "L" in attendance (days 1..DaysInMonth only)
-ChargeableDays = min(EffectiveDays - LeavesTaken + LeavesAllowed, 30)   // capped at 30, min 0
-InvoiceAmount  = (ChargeableDays / Divisor) × MonthlyRate
-```
+### 4.1 Billing
 
-The **Divisor** is configurable via the `BILLING_DIVISOR` environment variable:
-- `actual` (default) — uses the actual number of days in the month
-- `30` — always divides by 30 (fixed billing month assumption)
+The billing module allows users to:
 
-### Date of Reporting (Pro-rata)
-If an employee's `charging_date` (also accepted from uploads as `date_of_reporting`) falls within the billing month, billing is pro-rated:
-- **EffectiveDays** = DaysInMonth - ReportingDay + 1 (bill from reporting date to month-end)
-- If that date is **after** the billing month, the employee is skipped entirely with an error
-- If that date is **before** the billing month (or not set), full month is billed
+- generate billing from uploaded Excel files
+- generate billing from records already stored in the system
+- store each run for history and audit
+- download output workbooks
+- review errors without losing valid output
+- accept or reject the billing request
 
-### Chargeable Days Cap
-- Maximum chargeable days is **30** (hard cap)
-- Minimum chargeable days is **0** (no negative billing)
+### 4.2 Clients
 
-### Example 1: Normal (EMP001, Feb 2026, Divisor = 30)
-```
-DaysInMonth = 28, EffectiveDays = 28 (no charging_date)
-LeavesTaken = 2, LeavesAllowed = 2
-ChargeableDays = min(28 - 2 + 2, 30) = 28
-InvoiceAmount = (28 / 30) × 50,000 = 46,666.67
-```
+The client module stores the business entities that all other operations depend on.
 
-### Example 2: Pro-rata (EMP002, Mar 2026, reports 15th, Divisor = 30)
-```
-DaysInMonth = 31, EffectiveDays = 31 - 15 + 1 = 17
-LeavesTaken = 1, LeavesAllowed = 1
-ChargeableDays = min(17 - 1 + 1, 30) = 17
-InvoiceAmount = (17 / 30) × 150,000 = 85,000.00
-```
+It supports:
 
-### Example 3: Cap Applied (EMP003, Mar 2026, 0 leaves, 2 allowed, Divisor = 30)
-```
-DaysInMonth = 31, EffectiveDays = 31
-LeavesTaken = 0, LeavesAllowed = 2
-ChargeableDays = min(31 - 0 + 2, 30) = 30  (capped from 33)
-InvoiceAmount = (30 / 30) × 180,000 = 180,000.00
-```
+- client creation
+- updates
+- viewing
+- removal or deactivation through the application flow
 
-### Key Points
-- `DaysInMonth` is dynamically derived from the YYYYMM input using `new Date(year, month, 0).getDate()`
-- `LeavesAllowed` acts as a "free leave" buffer - it adds back days that would otherwise be deducted
-- `ChargeableDays` is capped at 30 and cannot go negative
-- `EffectiveDays` reflects pro-rata when an employee joins mid-month
-- Monetary values are rounded to 2 decimal places
-- Invoice amounts are only deducted from linked POs when the generated service request is accepted
+### 4.3 Quotes
 
----
+The quote module supports commercial proposal creation.
 
-## 7. Input File Specifications
+It includes:
 
-### Rate Card Excel (Sheet1)
-| Column | Type | Required | Description |
-|--------|------|----------|-------------|
-| client_name | Text | Yes | Client name |
-| emp_code | Text | Yes | Unique employee identifier |
-| emp_name | Text | Yes | Employee name |
-| doj | Date/Text | No | Date of joining |
-| reporting_manager | Text | No | Manager name |
-| monthly_rate | Number | Yes | Monthly billing rate (positive) |
-| leaves_allowed | Number | Yes | Leaves per month (non-negative) |
-| sow_number | Text | Yes | Existing SOW number used to resolve `sow_id` |
-| po_number | Text | No | Optional PO number (resolved to `po_id` if it matches an active PO) |
-| charging_date | Date/Text | No | Employee reporting / charging start date |
+- quote details
+- line items
+- structured text sections for business communication
+- downloadable documents
+- quote status management
+- conversion into a statement of work
 
-Column names are matched case-insensitively with alias support (e.g., "Employee Code" maps to "emp_code", "PO" maps to "po_number", "date_of_reporting" maps to "charging_date").
+### 4.4 Statements of work
 
-### Attendance Excel (Sheet1)
-| Column | Type | Required | Description |
-|--------|------|----------|-------------|
-| emp_code | Text | Yes | Employee identifier |
-| emp_name | Text | No | Employee name |
-| reporting_manager | Text | No | Manager name |
-| 1, 2, 3, ... 31 | Text | Yes | Daily status: "P" (Present) or "L" (Leave) |
+The SOW module handles formal work agreements.
 
-Days beyond the actual month length are ignored.
+It supports:
 
-### Output: Billing_Working_For_YYYYMM.xlsx
+- creation
+- amendment
+- status updates
+- document linking
+- linked commercial file storage
 
-**Sheet 1: Billing_Working**
-| Column | Description |
-|--------|-------------|
-| Client Name | From rate card |
-| Reporting Manager | From rate card or attendance |
-| Emp Code | Employee identifier |
-| Emp Name | Employee name |
-| Date of Reporting | Employee's reporting start date (for pro-rata) |
-| Monthly Rate | Billing rate |
-| Allowed Leaves | From rate card |
-| Leaves Taken | Counted from attendance |
-| Effective Days | Billable days (pro-rated if mid-month reporting) |
-| Chargeable Days | Calculated (capped at 30, min 0) |
-| Invoice Amount | Calculated amount; consumed from linked PO only if the service request is later accepted |
+### 4.5 Purchase orders
 
-Includes a TOTAL row at the bottom and auto-filter on all columns.
+The purchase order module tracks:
 
-**Sheet 2: Manager_Summary**
-| Column | Description |
-|--------|-------------|
-| Reporting Manager | Manager name (grouped) |
-| Employee Count | Number of employees under this manager |
-| Total Monthly Rate | Sum of monthly rates for the group |
-| Total Invoice Amount | Sum of invoice amounts for the group |
+- purchase order details
+- alerts
+- linked employees
+- consumption activity
+- renewal
 
-Sorted alphabetically by manager name with a TOTAL row at the bottom.
+### 4.6 Rate cards
 
-**Sheet 3: Error_Report**
-| Column | Description |
-|--------|-------------|
-| Emp Code | Employee identifier (or row reference) |
-| Error Message | Detailed error description |
+Rate cards define billable employee information such as:
+
+- employee identity
+- reporting details
+- leave allowance
+- billable rate
+- linked commercial context
+
+### 4.7 Attendance
+
+Attendance can be recorded through:
+
+- manual entry
+- bulk entry
+- Excel upload
+
+This information supports monthly billing calculations.
+
+### 4.8 Dashboard and reporting
+
+The dashboard gives a high-level operational view, including:
+
+- overall counts
+- recent billing activity
+- purchase order alerts
+- revenue trends
+- tracker export support
+
+### 4.9 Permanent reminders
+
+Permanent reminder workflows support:
+
+- reminder tracking
+- invoice status updates
+- payment status updates
+- recipient updates
+- due date extensions
+- manual mail sending
+- scheduled mail sending
 
 ---
 
-## 8. API Reference
+## 5. How the System Is Organized
 
-All API routes require authentication via `Authorization: Bearer <token>` header.
+### 5.1 High-level view
 
-### Billing
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/billing/generate` | Upload files + generate billing (multipart) |
-| POST | `/api/billing/generate-from-db` | Generate from stored data (JSON body: `{clientId?, billingMonth}`) |
-| GET | `/api/billing/runs` | List billing run history (`?limit=&offset=`) |
-| GET | `/api/billing/runs/:id` | Get run details with items + errors |
-| POST | `/api/billing/runs/:id/decision` | Accept or reject a pending service request |
-| GET | `/api/billing/runs/:id/download` | Download generated Excel workbook |
-| GET | `/api/billing/runs/:id/download/billing_working` | Download only the `Billing_Working` worksheet as Excel |
-| GET | `/api/billing/runs/:id/download/manager_summary` | Download only the `Manager_Summary` worksheet as Excel |
-| GET | `/api/billing/runs/:id/download/error_report` | Download only the `Error_Report` worksheet as Excel |
+The product has four main layers:
 
-### Clients
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/clients` | List all active clients |
-| GET | `/api/clients/:id` | Get single client |
-| POST | `/api/clients` | Create client (includes `industry` field) |
-| PUT | `/api/clients/:id` | Update client |
-| DELETE | `/api/clients/:id` | Soft-delete client |
+1. The browser interface used by the business team
+2. The application server
+3. The business-logic layer
+4. The database
 
-### Phase 2: Permanent Clients
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/permanent/clients` | List active permanent clients with contact groups |
-| GET | `/api/permanent/clients/:id` | Get one permanent client |
-| POST | `/api/permanent/clients` | Create permanent client |
-| PUT | `/api/permanent/clients/:id` | Update permanent client |
-| DELETE | `/api/permanent/clients/:id` | Soft-delete permanent client |
+### 5.2 Browser interface
 
-Backward-compatible aliases are also mounted:
-- `/api/clients/permanent`
-- `/api/clients/permanent/:id`
+Users work through a browser-based single-page application.
 
-### Rate Cards
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/rate-cards` | List rate cards (`?clientId=`) |
-| GET | `/api/rate-cards/:id` | Get single rate card |
-| POST | `/api/rate-cards` | Create rate card (requires `sow_id`, optional `po_id`, stores `monthly_rate`) |
-| PUT | `/api/rate-cards/:id` | Update rate card |
-| DELETE | `/api/rate-cards/:id` | Soft-delete rate card |
-| POST | `/api/rate-cards/upload` | Bulk upload from Excel |
-| GET | `/api/rate-cards/export` | Export to Excel download |
+This interface provides:
 
-### Attendance
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/attendance` | Get attendance (`?empCode=&billingMonth=`) |
-| GET | `/api/attendance/summary` | Get month summary (`?billingMonth=`) |
-| POST | `/api/attendance` | Submit single day |
-| POST | `/api/attendance/bulk` | Submit full month for one employee (supports decimal leaves and `leave_entries` for full/half-day) |
-| POST | `/api/attendance/upload` | Bulk upload from Excel (supports standard and Vocera-style attendance layouts) |
-| DELETE | `/api/attendance` | Delete employee's month data |
+- login
+- navigation between modules
+- forms and tables
+- dashboard views
+- downloads
+- reminder actions
 
-### Quotes
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/quotes` | List quotes (`?clientId=&status=`) |
-| GET | `/api/quotes/:id` | Get quote with line items |
-| POST | `/api/quotes` | Create quote (items include `location`) |
-| PUT | `/api/quotes/:id` | Update draft quote |
-| PATCH | `/api/quotes/:id/status` | Change status (enforced transitions) |
-| DELETE | `/api/quotes/:id` | Delete draft quote |
-| GET | `/api/quotes/:id/download` | Download quote as branded Word `.docx` |
-| GET | `/api/quotes/:id/pdf` | PDF export route (backend available; current UI uses DOCX download) |
-| POST | `/api/quotes/:id/convert-to-sow` | Create or link a SOW from an accepted quote |
+### 5.3 Application server
 
-#### Quote Status Transitions
-```
-Draft → Sent → Accepted
-                Sent → Rejected → Draft
-Any status → Expired
-```
+The application server receives requests from the browser, validates them, runs business logic, talks to the database, and returns results.
 
-- In the Quotes UI, accepted quotes expose a **Terminate** action.
-- Terminate is implemented as a status update to `Expired` (no DB schema change required).
-- When terminate is used from `Accepted`, the linked SOW document folder is also deleted (if present).
+It also:
 
-#### Quote Notes / Mail Format
-- The UI exposes structured quote-mail fields for **Subject**, **Candidate Name**, **Dear / Recipient**, **Mail Body**, **Regards / Sender**, **Designation**, plus an internal **Side Note** field.
-- Both values are stored inside the existing `quotes.notes` column using an internal marker, so no schema change is required.
-- Only the structured **Mail Format** content is included in the exported documents; **Side Note** is for internal reference only.
-- The exported document includes the TeamBees logo, quote number, quote date, client name, client address, structured subject line, mail body, quote item table, structured signoff, and footer block.
-- Quote DOCX download filename format is:
-  `<client_abbreviation>_<first_line_item_description>_<candidate_name>_<quote_date_YYYYMMDD>.docx`
-- If **Candidate Name** is provided, the exported subject line is rendered as `Subject: <subject> ("<candidate>")`.
-- If **Designation** is provided, it is rendered on the next line below the sender as `(<designation>)`.
-- The body template includes:
-  `1. Cost of resource (per man month):`
-  `2. Prevailing taxes, GST extra as applicable`
-  `3. Location: ...`
-  `4. This Quote is valid till <N days>`
-- The frontend keeps `valid_until` defaulted to **quote date + 10 days**, but users can edit it manually; the mail body validity line is updated accordingly.
+- serves the web interface
+- handles file uploads
+- protects API routes
+- runs the reminder scheduler
 
-#### Quote Numbering
-- New quote numbers follow the format `TBC-<financial-year>-<serial>`.
-- Financial year is April to March.
-- Example: a quote created on **2026-04-07** is numbered `TBC-2627-001`.
-- The serial resets for each financial year.
-- Quote revisions continue to use the base quote number with the existing revision suffix format `R(<n>)`.
+### 5.4 Business-logic layer
 
-### Statements of Work (SOW)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/sows` | List SOWs (`?clientId=&status=`) |
-| GET | `/api/sows/:id` | Get SOW with items |
-| POST | `/api/sows` | Create SOW (auto-generated number: `SOW-YYYYMMDD-NNN`) |
-| POST | `/api/sows/:id/amend` | Create an amendment draft from a signed SOW |
-| PUT | `/api/sows/:id` | Update Draft or Amendment Draft SOW |
-| PATCH | `/api/sows/:id/status` | Change SOW status |
-| DELETE | `/api/sows/:id` | Delete Draft or Amendment Draft SOW |
-| GET | `/api/sows/documents` | List linked-document folders and files |
-| POST | `/api/sows/documents/upload` | Upload SOW doc (PDF/DOC/DOCX) and store generated quote DOCX in the same folder |
-| GET | `/api/sows/documents/download?folder=&file=` | Download a file from a linked-document folder |
-| DELETE | `/api/sows/documents?folder=` | Delete a linked-document folder |
+The system separates request handling from core business rules.
 
-#### SOW Status Transitions
-```
-Draft → Signed → Expired / Terminated
-Signed → Make Amendment → Amendment Draft → Signed
-```
+This means:
 
-#### SOW Linked Document Library
-- Folder naming format:
-  `<client_abbreviation>_<candidate_name>_<quote_date_YYYYMMDD>`
-- Each folder stores:
-  generated quote DOCX + uploaded SOW file (`.pdf`, `.doc`, or `.docx`)
-- SOW tab includes in-app folder browsing with:
-  search by folder name, per-file download, and folder delete
+- controllers handle incoming requests
+- services perform calculations and workflow logic
+- models handle database access
 
-### Purchase Orders
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/purchase-orders` | List POs (`?clientId=&status=`) |
-| GET | `/api/purchase-orders/:id` | Get PO with consumption log + linked employees |
-| POST | `/api/purchase-orders` | Create PO (required `sow_id`, optional `po_number`, optional `quote_id`) |
-| PUT | `/api/purchase-orders/:id` | Update PO |
-| PATCH | `/api/purchase-orders/:id/consume` | Manual consumption (`{amount, description}`) |
-| GET | `/api/purchase-orders/alerts` | Get POs nearing threshold or expiry |
-| PATCH | `/api/purchase-orders/:id/renew` | Renew PO (marks old as Renewed, creates new, migrates employees) |
+This structure makes the application easier to maintain and extend.
 
-### Phase 2: Orders
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/permanent/orders` | List all permanent orders |
-| GET | `/api/permanent/orders/:id` | Get one permanent order |
-| POST | `/api/permanent/orders` | Create order (server computes `next_bill_date` and `bill_amount`) |
-| PUT | `/api/permanent/orders/:id` | Update order (recomputes billing fields) |
-| DELETE | `/api/permanent/orders/:id` | Delete order |
+### 5.5 Database layer
 
-Backward-compatible aliases are also mounted:
-- `/api/orders/permanent`
-- `/api/orders/permanent/:id`
+The database stores:
 
-### Phase 2: Reminders
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/permanent/reminders` | List open reminders in window `referenceDate-3` to `referenceDate+3` (default `referenceDate=today`) |
-| PATCH | `/api/permanent/reminders/:id/emails` | Save/update two reminder email IDs |
-| PATCH | `/api/permanent/reminders/:id/close` | Close/end reminder |
-| PATCH | `/api/permanent/reminders/:id/extend` | Extend reminder due date |
-
-Backward-compatible aliases are also mounted:
-- `/api/reminders/permanent`
-
-### Dashboard
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/dashboard/stats` | Summary stats + recent runs + PO alerts |
-
-### Samples
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/samples/rate-card` | Download sample rate card Excel |
-| GET | `/api/samples/attendance` | Download sample attendance Excel |
-
-### Health Check (No Auth Required)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/health` | Server health + DB status + uptime |
-
-### Response Format
-All API responses follow this envelope:
-```json
-// Success
-{ "success": true, "data": { ... } }
-
-// Error
-{ "success": false, "error": "Error message" }
-```
+- clients
+- commercial records
+- purchase orders
+- employee billing records
+- attendance
+- billing history
+- reminders
+- invoice and payment tracking details
 
 ---
 
-## 9. Database Schema
+## 6. Important Business Controls
 
-### Tables
-1. **clients** - Contractual client information with `industry` field and soft-delete
-2. **permanent_clients** - Permanent client master with billing pattern and billing rate
-3. **permanent_client_contacts** - Repeatable contact groups for permanent clients
-4. **permanent_orders** - Candidate-level placement/order records for permanent clients
-5. **permanent_reminders** - Reminder tracking for permanent billing follow-up
-6. **rate_cards** - Employee rate cards linked to clients and POs (UNIQUE: client_id + emp_code)
-7. **attendance** - Daily attendance records (UNIQUE: emp_code + billing_month + day_number) with `leave_units` support for half-day leave
-8. **billing_runs** - Audit log of billing generations
-9. **billing_items** - Per-employee calculation results for each run (`leaves_taken` supports fractional values)
-10. **billing_errors** - Per-employee errors for each run
-11. **quotes** + **quote_items** - Quote management with line items; exported primarily as branded `.docx`
-12. **sows** + **sow_items** - Statement of Work with role/position items and amendment draft workflow
-13. **purchase_orders** - PO tracking with value consumption and SOW linkage
-14. **po_consumption_log** - Consumption event history (auto + manual)
-15. **employee_po_history** - Assignment history when employees move between POs
-16. **audit_log** - General audit trail
+### 6.1 Approval before PO reduction
 
-### Key Relationships
-- `rate_cards.client_id` → `clients.id`
-- `permanent_client_contacts.client_id` → `permanent_clients.id`
-- `permanent_orders.client_id` → `permanent_clients.id`
-- `permanent_reminders.order_id` → `permanent_orders.id`
-- `rate_cards.po_id` → `purchase_orders.id` (employee-to-PO linkage)
-- `billing_items.billing_run_id` → `billing_runs.id` (CASCADE)
-- `billing_errors.billing_run_id` → `billing_runs.id` (CASCADE)
-- `quotes.client_id` → `clients.id`
-- `quote_items.quote_id` → `quotes.id` (CASCADE)
-- `sows.client_id` → `clients.id`
-- `sows.quote_id` → `quotes.id`
-- `sow_items.sow_id` → `sows.id` (CASCADE)
-- `purchase_orders.client_id` → `clients.id`
-- `purchase_orders.sow_id` → `sows.id`
-- `purchase_orders.quote_id` → `quotes.id`
-- `po_consumption_log.po_id` → `purchase_orders.id`
-- `po_consumption_log.billing_run_id` → `billing_runs.id`
-- `employee_po_history.rate_card_id` → `rate_cards.id`
-- `employee_po_history.po_id` → `purchase_orders.id`
+This is one of the most important controls in the system.
 
-### Views
-- **rate_cards_view** - rate_cards + client_name + po_number
-- **quotes_view** - quotes + client_name
-- **sows_view** - sows + client_name
-- **purchase_orders_view** - purchase_orders + client_name + sow_number + consumption_pct + remaining_value + linked_employees count
+The platform does not reduce purchase order value immediately when billing is generated. It stores the billing request first. A user must approve it before the related purchase order is affected.
 
-### Database Functions (RPC)
-- **get_attendance_summary(billing_month)** - Aggregated attendance per employee
-- **consume_po(po_id, amount, description, billing_run_id)** - Atomic PO consumption (insert log + update value + auto-mark Exhausted)
-- **renew_po(...)** - Atomic PO renewal (mark old as Renewed + create new + log history + migrate employees)
-- **get_po_alerts()** - POs exceeding threshold or expiring within 30 days
-- **check_and_update_expired_pos()** - Mark expired POs
-- **get_dashboard_stats()** - All dashboard stats in a single call
+### 6.2 Error collection instead of full failure
 
-### Triggers
-- **trg_rate_card_po_client** - Ensures a rate card's `po_id` references a PO belonging to the same client
-- **trg_po_sow_client** - Ensures a PO's `sow_id` references a SOW belonging to the same client
+When some billing rows are invalid, the system does not necessarily discard the entire run. It captures the errors and still allows valid output to be produced where appropriate.
+
+This is useful for operational teams because one bad row does not always stop the month-end process completely.
+
+### 6.3 Traceability between commercial records and billing
+
+The platform is designed so that billing can be traced back through the related commercial records. This improves audit readiness and dispute handling.
+
+### 6.4 Reminder state tracking
+
+In the permanent workflow, reminder records can track whether:
+
+- the reminder is still open
+- the invoice was sent
+- the payment is pending
+- the payment is complete
+- reminder communication has already been sent
 
 ---
 
-## 10. Validation Rules
+## 7. User-Facing Modules
 
-### Rate Card
-- Required columns present: emp_code, emp_name, monthly_rate, leaves_allowed, sow_number
-- emp_code unique within the file
-- monthly_rate must be a positive number
-- leaves_allowed must be a non-negative integer
-- sow_number must match an existing SOW
-- po_number is optional; if provided, it must match an Active PO for the selected client/SOW context
-- In the manual Rate Card form, users may choose `Hourly Rate` mode; the UI computes `monthly_rate = hourly_rate × min(hours_worked_in_month, cap_hours)`, and only `monthly_rate` is stored
+### 7.1 Dashboard
 
-### Attendance
-- Standard layout: required columns `emp_code` + day number columns
-- Alternate (Vocera-style) layout is supported:
-  header row auto-detection, employee-name-based matching to rate card when `emp_code` column is absent
-- Supported present codes: `P`, `PR`, `ODW`, `WFH`
-- Supported full-leave codes: `L`, `CL`, `SL`, `EL`, `HL`, `WO`, `PRTO`, `A`
-- Supported half-leave codes: `HDL`, `HDS`, `HD`
-- Manual attendance UI supports half-day via calendar toggles:
-  `Full Leave -> Half Leave -> Present`
-- `Number of Leaves` accepts `0.5` increments (for example, `4.5`)
-- `leave_entries` payload accepts `{ day_number, leave_units }` with `leave_units` in `{1, 0.5}`
-- Days beyond month length are ignored
+The dashboard is the overview screen for the platform. It is intended for quick operational understanding.
 
-### Cross-validation
-- Employees in Rate Card but missing in Attendance → Error
-- Employees in Attendance but missing in Rate Card → Error
+Typical information shown:
 
-### Billing Month
-- Format: YYYYMM (6 digits)
-- Year: 2020-2099
-- Month: 01-12
+- totals and counts
+- recent billing runs
+- purchase order alert indicators
+- revenue trends
 
----
+### 7.2 Clients
 
-## 11. Error Handling
+The client area is the foundation for all business activity in the platform. It stores the client records needed for commercial and billing flows.
 
-Errors are categorized and reported:
+### 7.3 Quotes
 
-| Error Type | Description |
-|------------|-------------|
-| Missing column | Required column not found in uploaded file |
-| Invalid value | Non-numeric rate, negative leaves, etc. |
-| Duplicate emp_code | Same employee code appears multiple times |
-| Missing in Rate Card | Employee in attendance but not in rate card |
-| Missing in Attendance | Employee in rate card but not in attendance |
-| File format | Invalid file type or corrupted Excel |
-| Validation | Invalid billing month format |
-| PO consumption | Acceptance-time PO lookup/consumption failed (logged but non-fatal) |
-| PO assignment warning | Employee has no linked PO; billing still generates and warning is logged |
+The quote area is used to prepare and manage commercial proposals. Quotes can later move into more formal agreement stages.
 
-Fatal errors (bad file, missing month, cross-validation failures) return HTTP 400. Employee-level warnings are collected in the Error_Report sheet while valid employees are still processed. PO consumption errors are included during service-request acceptance and do not alter the original generated workbook.
+### 7.4 Statements of work
+
+The SOW area is used to manage structured work agreements, including document linking and amendments.
+
+### 7.5 Purchase orders
+
+The PO area is used to manage financial approval boundaries for work being billed.
+
+### 7.6 Rate cards
+
+The rate card area connects employees to billable commercial context.
+
+### 7.7 Attendance
+
+The attendance area captures the time and leave information needed to calculate billing correctly.
+
+### 7.8 Billing
+
+The billing area is where monthly billing is generated, reviewed, and finalized.
+
+### 7.9 Orders and reminders
+
+The permanent operations area manages order follow-up, reminders, and payment progress for permanent hiring work.
 
 ---
 
-## 12. Edge Cases Handled
+## 8. Technical Architecture
 
-1. **Variable month lengths** - DaysInMonth dynamically calculated (28/29/30/31)
-2. **Leap years** - February correctly returns 29 days for leap years
-3. **Header name variations** - Case-insensitive matching with aliases ("Employee Code" → emp_code)
-4. **Excel date formats** - Handles both JavaScript Date objects and string dates for DOJ and charging/reporting dates
-5. **Empty rows** - Skipped during parsing
-6. **Partial data** - Employees with errors are reported; valid employees are still billed
-7. **Excess day columns** - Columns 29-31 ignored for months with fewer days
-8. **PO number resolution** - File-upload billing resolves `po_number` strings to `po_id` integers via database lookup
-9. **Decision locking** - Accepted/rejected service requests cannot be actioned again from the UI
-10. **PO exhaustion** - Auto-marks PO as "Exhausted" when consumed_value >= po_value
-11. **PO-client integrity** - Database trigger prevents assigning a rate card to a PO from a different client
-12. **SOW-client integrity** - Database trigger prevents linking a PO to a SOW from a different client
-13. **Date of Reporting pro-rata** - Employees reporting mid-month are billed only from their reporting date
-14. **Future reporting date** - Employees whose charging/reporting date is after the billing month are skipped with an error
-15. **Chargeable days cap** - Maximum 30 chargeable days per employee per month
-16. **Negative billing prevention** - Chargeable days cannot go below 0
-17. **SOW amendment safety** - Signed SOWs are preserved; amendments create new SOW records with unique numbers and `Amendment Draft` status
-18. **PO warning non-blocking** - Missing PO assignment is treated as a warning and does not block billing output generation
-19. **Half-day compatibility fallback** - If legacy DB schema still stores integer `billing_items.leaves_taken`, billing insert falls back safely instead of failing at runtime
+### 8.1 Technology summary
 
-### Required Migration for Full Half-Day Persistence
-- Run:
-  `database/migrations/006_attendance_half_day_leave_units.sql`
-- This migration adds:
-  `attendance.leave_units` and fractional `billing_items.leaves_taken`, and updates `get_attendance_summary` for half-day math
+The system uses a modern but lightweight stack:
 
----
+- Node.js for server runtime
+- Express for the web server and APIs
+- Supabase PostgreSQL for data storage
+- Supabase Auth for authentication
+- vanilla JavaScript in the frontend
+- Tailwind CSS for interface styling
+- Excel processing libraries for import and export
+- document generation for quote output
+- Microsoft Graph integration for reminder email sending
 
-## 13. Security
+### 8.2 Frontend architecture
 
-- **Authentication**: JWT-based via Supabase Auth on all API routes
-- **Rate Limiting**: 100 requests per minute per IP on `/api` routes
-- **HTTP Headers**: Helmet.js for security headers
-- **CORS**: Configurable origins (default: allow all)
-- **File Upload**: Multer with 10MB size limit, Excel files only
-- **Input Validation**: Joi schemas on all POST/PUT/PATCH routes
-- **SQL Injection**: Prevented by Supabase client (parameterized queries)
-- **XSS Prevention**: `escapeHtml()` used in frontend rendering
+The frontend is a single-page application.
 
----
+Key characteristics:
 
-## 14. Testing
+- browser-based
+- no build pipeline required for deployment
+- page modules loaded dynamically
+- route-based navigation inside the application shell
+- direct interaction with the backend API
 
-### Manual Test with Sample Files
-```bash
-# Start the server
-npm run dev
+### 8.3 Backend architecture
 
-# Open browser
-http://localhost:<PORT>
+The backend is an Express application that:
 
-# Login with Supabase credentials
-# Navigate to Billing page
-# Upload data/TestRateCard.xlsx and data/TestAttendance.xlsx
-# Enter billing month: 202602
-# Click Generate
-# Download the output file
-```
+- exposes business APIs
+- validates requests
+- handles uploads
+- serves static frontend files
+- checks health status
+- schedules reminder dispatch
 
-### Expected Results for Test Data (Feb 2026, 28 days, divisor=30)
-| Emp Code | Monthly Rate | Leaves Taken | Leaves Allowed | Chargeable Days | Invoice Amount |
-|----------|-------------|--------------|----------------|-----------------|----------------|
-| EMP001 | 50,000 | 2 | 2 | 28 | 46,666.67 |
-| EMP002 | 60,000 | 3 | 1 | 26 | 52,000.00 |
-| EMP003 | 45,000 | 0 | 2 | 30 | 45,000.00 |
-| EMP004 | 70,000 | 4 | 3 | 27 | 63,000.00 |
-| EMP005 | 55,000 | 1 | 2 | 29 | 53,166.67 |
-| **Total** | | | | | **259,833.34** |
+### 8.4 Application layering
+
+The codebase is intentionally layered:
+
+- routes define API entry points
+- controllers coordinate request handling
+- services execute business rules
+- models manage database operations
+- middleware handles cross-cutting concerns like auth, validation, upload, and errors
+
+### 8.5 Database architecture
+
+The system uses a PostgreSQL database hosted through Supabase.
+
+The repository includes:
+
+- a main schema file
+- migration files for incremental changes
+- seed and support scripts
+
+Database-side logic supports areas such as:
+
+- reporting views
+- workflow support
+- purchase order logic
+- dashboard aggregation
+- reminder and invoice tracking additions
 
 ---
 
-## 15. Phase 2 (Permanent Flow) - Implementation Notes
+## 9. Repository Structure
 
-### Scope Delivered
-1. **Contract Type split in Client modal**
-   - `Contractual` keeps existing behavior unchanged
-   - `Permanent` opens independent data model fields
-2. **Permanent Client creation/edit**
-   - Name, Abbreviation, Address, Billing Address
-   - Repeatable contact persons (name, email, phone with country code, designation)
-   - Billing Pattern (`Weekly`, `Monthly`, `Quarterly`) + Billing Rate (% of CTC)
-3. **Orders module**
-   - New Orders tab with create/edit/delete
-   - Fields: client, candidate name, role, date of joining, CTC, remarks
-   - Auto-calculations:
-     - `next_bill_date` based on client billing pattern + DOJ
-     - `bill_amount = ctc_offered * (billing_rate/100)`
-4. **Reminders module**
-   - New Reminders tab
-   - Reminder list window: 3 days before due date to 3 days after due date
-   - Inputs for two reminder email IDs
-   - Actions: close/end reminder, extend reminder date
+The project is organized into clear application areas.
 
-### Routing and Compatibility
-- Primary Phase 2 API paths:
-  - `/api/permanent/clients`
-  - `/api/permanent/orders`
-  - `/api/permanent/reminders`
-- Backward-compatible aliases are also mounted for resilience:
-  - `/api/clients/permanent`
-  - `/api/orders/permanent`
-  - `/api/reminders/permanent`
+### 9.1 Main folders
 
-### Database Changes
-- Added Supabase migration:
-  - `database/migrations/008_add_permanent_flow.sql`
-- Included in full schema:
-  - `database/supabase_schema.sql`
+- `config` for application configuration
+- `controllers` for request handling
+- `database` for schema, migrations, and seed logic
+- `middleware` for authentication, validation, upload, and error handling
+- `models` for database access
+- `public` for the browser interface
+- `routes` for API definitions
+- `services` for business logic
+- `validators` for request validation rules
+- `uploads` for uploaded files
+- `output` for generated files
 
-### Current Reminder Email Status
-- Email addresses are stored and managed in reminders.
-- Automatic outbound email delivery is **not yet implemented** in this phase.
-- To enable delivery, add provider integration (SMTP/Resend/etc.) + scheduler/cron + send-log/idempotency.
+### 9.2 Why this matters
+
+This structure makes the code understandable for developers because each responsibility lives in a predictable place.
+
+---
+
+## 10. Setup and Environment
+
+### 10.1 Prerequisites
+
+To run the application, the hosting environment needs:
+
+- a supported Node.js runtime
+- package management through npm
+- access to the backing database platform
+- proper application configuration values
+
+### 10.2 Application configuration
+
+The application depends on configuration for:
+
+- server runtime behavior
+- database connectivity
+- upload and output storage locations
+- security and CORS behavior
+- billing behavior settings
+- reminder email integration
+
+For security reasons, this documentation intentionally does not publish confidential configuration values or deployment secrets.
+
+### 10.3 Database preparation
+
+Before the application runs correctly, the database schema and later migrations must be applied.
+
+This is especially important for features such as:
+
+- billing approval workflow
+- reminder email flow
+- invoice tracking
+- document indexing
+
+### 10.4 Starting the application
+
+The project supports:
+
+- a development mode
+- a standard production server start
+
+It also includes supporting commands for:
+
+- seeding sample data
+- linting
+- formatting
+
+---
+
+## 11. Authentication and Security
+
+### 11.1 Authentication model
+
+The platform uses token-based authentication through Supabase Auth.
+
+In practice:
+
+- users sign in through the web interface
+- the frontend keeps the user session
+- API requests include the user token
+- protected routes reject requests without valid authentication
+
+### 11.2 Protected APIs
+
+All application APIs are protected except the health-check endpoint.
+
+### 11.3 Security middleware
+
+The backend uses common web protections such as:
+
+- secure HTTP header handling
+- cross-origin request control
+- request rate limiting
+
+### 11.4 Data sensitivity
+
+This system handles commercially sensitive operational data. Documentation and deployment practices should avoid exposing:
+
+- secrets
+- tokens
+- credentials
+- server-specific confidential paths
+- internal-only configuration data
+
+---
+
+## 12. API Overview
+
+This section describes the main application capabilities exposed through the backend.
+
+### 12.1 Billing APIs
+
+Used for:
+
+- billing generation
+- billing history lookup
+- service-request decisions
+- file downloads
+
+### 12.2 Client APIs
+
+Used for:
+
+- listing clients
+- viewing a client
+- creating clients
+- updating clients
+- removing clients
+
+### 12.3 Rate card APIs
+
+Used for:
+
+- rate card management
+- export
+- import
+- leave allowance updates
+
+### 12.4 Attendance APIs
+
+Used for:
+
+- submission
+- bulk upload
+- summary lookup
+- month-based cleanup
+
+### 12.5 Quote APIs
+
+Used for:
+
+- quote lifecycle management
+- document download
+- status changes
+- conversion into SOW records
+
+### 12.6 SOW APIs
+
+Used for:
+
+- SOW lifecycle management
+- amendments
+- linked document upload and retrieval
+
+### 12.7 Purchase order APIs
+
+Used for:
+
+- purchase order management
+- alerts
+- consumption actions
+- renewal
+- employee linkage lookup
+
+### 12.8 Permanent workflow APIs
+
+Used for:
+
+- permanent client management
+- permanent order management
+- reminder actions
+- invoice tracking updates
+- payment tracking updates
+- reminder email sending
+
+### 12.9 Dashboard APIs
+
+Used for:
+
+- dashboard statistics
+- tracker export
+
+### 12.10 Sample file APIs
+
+Used for:
+
+- sample rate card downloads
+- sample attendance downloads
+
+### 12.11 Public health API
+
+Used for:
+
+- service health verification
+- deployment and uptime checks
+
+---
+
+## 13. Billing Logic in More Detail
+
+### 13.1 Billing input options
+
+Billing can begin in two ways:
+
+- from uploaded source files
+- from records already stored in the application
+
+This makes the system useful both for teams still using spreadsheets and for teams already working fully inside the platform.
+
+### 13.2 Main calculation concepts
+
+The billing calculation depends on concepts such as:
+
+- billing month
+- monthly rate
+- reporting or charging date
+- attendance
+- leaves allowed
+- effective billing days
+- divisor rules
+
+### 13.3 Business behavior
+
+The system supports:
+
+- pro-rated billing for employees who start within the month
+- skip or error handling for invalid future billing scenarios
+- controlled chargeable-day limits
+- structured error reporting
+
+### 13.4 Output
+
+Billing output is generated as a workbook with business-friendly worksheets, including a working sheet, summary sheet, and error sheet.
+
+The output can then be downloaded for operational use.
+
+---
+
+## 14. Quote and Document Handling
+
+### 14.1 Quote documents
+
+Quotes support document output suitable for business communication.
+
+The application primarily generates quote documents in a modern editable format, while also maintaining an alternate export path for PDF.
+
+### 14.2 Structured content
+
+Quote content is not treated as just a single text block. The system supports a more structured communication format so that business messaging can be prepared more consistently.
+
+### 14.3 Linked documents for SOWs and POs
+
+The system also supports linked commercial document management.
+
+This helps teams keep related business documents connected to the right agreement context instead of leaving them scattered outside the application.
+
+---
+
+## 15. Reminder and Mail Workflow
+
+### 15.1 Reminder lifecycle
+
+A reminder can move through a business process such as:
+
+- open
+- invoice sent
+- payment pending
+- payment completed
+- closed
+
+### 15.2 Manual reminder actions
+
+Users can:
+
+- update recipients
+- mark invoice sent
+- update payment status
+- extend due dates
+- close reminders
+- send reminder emails manually
+
+### 15.3 Scheduled reminder sending
+
+The backend includes a scheduler that can check for due reminders and send emails automatically at configured intervals.
+
+### 15.4 Operational safeguards
+
+The scheduler is designed not to start improperly when required mail configuration is incomplete.
+
+The reminder logic also provides resilience when some reminder-related database fields are not yet available in an older environment.
+
+---
+
+## 16. Data, Files, and Generated Output
+
+### 16.1 Upload handling
+
+The system handles file upload for areas such as:
+
+- billing source files
+- rate card imports
+- attendance imports
+- linked commercial documents
+
+### 16.2 Generated files
+
+The system generates files such as:
+
+- billing workbooks
+- quote documents
+- tracker exports
+
+### 16.3 Storage behavior
+
+Uploaded files and generated outputs are stored in application-controlled directories configured for the environment.
+
+This documentation intentionally does not disclose deployment-specific filesystem details.
+
+---
+
+## 17. Database Evolution and Migrations
+
+### 17.1 Why migrations matter
+
+The project has evolved over time. New features were added through database migrations, not just application code changes.
+
+That means successful deployment depends on both:
+
+- the application code
+- the correct database version
+
+### 17.2 Feature areas affected by migrations
+
+Migrations are important for:
+
+- billing approval flow
+- permanent client and order support
+- reminder mail support
+- invoice tracking
+- document indexing
+- row-level isolation improvements
+
+### 17.3 Operational recommendation
+
+Whenever a new version of the application is deployed, the database migration status should be checked before the application is considered fully updated.
+
+---
+
+## 18. Deployment Architecture
+
+### 18.1 Production hosting context
+
+This application is deployed on an AWS Lightsail instance.
+
+That means the production setup typically consists of:
+
+- the application code on the Lightsail server
+- a Node.js runtime on that server
+- process management to keep the app running
+- environment-specific configuration on the server
+- connectivity from the server to the hosted database platform
+
+### 18.2 Typical production flow
+
+A standard production update usually follows this order:
+
+1. Update the code on the Lightsail instance.
+2. Install or refresh dependencies.
+3. apply any required database migrations.
+4. verify secure configuration values on the server.
+5. restart the application process.
+6. validate the health endpoint and main workflows.
+
+### 18.3 Runtime management
+
+For production reliability, the application should run under a proper process manager or service manager so that:
+
+- it starts automatically
+- it restarts on failure
+- logs can be monitored
+
+### 18.4 Post-deployment validation
+
+After deployment, the following should be checked:
+
+- health endpoint response
+- login flow
+- dashboard load
+- at least one protected API
+- billing generation path
+- reminder workflow if mail is enabled
+
+### 18.5 Security guidance for deployment
+
+Production documentation and operational notes should never expose:
+
+- credentials
+- API keys
+- tokens
+- instance-specific sensitive file locations
+- confidential configuration values
+
+---
+
+## 19. Scripts and Developer Workflow
+
+The project includes commands for:
+
+- starting the server in production mode
+- running in development mode
+- seeding sample data
+- linting code
+- formatting code
+
+These commands support local development and operational maintenance, but production credentials and infrastructure details should always remain outside committed documentation.
+
+---
+
+## 20. Known Notes for Teams
+
+### 20.1 Terminology
+
+Different parts of the project may still use older naming in places. For example, some areas may refer to the product as a billing engine, while current business-facing wording is closer to a service-request and billing operations platform.
+
+### 20.2 Legacy support
+
+Some features remain available for compatibility even when another path is now the preferred path. For example, quote PDF support still exists even though the editable document path is the more current primary output.
+
+### 20.3 Audience guidance
+
+Non-technical readers should focus mainly on:
+
+- sections 1 through 7
+- section 18 for deployment context
+
+Technical readers should continue into:
+
+- sections 8 onward
+
+---
+
+## 21. Final Summary
+
+TeamBees Billing Generator is a professional operations platform for managing billing and follow-up workflows in staffing and consulting environments.
+
+Its main strengths are:
+
+- structured business workflow
+- approval-based financial control
+- billing traceability
+- document support
+- reminder tracking
+- production-friendly architecture
+- operational deployment on AWS Lightsail
+
+This document is intended to remain the primary professional documentation for the project, without exposing confidential environment details, local machine paths, or sensitive deployment information.

@@ -4,6 +4,17 @@ All notable changes to the TeamBees Billing Engine are documented here.
 
 ---
 
+## [1.4.1] - 2026-04-21
+
+### Documentation Sync
+
+- Updated `README.md` to reflect the current service-request workflow, permanent modules, dashboard tracker export, and Microsoft Graph reminder support
+- Rewrote `DOCUMENTATION.md` to match the current route surface, architecture, reminder flow, SOW document handling, and billing decision behavior
+- Refreshed `PRODUCT_OVERVIEW.md` so product positioning matches the current contractual plus permanent operations scope
+- Clarified that quote conversion now targets SOW creation and that `.docx` is the primary quote download path with PDF retained as a legacy route
+
+---
+
 ## [1.4.0] - 2026-03-19
 
 ### Phase 2: Billing Engine Enhancements & Strict Workflow
@@ -78,7 +89,6 @@ All notable changes to the TeamBees Billing Engine are documented here.
 
 #### Database Migration Required
 ```sql
--- Run in Supabase SQL Editor to remove GST columns:
 ALTER TABLE billing_runs DROP COLUMN IF EXISTS gst_percent;
 ALTER TABLE billing_runs DROP COLUMN IF EXISTS gst_amount;
 ALTER TABLE billing_runs DROP COLUMN IF EXISTS total_with_gst;

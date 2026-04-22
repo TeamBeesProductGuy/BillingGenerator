@@ -131,6 +131,15 @@ const PermanentReminderModel = {
     return withOrderDetails(data || []);
   },
 
+  async findAll() {
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select('*')
+      .order('due_date', { ascending: true });
+    if (error) throw new Error(error.message);
+    return withOrderDetails(data || []);
+  },
+
   async updateEmails(id, emailPrimary, emailSecondary) {
     const { error } = await supabase
       .from(TABLE)

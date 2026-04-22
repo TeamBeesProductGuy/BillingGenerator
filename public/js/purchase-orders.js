@@ -101,6 +101,35 @@
     } catch (e) { /* ignore */ }
   }
 
+  function updatePOSummary(rows) {
+    var items = rows || [];
+    var summary = document.getElementById('poSummary');
+    var count = document.getElementById('poTableCount');
+    var active = items.filter(function (po) { return po.status === 'Active'; }).length;
+    if (summary) {
+      var cards = summary.querySelectorAll('.table-summary-value');
+      if (cards[0]) cards[0].textContent = items.length;
+      if (cards[1]) cards[1].textContent = active;
+      if (cards[2]) cards[2].textContent = items.length;
+    }
+    if (count) count.textContent = items.length === 1 ? '1 row' : items.length + ' rows';
+  }
+
+  function updatePOVisibleCount() {
+    var tbody = document.getElementById('poBody');
+    var summary = document.getElementById('poSummary');
+    var count = document.getElementById('poTableCount');
+    if (!tbody) return;
+    var visible = Array.from(tbody.querySelectorAll('tr')).filter(function (row) {
+      return !row.querySelector('td[colspan]') && row.style.display !== 'none';
+    }).length;
+    if (summary) {
+      var cards = summary.querySelectorAll('.table-summary-value');
+      if (cards[2]) cards[2].textContent = visible;
+    }
+    if (count) count.textContent = visible === 1 ? '1 row' : visible + ' rows';
+  }
+
   async function loadPOs() {
     var tbody = document.getElementById('poBody');
     showLoading(tbody);
@@ -111,6 +140,7 @@
       if (cid) url += 'clientId=' + cid + '&';
       if (status) url += 'status=' + status;
       var res = await apiCall('GET', url);
+      updatePOSummary(res.data || []);
       if (res.data.length === 0) {
         tbody.innerHTML = '<tr><td colspan="11" class="text-center text-on-surface-variant py-8">No purchase orders found</td></tr>';
       } else {
@@ -122,21 +152,22 @@
           };
 
           return '<tr>' +
-            '<td><span class="entity-pill entity-pill-strong">' + escapeHtml(po.po_number) + '</span></td>' +
-            '<td><span class="entity-pill" title="' + escapeHtml(po.client_name) + '">' + escapeHtml(po.client_name) + '</span></td>' +
-            '<td><span class="entity-pill" title="' + escapeHtml(po.sow_number || 'Not linked') + '">' + escapeHtml(po.sow_number || 'Not linked') + '</span></td>' +
-            '<td>' + formatDate(po.start_date) + '</td>' +
-            '<td>' + formatDate(po.end_date) + '</td>' +
-            '<td class="text-right"><span class="table-amount-pill">' + formatCurrency(po.po_value) + '</span></td>' +
-            '<td class="text-right"><span class="table-amount-pill">' + formatCurrency(po.consumed_value) + '</span></td>' +
-            '<td>' + progressBar(po.consumption_pct || 0) + '</td>' +
-            '<td>' + statusBadge(po.status) + '</td>' +
-            '<td class="text-center">' + (po.linked_employees || 0) + '</td>' +
-            '<td class="text-center"><button class="btn-secondary btn-sm table-action-trigger inline-flex items-center justify-center" title="Open purchase order actions" aria-label="Open purchase order actions" onclick="openPOActions(' + po.id + ')"><span class="material-symbols-outlined text-base">more_horiz</span></button></td>' +
+            '<td><div class="table-cell-box"><span class="entity-pill entity-pill-strong">' + escapeHtml(po.po_number) + '</span></div></td>' +
+            '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(po.client_name) + '">' + escapeHtml(po.client_name) + '</span></div></td>' +
+            '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(po.sow_number || 'Not linked') + '">' + escapeHtml(po.sow_number || 'Not linked') + '</span></div></td>' +
+            '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(po.start_date) + '</span></div></td>' +
+            '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(po.end_date) + '</span></div></td>' +
+            '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(po.po_value) + '</span></div></td>' +
+            '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(po.consumed_value) + '</span></div></td>' +
+            '<td><div class="table-cell-box">' + progressBar(po.consumption_pct || 0) + '</div></td>' +
+            '<td><div class="table-cell-box">' + statusBadge(po.status) + '</div></td>' +
+            '<td class="text-center"><div class="table-cell-box table-cell-center"><span class="table-count-badge">' + (po.linked_employees || 0) + '</span></div></td>' +
+            '<td class="text-center"><div class="table-cell-box table-cell-center"><button class="btn-secondary btn-sm table-action-trigger inline-flex items-center justify-center" title="Open purchase order actions" aria-label="Open purchase order actions" onclick="openPOActions(' + po.id + ')"><span class="material-symbols-outlined text-base">more_horiz</span></button></div></td>' +
             '</tr>';
         }).join('');
       }
       initTableSort('poTable');
+      updatePOVisibleCount();
     } catch (err) { showToast(err.message, 'danger'); hideLoading(tbody); }
   }
 
@@ -343,6 +374,9 @@
 
   // Initialize search
   initTableSearch('poSearch', 'poBody');
+  document.getElementById('poSearch').addEventListener('input', function () {
+    setTimeout(updatePOVisibleCount, 250);
+  });
 
   loadClients().then(function () {
     loadPOs();

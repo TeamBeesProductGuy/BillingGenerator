@@ -59,9 +59,14 @@ function extractLegacyField(mailNotes, label) {
 
 function splitAddressLines(value) {
   return String(value || '')
-    .split(/\r?\n|[;,]/)
+    .split(/\r?\n/)
     .map((part) => part.trim())
     .filter(Boolean);
+}
+
+function formatAddressLinesForDocument(value) {
+  const lines = splitAddressLines(value);
+  return lines.map((line, index) => (index === lines.length - 1 ? line : `${line},`));
 }
 
 function deriveQuoteLocations(items) {
@@ -229,7 +234,7 @@ function drawQuotePdf(doc, quote, client) {
   const designation = extractStructuredField(mailNotes, 'Designation', []);
   const subjectLine = buildPdfSubjectLine(quote);
   const location = deriveQuoteLocations(quote.items || []);
-  const addressLines = splitAddressLines((client && client.address) || '');
+  const addressLines = formatAddressLinesForDocument((client && client.address) || '');
   const quoteDateLabel = formatDisplayDate(quote.quote_date);
   const logoSize = { width: 234, height: 109.44 };
 
@@ -327,8 +332,17 @@ function drawQuotePdf(doc, quote, client) {
 
 const quoteController = {
   list: catchAsync(async (req, res) => {
+    const { clientId, status, mode } = req.query;
+    const parsedClientId = clientId ? parseInt(clientId, 10) : null;
+    const quotes = mode === 'register'
+      ? await QuoteModel.findRegister(parsedClientId, status)
+      : await QuoteModel.findAll(parsedClientId, status);
+    res.json({ success: true, data: quotes });
+  }),
+
+  listAmendments: catchAsync(async (req, res) => {
     const { clientId, status } = req.query;
-    const quotes = await QuoteModel.findAll(clientId ? parseInt(clientId, 10) : null, status);
+    const quotes = await QuoteModel.findAmendments(clientId ? parseInt(clientId, 10) : null, status);
     res.json({ success: true, data: quotes });
   }),
 
@@ -352,6 +366,16 @@ const quoteController = {
     const { client_id, quote_date, valid_until, notes, items } = req.body;
     const result = await QuoteModel.update(id, { client_id, quote_date, valid_until, notes }, items || []);
     res.json({ success: true, data: { id: result.id, quote_number: result.quote_number, replaced_quote_id: id } });
+  }),
+
+  amend: catchAsync(async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    const existing = await QuoteModel.findById(id);
+    if (!existing) throw new AppError(404, 'Quote not found');
+    if (existing.status !== 'Sent') throw new AppError(400, 'Only sent quotes can be amended');
+    const { client_id, quote_date, valid_until, notes, items } = req.body;
+    const result = await QuoteModel.createAmendment(id, { client_id, quote_date, valid_until, notes }, items || []);
+    res.status(201).json({ success: true, data: { id: result.id, quote_number: result.quote_number, amended_from_quote_id: id } });
   }),
 
   updateStatus: catchAsync(async (req, res) => {

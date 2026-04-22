@@ -2,26 +2,19 @@ const JSZip = require('jszip');
 const fs = require('fs');
 const path = require('path');
 
-const logoPath = path.join(__dirname, '..', 'public', 'images', 'TeamBeesLOgo.png');
+const logoPath = path.join(__dirname, '..', 'public', 'images', 'TeamBees_test.png');
 const sideNoteMarker = '\n\n---SIDE_NOTE---\n';
 const DEFAULT_FONT = 'Calibri';
 const DEFAULT_FONT_SIZE = 20;
 const FOOTER_FONT_SIZE = 15;
-const LOGO_WIDTH_EMU = 2971800;
-const LOGO_HEIGHT_EMU = 1389888;
-
-function getPngDimensions(filePath) {
-  try {
-    const buffer = fs.readFileSync(filePath);
-    if (buffer.length < 24 || buffer.toString('ascii', 1, 4) !== 'PNG') return null;
-    return {
-      width: buffer.readUInt32BE(16),
-      height: buffer.readUInt32BE(20),
-    };
-  } catch {
-    return null;
-  }
-}
+const LOGO_WIDTH_EMU = 2121408;
+const LOGO_HEIGHT_EMU = 1106424;
+const HEADER_LEFT_OFFSET_DXA = -446;
+const FOOTER_LEFT_OFFSET_DXA = 0;
+const FOOTER_TABLE_WIDTH_DXA = 10360;
+const FOOTER_LEFT_CELL_WIDTH_DXA = 6720;
+const FOOTER_RIGHT_CELL_WIDTH_DXA = 3640;
+const FOOTER_LEFT_TEXT_INDENT_DXA = 0;
 
 function getLogoExtent() {
   return {
@@ -73,8 +66,9 @@ function makeImageParagraph() {
   const logoExtent = getLogoExtent();
   return `<w:p>
     <w:pPr>
-      <w:jc w:val="center"/>
-      <w:spacing w:after="60"/>
+      <w:jc w:val="left"/>
+      <w:ind w:left="${HEADER_LEFT_OFFSET_DXA}"/>
+      <w:spacing w:after="120"/>
     </w:pPr>
     <w:r>
       <w:drawing>
@@ -85,15 +79,15 @@ function makeImageParagraph() {
           <wp:extent cx="${logoExtent.width}" cy="${logoExtent.height}"/>
           <wp:effectExtent l="0" t="0" r="0" b="0"/>
           <wp:docPr id="1" name="TeamBees Logo"/>
-          <wp:cNvGraphicFramePr>
-            <a:graphicFrameLocks noChangeAspect="1"/>
-          </wp:cNvGraphicFramePr>
+          <wp:cNvGraphicFramePr/>
           <a:graphic>
             <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
               <pic:pic>
                 <pic:nvPicPr>
                   <pic:cNvPr id="0" name="TeamBees.png"/>
-                  <pic:cNvPicPr/>
+                  <pic:cNvPicPr preferRelativeResize="0">
+                    <a:picLocks noChangeAspect="0"/>
+                  </pic:cNvPicPr>
                 </pic:nvPicPr>
                 <pic:blipFill>
                   <a:blip r:embed="rIdLogo"/>
@@ -117,32 +111,7 @@ function makeImageParagraph() {
 
 function buildHeaderXml(hasLogo) {
   const headerContent = hasLogo
-    ? `<w:tbl>
-      <w:tblPr>
-        <w:tblW w:w="9360" w:type="dxa"/>
-        <w:jc w:val="center"/>
-        <w:tblBorders>
-          <w:top w:val="nil"/>
-          <w:left w:val="nil"/>
-          <w:bottom w:val="nil"/>
-          <w:right w:val="nil"/>
-          <w:insideH w:val="nil"/>
-          <w:insideV w:val="nil"/>
-        </w:tblBorders>
-      </w:tblPr>
-      <w:tblGrid>
-        <w:gridCol w:w="9360"/>
-      </w:tblGrid>
-      <w:tr>
-        <w:tc>
-          <w:tcPr>
-            <w:tcW w:w="9360" w:type="dxa"/>
-            <w:vAlign w:val="center"/>
-          </w:tcPr>
-          ${makeImageParagraph()}
-        </w:tc>
-      </w:tr>
-    </w:tbl>
+    ? `${makeImageParagraph()}
     ${makeDividerParagraph('D6DCE5')}`
     : `${makeParagraph('TeamBees', { bold: true, size: DEFAULT_FONT_SIZE, color: '1F1F1F', spacingAfter: 80, font: DEFAULT_FONT })}
     ${makeParagraph('BUILDING ON TRUST', { size: DEFAULT_FONT_SIZE, color: '6D6D6D', spacingAfter: 120, caps: true, font: DEFAULT_FONT })}`;
@@ -203,7 +172,8 @@ function makeTableRow(cells) {
 function makeDividerParagraph(color) {
   return `<w:p>
     <w:pPr>
-      <w:spacing w:after="160"/>
+      <w:ind w:left="-40" w:right="120"/>
+      <w:spacing w:after="220"/>
       <w:pBdr>
         <w:bottom w:val="single" w:sz="10" w:space="1" w:color="${color || 'D1D5DB'}"/>
       </w:pBdr>
@@ -226,21 +196,15 @@ function formatIndianCurrencyNumber(value) {
 }
 
 function splitAddressLines(value) {
-  const rawLines = String(value || '').split(/\r?\n/);
-  const lines = [];
+  return String(value || '')
+    .split(/\r?\n/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
 
-  rawLines.forEach((rawLine) => {
-    const source = String(rawLine || '').trim();
-    if (!source) return;
-
-    const parts = source.match(/[^,;]+[;,]?/g) || [];
-    parts.forEach((part) => {
-      const line = String(part || '').trim();
-      if (line) lines.push(line);
-    });
-  });
-
-  return lines;
+function formatAddressLinesForDocument(value) {
+  const lines = splitAddressLines(value);
+  return lines.map((line, index) => (index === lines.length - 1 ? line : `${line},`));
 }
 
 function isQuoteTablePlaceholder(line) {
@@ -276,8 +240,9 @@ function buildFooterXml() {
     ${makeDividerParagraph('D6DCE5')}
     <w:tbl>
       <w:tblPr>
-      <w:tblW w:w="10440" w:type="dxa"/>
-      <w:jc w:val="center"/>
+        <w:tblW w:w="${FOOTER_TABLE_WIDTH_DXA}" w:type="dxa"/>
+        <w:jc w:val="left"/>
+        <w:tblInd w:w="${FOOTER_LEFT_OFFSET_DXA}" w:type="dxa"/>
         <w:tblBorders>
           <w:top w:val="nil"/>
           <w:left w:val="nil"/>
@@ -288,17 +253,20 @@ function buildFooterXml() {
         </w:tblBorders>
       </w:tblPr>
       <w:tblGrid>
-        <w:gridCol w:w="6800"/>
-        <w:gridCol w:w="3640"/>
+        <w:gridCol w:w="${FOOTER_LEFT_CELL_WIDTH_DXA}"/>
+        <w:gridCol w:w="${FOOTER_RIGHT_CELL_WIDTH_DXA}"/>
       </w:tblGrid>
       <w:tr>
         <w:tc>
           <w:tcPr>
-            <w:tcW w:w="6800" w:type="dxa"/>
+            <w:tcW w:w="${FOOTER_LEFT_CELL_WIDTH_DXA}" w:type="dxa"/>
             <w:vAlign w:val="bottom"/>
           </w:tcPr>
           <w:p>
-            <w:pPr><w:spacing w:after="20"/></w:pPr>
+            <w:pPr>
+              <w:spacing w:after="20"/>
+              <w:ind w:left="${FOOTER_LEFT_TEXT_INDENT_DXA}"/>
+            </w:pPr>
             <w:r>
               <w:rPr>
                 <w:rFonts w:ascii="${DEFAULT_FONT}" w:hAnsi="${DEFAULT_FONT}" w:cs="${DEFAULT_FONT}"/>
@@ -309,7 +277,10 @@ function buildFooterXml() {
             </w:r>
           </w:p>
           <w:p>
-            <w:pPr><w:spacing w:after="20"/></w:pPr>
+            <w:pPr>
+              <w:spacing w:after="20"/>
+              <w:ind w:left="${FOOTER_LEFT_TEXT_INDENT_DXA}"/>
+            </w:pPr>
             <w:r>
               <w:rPr>
                 <w:rFonts w:ascii="${DEFAULT_FONT}" w:hAnsi="${DEFAULT_FONT}" w:cs="${DEFAULT_FONT}"/>
@@ -320,7 +291,10 @@ function buildFooterXml() {
             </w:r>
           </w:p>
           <w:p>
-            <w:pPr><w:spacing w:after="0"/></w:pPr>
+            <w:pPr>
+              <w:spacing w:after="0"/>
+              <w:ind w:left="${FOOTER_LEFT_TEXT_INDENT_DXA}"/>
+            </w:pPr>
             <w:hyperlink r:id="rIdWebsite">
               <w:r>
                 <w:rPr>
@@ -335,7 +309,7 @@ function buildFooterXml() {
         </w:tc>
         <w:tc>
           <w:tcPr>
-            <w:tcW w:w="3640" w:type="dxa"/>
+            <w:tcW w:w="${FOOTER_RIGHT_CELL_WIDTH_DXA}" w:type="dxa"/>
             <w:vAlign w:val="bottom"/>
           </w:tcPr>
           <w:p>
@@ -464,14 +438,10 @@ function buildQuoteDocumentXml(quote, client) {
   const location = deriveQuoteLocations(items);
   const regards = extractStructuredField(mailNotes, 'Regards', ['Designation']) || extractLegacyField(mailNotes, 'Regards');
   const designation = extractStructuredField(mailNotes, 'Designation', []);
-  const addressLines = splitAddressLines((client && client.address) || '');
+  const addressLines = formatAddressLinesForDocument((client && client.address) || '');
   const quoteDateLabel = formatDisplayDate(quote.quote_date);
 
   const content = [];
-  if (!fs.existsSync(logoPath)) {
-    content.push(makeParagraph('TeamBees', { bold: true, size: DEFAULT_FONT_SIZE, color: '1F1F1F', spacingAfter: 80, font: DEFAULT_FONT }));
-    content.push(makeParagraph('BUILDING ON TRUST', { size: DEFAULT_FONT_SIZE, color: '6D6D6D', spacingAfter: 120, caps: true, font: DEFAULT_FONT }));
-  }
   if (quote.quote_number) {
     content.push(makeParagraph(`Quote No.: ${quote.quote_number}`, {
       justify: 'right',
@@ -591,7 +561,7 @@ function buildQuoteDocumentXml(quote, client) {
         <w:headerReference w:type="default" r:id="rIdHeader1"/>
         <w:footerReference w:type="default" r:id="rIdFooter1"/>
         <w:pgSz w:w="12240" w:h="15840"/>
-        <w:pgMar w:top="1008" w:right="900" w:bottom="936" w:left="900" w:header="540" w:footer="540" w:gutter="0"/>
+        <w:pgMar w:top="1008" w:right="900" w:bottom="936" w:left="900" w:header="446" w:footer="540" w:gutter="0"/>
       </w:sectPr>
     </w:body>
   </w:document>`;
@@ -659,11 +629,11 @@ async function generateQuoteDocxBuffer(quote, client) {
     </w:style>
   </w:styles>`);
   if (hasLogo) {
-    word.folder('media').file('TeamBees.png', fs.readFileSync(logoPath));
+    word.folder('media').file('TeamBees_test.png', fs.readFileSync(logoPath));
   }
   word.folder('_rels').file('header1.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
   <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-    ${hasLogo ? '<Relationship Id="rIdLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/TeamBees.png"/>' : ''}
+    ${hasLogo ? '<Relationship Id="rIdLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/TeamBees_test.png"/>' : ''}
   </Relationships>`);
   word.folder('_rels').file('footer1.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
   <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">

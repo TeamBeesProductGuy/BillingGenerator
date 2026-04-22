@@ -4,8 +4,8 @@ const catchAsync = require('../middleware/catchAsync');
 const { sendPaymentReminderEmail } = require('../services/graphMail.service');
 
 const permanentReminderController = {
-  listWindowedOpen: catchAsync(async (req, res) => {
-    const reminders = await PermanentReminderModel.findWindowedOpen(req.query.referenceDate);
+  listOpen: catchAsync(async (req, res) => {
+    const reminders = await PermanentReminderModel.findAll();
     res.json({ success: true, data: reminders });
   }),
 

@@ -1,6 +1,7 @@
 (function () {
   // openModal / closeModal provided by app.js
   var sowActionMap = {};
+  var sowClientMap = {};
 
   window.openSowDocumentUploadModal = async function () {
     document.getElementById('sowDocumentUploadForm').reset();
@@ -149,6 +150,10 @@
   async function loadClients() {
     try {
       var res = await apiCall('GET', '/api/clients');
+      sowClientMap = {};
+      (res.data || []).forEach(function (client) {
+        sowClientMap[String(client.id)] = client;
+      });
       ['sowFilterClient', 'sowClient'].forEach(function (id) {
         var sel = document.getElementById(id);
         if (!sel) return;
@@ -187,6 +192,35 @@
     }
   }
 
+  function updateSowsSummary(rows) {
+    var items = rows || [];
+    var summary = document.getElementById('sowsSummary');
+    var count = document.getElementById('sowsTableCount');
+    var signed = items.filter(function (s) { return s.status === 'Signed'; }).length;
+    if (summary) {
+      var cards = summary.querySelectorAll('.table-summary-value');
+      if (cards[0]) cards[0].textContent = items.length;
+      if (cards[1]) cards[1].textContent = signed;
+      if (cards[2]) cards[2].textContent = items.length;
+    }
+    if (count) count.textContent = items.length === 1 ? '1 row' : items.length + ' rows';
+  }
+
+  function updateSowsVisibleCount() {
+    var tbody = document.getElementById('sowsBody');
+    var summary = document.getElementById('sowsSummary');
+    var count = document.getElementById('sowsTableCount');
+    if (!tbody) return;
+    var visible = Array.from(tbody.querySelectorAll('tr')).filter(function (row) {
+      return !row.querySelector('td[colspan]') && row.style.display !== 'none';
+    }).length;
+    if (summary) {
+      var cards = summary.querySelectorAll('.table-summary-value');
+      if (cards[2]) cards[2].textContent = visible;
+    }
+    if (count) count.textContent = visible === 1 ? '1 row' : visible + ' rows';
+  }
+
   async function loadSOWs() {
     var tbody = document.getElementById('sowsBody');
     showLoading(tbody);
@@ -197,11 +231,14 @@
       if (cid) url += 'clientId=' + cid + '&';
       if (status) url += 'status=' + status;
       var res = await apiCall('GET', url);
+      updateSowsSummary(res.data || []);
       if (res.data.length === 0) {
         tbody.innerHTML = '<tr><td colspan="8" class="text-center text-on-surface-variant py-8">No SOWs found</td></tr>';
       } else {
         sowActionMap = {};
         tbody.innerHTML = res.data.map(function (s) {
+          var client = sowClientMap[String(s.client_id)] || null;
+          var clientDisplay = client ? getClientDisplayName(client) : (s.client_name || '');
           var VALID_TRANSITIONS = { Draft: ['Signed'], 'Amendment Draft': ['Signed'], Signed: ['Expired', 'Terminated'], Expired: [], Terminated: [] };
           var STATUS_LABELS = { Signed: 'Mark Signed', Expired: 'Mark Expired', Terminated: 'Terminate', Draft: 'Revert to Draft' };
           var allowed = VALID_TRANSITIONS[s.status] || [];
@@ -212,7 +249,7 @@
             allowed: allowed.slice()
           };
 
-          var actionsHtml = '<div class="inline-flex items-center gap-1">';
+          var actionsHtml = '<div class="table-action-group">';
           if (s.status === 'Draft' || s.status === 'Amendment Draft') {
             actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="editSOW(' + s.id + ')" title="Edit"><span class="material-symbols-outlined text-base">edit</span></button>';
           }
@@ -225,18 +262,19 @@
           actionsHtml += '</div>';
 
           return '<tr>' +
-            '<td><strong>' + escapeHtml(s.sow_number) + '</strong></td>' +
-            '<td>' + escapeHtml(s.client_name) + '</td>' +
-            '<td>' + formatDate(s.sow_date) + '</td>' +
-            '<td>' + formatDate(s.effective_start) + '</td>' +
-            '<td>' + formatDate(s.effective_end) + '</td>' +
-            '<td class="text-right font-bold">' + formatCurrency(s.total_value) + '</td>' +
-            '<td>' + statusBadge(s.status) + '</td>' +
-            '<td class="text-center">' + actionsHtml + '</td>' +
+            '<td><div class="table-cell-box"><span class="entity-pill entity-pill-strong">' + escapeHtml(s.sow_number) + '</span></div></td>' +
+            '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(clientDisplay) + '">' + escapeHtml(clientDisplay) + '</span></div></td>' +
+            '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(s.sow_date) + '</span></div></td>' +
+            '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(s.effective_start) + '</span></div></td>' +
+            '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(s.effective_end) + '</span></div></td>' +
+            '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(s.total_value) + '</span></div></td>' +
+            '<td><div class="table-cell-box">' + statusBadge(s.status) + '</div></td>' +
+            '<td class="text-center"><div class="table-cell-box table-cell-center">' + actionsHtml + '</div></td>' +
             '</tr>';
         }).join('');
       }
       initTableSort('sowsTable');
+      updateSowsVisibleCount();
     } catch (err) { showToast(err.message, 'danger'); hideLoading(tbody); }
   }
 
@@ -516,6 +554,9 @@
 
   // Initialize search
   initTableSearch('sowsSearch', 'sowsBody');
+  document.getElementById('sowsSearch').addEventListener('input', function () {
+    setTimeout(updateSowsVisibleCount, 250);
+  });
 
   loadClients().then(function () {
     loadSOWs();
