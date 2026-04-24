@@ -1,20 +1,25 @@
 const JSZip = require('jszip');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
 const logoPath = path.join(__dirname, '..', 'public', 'images', 'header.png');
+const robotoRegularPath = path.join(__dirname, '..', 'public', 'fonts', 'Roboto-Regular.ttf');
+const robotoBoldPath = path.join(__dirname, '..', 'public', 'fonts', 'Roboto-Bold.ttf');
 const sideNoteMarker = '\n\n---SIDE_NOTE---\n';
-const DEFAULT_FONT = 'Calibri';
-const DEFAULT_FONT_SIZE = 20;
+const DEFAULT_FONT = 'Roboto';
+const BODY_FONT_SIZE = 22;
+const HEADER_FONT_SIZE = 20;
 const FOOTER_FONT_SIZE = 15;
 const LOGO_WIDTH_EMU = 2121408;
-const LOGO_HEIGHT_EMU = 731520;
+const LOGO_HEIGHT_EMU = 548640;
 const HEADER_LEFT_OFFSET_DXA = -446;
 const FOOTER_LEFT_OFFSET_DXA = 0;
 const FOOTER_TABLE_WIDTH_DXA = 10360;
 const FOOTER_LEFT_CELL_WIDTH_DXA = 6720;
 const FOOTER_RIGHT_CELL_WIDTH_DXA = 3640;
 const FOOTER_LEFT_TEXT_INDENT_DXA = 0;
+const BODY_LEFT_MARGIN_DXA = 1440;
 
 function getLogoExtent() {
   return {
@@ -42,19 +47,20 @@ function buildTextXml(value) {
 
 function makeParagraph(text, options) {
   const style = options && options.style ? `<w:pStyle w:val="${options.style}"/>` : '';
-  const spacingAfter = options && options.spacingAfter ? `<w:spacing w:after="${options.spacingAfter}"/>` : '';
-  const spacingBefore = options && options.spacingBefore ? `<w:spacing w:before="${options.spacingBefore}"/>` : '';
   const justify = options && options.justify ? `<w:jc w:val="${options.justify}"/>` : '';
   const bold = options && options.bold ? '<w:b/>' : '';
-  const resolvedSize = options && options.size ? options.size : DEFAULT_FONT_SIZE;
+  const resolvedSize = options && options.size ? options.size : BODY_FONT_SIZE;
   const size = `<w:sz w:val="${resolvedSize}"/>`;
   const color = options && options.color ? `<w:color w:val="${options.color}"/>` : '';
   const italic = options && options.italic ? '<w:i/>' : '';
   const caps = options && options.caps ? '<w:caps/>' : '';
   const font = options && options.font ? `<w:rFonts w:ascii="${options.font}" w:hAnsi="${options.font}" w:cs="${options.font}"/>` : '';
+  const spacing = options && (options.spacingAfter || options.spacingBefore || options.lineSpacing)
+    ? `<w:spacing${options.spacingBefore ? ` w:before="${options.spacingBefore}"` : ''}${options.spacingAfter ? ` w:after="${options.spacingAfter}"` : ''}${options.lineSpacing ? ` w:line="${options.lineSpacing}" w:lineRule="${options.lineSpacingRule || 'auto'}"` : ''}/>`
+    : '';
 
   return `<w:p>
-    <w:pPr>${style}${spacingBefore}${spacingAfter}${justify}</w:pPr>
+    <w:pPr>${style}${spacing}${justify}</w:pPr>
     <w:r>
       <w:rPr>${font}${bold}${italic}${caps}${size}${color}</w:rPr>
       ${buildTextXml(text)}
@@ -113,8 +119,8 @@ function buildHeaderXml(hasLogo) {
   const headerContent = hasLogo
     ? `${makeImageParagraph()}
     ${makeDividerParagraph('D6DCE5')}`
-    : `${makeParagraph('TeamBees', { bold: true, size: DEFAULT_FONT_SIZE, color: '1F1F1F', spacingAfter: 80, font: DEFAULT_FONT })}
-    ${makeParagraph('BUILDING ON TRUST', { size: DEFAULT_FONT_SIZE, color: '6D6D6D', spacingAfter: 120, caps: true, font: DEFAULT_FONT })}`;
+    : `${makeParagraph('TeamBees', { bold: true, size: HEADER_FONT_SIZE, color: '1F1F1F', spacingAfter: 80, font: DEFAULT_FONT })}
+    ${makeParagraph('BUILDING ON TRUST', { size: HEADER_FONT_SIZE, color: '6D6D6D', spacingAfter: 120, caps: true, font: DEFAULT_FONT })}`;
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
   <w:hdr xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas"
@@ -143,7 +149,7 @@ function makeTableCell(text, width, options) {
   const justify = options && options.justify ? `<w:jc w:val="${options.justify}"/>` : '';
   const fill = options && options.fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${options.fill}"/>` : '';
   const color = options && options.color ? `<w:color w:val="${options.color}"/>` : '';
-  const resolvedSize = options && options.size ? options.size : DEFAULT_FONT_SIZE;
+  const resolvedSize = options && options.size ? options.size : BODY_FONT_SIZE;
   const size = `<w:sz w:val="${resolvedSize}"/>`;
   const font = options && options.font ? `<w:rFonts w:ascii="${options.font}" w:hAnsi="${options.font}" w:cs="${options.font}"/>` : '';
   const spacing = options && options.spacing ? `<w:spacing w:before="${options.spacing}" w:after="${options.spacing}"/>` : '';
@@ -163,6 +169,97 @@ function makeTableCell(text, width, options) {
       </w:r>
     </w:p>
   </w:tc>`;
+}
+
+function createFontKey() {
+  return `{${crypto.randomUUID().toUpperCase()}}`;
+}
+
+function toBigIntLE(buffer) {
+  let value = 0n;
+  for (let index = buffer.length - 1; index >= 0; index -= 1) {
+    value = (value << 8n) + BigInt(buffer[index]);
+  }
+  return value;
+}
+
+function fromBigIntLE(value, length) {
+  const output = Buffer.alloc(length);
+  let remaining = value;
+  for (let index = 0; index < length; index += 1) {
+    output[index] = Number(remaining & 0xffn);
+    remaining >>= 8n;
+  }
+  return output;
+}
+
+function obfuscateFontData(ttfBuffer, fontKey) {
+  const keyHex = String(fontKey || '').replace(/[{}-]/g, '');
+  const keyBytes = Buffer.from(keyHex, 'hex');
+  if (keyBytes.length !== 16) {
+    throw new Error(`Invalid font key for ${fontKey}`);
+  }
+
+  const first32 = Buffer.from(ttfBuffer.slice(0, 32));
+  if (first32.length === 0) return Buffer.from(ttfBuffer);
+
+  const repeatedKey = Buffer.concat([keyBytes, keyBytes]);
+  const obfuscatedPrefix = fromBigIntLE(toBigIntLE(first32) ^ BigInt(`0x${repeatedKey.toString('hex')}`), first32.length);
+  return Buffer.concat([obfuscatedPrefix, ttfBuffer.slice(32)]);
+}
+
+function buildFontTableXml(fontEntries) {
+  const fontsXml = fontEntries.map((entry) => `    <w:font w:name="${entry.name}">
+      <w:charset w:val="00"/>
+      <w:family w:val="swiss"/>
+      <w:pitch w:val="variable"/>
+      <w:embedRegular r:id="${entry.regularId}" w:fontKey="${entry.regularKey}"/>
+      <w:embedBold r:id="${entry.boldId}" w:fontKey="${entry.boldKey}"/>
+    </w:font>`).join('\n');
+
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  <w:fonts xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:o="urn:schemas-microsoft-com:office:office"
+    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    xmlns:m="http://schemas.microsoft.com/office/2004/12/omml"
+    xmlns:v="urn:schemas-microsoft-com:vml"
+    xmlns:wp14="http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing"
+    xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+    xmlns:w10="urn:schemas-microsoft-com:office:word"
+    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"
+    xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml"
+    xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"
+    xmlns:wpi="http://schemas.microsoft.com/office/word/2010/wordprocessingInk"
+    xmlns:wne="http://schemas.microsoft.com/office/word/2006/wordml"
+    xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"
+    mc:Ignorable="w14 w15 wp14">
+${fontsXml}
+  </w:fonts>`;
+}
+
+function buildSettingsXml() {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  <w:settings xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:o="urn:schemas-microsoft-com:office:office"
+    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    xmlns:m="http://schemas.microsoft.com/office/2004/12/omml"
+    xmlns:v="urn:schemas-microsoft-com:vml"
+    xmlns:wp14="http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing"
+    xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+    xmlns:w10="urn:schemas-microsoft-com:office:word"
+    xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"
+    xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml"
+    xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"
+    xmlns:wpi="http://schemas.microsoft.com/office/word/2010/wordprocessingInk"
+    xmlns:wne="http://schemas.microsoft.com/office/word/2006/wordml"
+    xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">
+    <w:embedTrueTypeFonts w:val="true"/>
+    <w:saveSubsetFonts w:val="true"/>
+  </w:settings>`;
 }
 
 function makeTableRow(cells) {
@@ -373,23 +470,23 @@ function buildQuoteItemsTableXml(quote) {
   const items = quote.items || [];
   const tableRows = [];
   tableRows.push(makeTableRow([
-    makeTableCell('S. No.', 980, { bold: true, justify: 'center', color: '000000', size: DEFAULT_FONT_SIZE, font: DEFAULT_FONT, spacing: 40, noWrap: true }),
-    makeTableCell('Description', 5980, { bold: true, justify: 'center', color: '000000', size: DEFAULT_FONT_SIZE, font: DEFAULT_FONT, spacing: 40 }),
-    makeTableCell('Service Fee Monthly (INR)', 2400, { bold: true, justify: 'center', color: '000000', size: DEFAULT_FONT_SIZE, font: DEFAULT_FONT, spacing: 40 }),
+    makeTableCell('S. No.', 980, { bold: true, justify: 'center', color: '000000', size: BODY_FONT_SIZE, font: DEFAULT_FONT, spacing: 40, noWrap: true }),
+    makeTableCell('Description', 5980, { bold: true, justify: 'center', color: '000000', size: BODY_FONT_SIZE, font: DEFAULT_FONT, spacing: 40 }),
+    makeTableCell('Service Fee Monthly (INR)', 2400, { bold: true, justify: 'center', color: '000000', size: BODY_FONT_SIZE, font: DEFAULT_FONT, spacing: 40 }),
   ]));
 
   items.forEach(function (item, index) {
     tableRows.push(makeTableRow([
-      makeTableCell(String(index + 1), 980, { justify: 'center', font: DEFAULT_FONT, size: DEFAULT_FONT_SIZE, spacing: 28, color: '000000' }),
-      makeTableCell(item.description || '', 5980, { font: DEFAULT_FONT, size: DEFAULT_FONT_SIZE, spacing: 28, color: '000000' }),
-      makeTableCell(formatIndianCurrencyNumber(item.amount || 0), 2400, { justify: 'right', font: DEFAULT_FONT, size: DEFAULT_FONT_SIZE, spacing: 28, color: '000000' }),
+      makeTableCell(String(index + 1), 980, { justify: 'center', font: DEFAULT_FONT, size: BODY_FONT_SIZE, spacing: 28, color: '000000' }),
+      makeTableCell(item.description || '', 5980, { font: DEFAULT_FONT, size: BODY_FONT_SIZE, spacing: 28, color: '000000' }),
+      makeTableCell(formatIndianCurrencyNumber(item.amount || 0), 2400, { justify: 'right', font: DEFAULT_FONT, size: BODY_FONT_SIZE, spacing: 28, color: '000000' }),
     ]));
   });
 
   tableRows.push(makeTableRow([
     makeTableCell('', 980, {}),
-    makeTableCell('Total', 5980, { font: DEFAULT_FONT, size: DEFAULT_FONT_SIZE, spacing: 28, color: '000000' }),
-    makeTableCell(formatIndianCurrencyNumber(quote.total_amount || 0), 2400, { justify: 'right', font: DEFAULT_FONT, size: DEFAULT_FONT_SIZE, spacing: 28, color: '000000' }),
+    makeTableCell('Total', 5980, { bold: true, justify: 'right', font: DEFAULT_FONT, size: BODY_FONT_SIZE, spacing: 28, color: '000000' }),
+    makeTableCell(formatIndianCurrencyNumber(quote.total_amount || 0), 2400, { bold: true, justify: 'right', font: DEFAULT_FONT, size: BODY_FONT_SIZE, spacing: 28, color: '000000' }),
   ]));
 
   return `<w:tbl>
@@ -442,35 +539,25 @@ function buildQuoteDocumentXml(quote, client) {
   const quoteDateLabel = formatDisplayDate(quote.quote_date);
 
   const content = [];
-  if (quote.quote_number) {
-    content.push(makeParagraph(`Quote No.: ${quote.quote_number}`, {
-      justify: 'right',
-      spacingAfter: 90,
-      font: DEFAULT_FONT,
-      size: DEFAULT_FONT_SIZE,
-      color: '000000',
-      bold: true,
-    }));
-  }
   if (quoteDateLabel) {
     content.push(makeParagraph(`Date: ${quoteDateLabel}`, {
       justify: 'right',
-      spacingAfter: 130,
+      spacingAfter: 70,
       font: DEFAULT_FONT,
-      size: DEFAULT_FONT_SIZE,
+      size: BODY_FONT_SIZE,
       color: '000000',
     }));
   }
-  content.push(makeParagraph('To,', { spacingAfter: 70, font: DEFAULT_FONT, color: '000000', size: DEFAULT_FONT_SIZE }));
-  content.push(makeParagraph(quote.client_name || '', { size: DEFAULT_FONT_SIZE, spacingAfter: 70, font: DEFAULT_FONT, color: '000000' }));
+  content.push(makeParagraph('To,', { spacingAfter: 70, font: DEFAULT_FONT, color: '000000', size: BODY_FONT_SIZE }));
+  content.push(makeParagraph(quote.client_name || '', { size: BODY_FONT_SIZE, spacingAfter: 70, font: DEFAULT_FONT, color: '000000' }));
   addressLines.forEach(function (line) {
-    content.push(makeParagraph(line, { color: '000000', spacingAfter: 40, font: DEFAULT_FONT, size: DEFAULT_FONT_SIZE }));
+    content.push(makeParagraph(line, { color: '000000', spacingAfter: 40, font: DEFAULT_FONT, size: BODY_FONT_SIZE }));
   });
   content.push(makeParagraph('', { spacingAfter: 120 }));
 
   if (subject) {
     const subjectLine = candidateName ? `Subject: ${subject} ("${candidateName}")` : `Subject: ${subject}`;
-    content.push(makeParagraph(subjectLine, { size: DEFAULT_FONT_SIZE, spacingAfter: 90, font: DEFAULT_FONT, color: '000000' }));
+    content.push(makeParagraph(subjectLine, { size: BODY_FONT_SIZE, spacingAfter: 90, font: DEFAULT_FONT, color: '000000' }));
   }
   if (dear) {
     content.push(makeParagraph('', { spacingAfter: 70 }));
@@ -478,7 +565,7 @@ function buildQuoteDocumentXml(quote, client) {
       spacingAfter: 70,
       font: DEFAULT_FONT,
       color: '000000',
-      size: DEFAULT_FONT_SIZE,
+      size: BODY_FONT_SIZE,
     }));
     content.push(makeParagraph('', { spacingAfter: 70 }));
   }
@@ -500,17 +587,17 @@ function buildQuoteDocumentXml(quote, client) {
       return;
     }
     if (!insertedQuoteTable && /^1\.\s*cost of resource/i.test(trimmed)) {
-      content.push(makeParagraph(trimmed, { spacingAfter: 90, font: DEFAULT_FONT, color: '000000', size: DEFAULT_FONT_SIZE }));
+      content.push(makeParagraph(trimmed, { spacingAfter: 90, font: DEFAULT_FONT, color: '000000', size: BODY_FONT_SIZE }));
       content.push(buildQuoteItemsTableXml(quote));
       content.push(makeParagraph('', { spacingAfter: 90 }));
       insertedQuoteTable = true;
       return;
     }
     if (/^3\.\s*Location\s*:/i.test(trimmed)) {
-      content.push(makeParagraph(`3. Location: ${location || '-'}`, { spacingAfter: 90, font: DEFAULT_FONT, color: '000000', size: DEFAULT_FONT_SIZE }));
+      content.push(makeParagraph(`3. Location: ${location || '-'}`, { spacingAfter: 90, font: DEFAULT_FONT, color: '000000', size: BODY_FONT_SIZE }));
       return;
     }
-    content.push(makeParagraph(trimmed, { spacingAfter: 90, font: DEFAULT_FONT, color: '000000', size: DEFAULT_FONT_SIZE }));
+    content.push(makeParagraph(trimmed, { spacingAfter: 90, font: DEFAULT_FONT, color: '000000', size: BODY_FONT_SIZE }));
   });
 
   if (regards) {
@@ -519,13 +606,13 @@ function buildQuoteDocumentXml(quote, client) {
       spacingAfter: 80,
       font: DEFAULT_FONT,
       color: '000000',
-      size: DEFAULT_FONT_SIZE,
+      size: BODY_FONT_SIZE,
     }));
     content.push(makeParagraph(regards, {
       spacingAfter: designation ? 40 : 90,
       font: DEFAULT_FONT,
       color: '000000',
-      size: DEFAULT_FONT_SIZE,
+      size: BODY_FONT_SIZE,
     }));
   }
   if (designation) {
@@ -533,9 +620,28 @@ function buildQuoteDocumentXml(quote, client) {
       spacingAfter: 90,
       font: DEFAULT_FONT,
       color: '000000',
-      size: DEFAULT_FONT_SIZE,
+      size: BODY_FONT_SIZE,
     }));
   }
+
+  for (let index = 0; index < 10; index += 1) {
+    content.push(makeParagraph('', { spacingAfter: 70 }));
+  }
+
+  const disclaimerText = quote.quote_number
+    ? `This quotation (Ref: ${quote.quote_number}) is system-generated by Teambees Corp and does not require a stamp or e-signature.`
+    : 'This quotation is system-generated by Teambees Corp and does not require a stamp or e-signature.';
+
+  content.push(makeParagraph(disclaimerText, {
+    spacingBefore: 0,
+    spacingAfter: 0,
+    lineSpacing: 288,
+    lineSpacingRule: 'auto',
+    justify: 'center',
+    font: DEFAULT_FONT,
+    color: '666666',
+    size: 18,
+  }));
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
   <w:document xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas"
@@ -561,7 +667,7 @@ function buildQuoteDocumentXml(quote, client) {
         <w:headerReference w:type="default" r:id="rIdHeader1"/>
         <w:footerReference w:type="default" r:id="rIdFooter1"/>
         <w:pgSz w:w="12240" w:h="15840"/>
-        <w:pgMar w:top="1008" w:right="900" w:bottom="936" w:left="900" w:header="446" w:footer="540" w:gutter="0"/>
+        <w:pgMar w:top="1008" w:right="900" w:bottom="936" w:left="${BODY_LEFT_MARGIN_DXA}" w:header="446" w:footer="540" w:gutter="0"/>
       </w:sectPr>
     </w:body>
   </w:document>`;
@@ -570,6 +676,10 @@ function buildQuoteDocumentXml(quote, client) {
 async function generateQuoteDocxBuffer(quote, client) {
   const zip = new JSZip();
   const hasLogo = fs.existsSync(logoPath);
+  const robotoRegularKey = createFontKey();
+  const robotoBoldKey = createFontKey();
+  const robotoRegularFont = obfuscateFontData(fs.readFileSync(robotoRegularPath), robotoRegularKey);
+  const robotoBoldFont = obfuscateFontData(fs.readFileSync(robotoBoldPath), robotoBoldKey);
 
   zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
   <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
@@ -577,9 +687,12 @@ async function generateQuoteDocxBuffer(quote, client) {
     <Default Extension="xml" ContentType="application/xml"/>
     <Default Extension="jpeg" ContentType="image/jpeg"/>
     <Default Extension="png" ContentType="image/png"/>
+    <Default Extension="odttf" ContentType="application/vnd.openxmlformats-officedocument.obfuscatedFont"/>
     <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
     <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>
     <Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>
+    <Override PartName="/word/fontTable.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml"/>
+    <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
     <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
     <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
     <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
@@ -617,20 +730,39 @@ async function generateQuoteDocxBuffer(quote, client) {
   word.file('footer1.xml', buildFooterXml());
   word.file('styles.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
   <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+    <w:docDefaults>
+      <w:rPrDefault>
+        <w:rPr>
+          <w:rFonts w:ascii="${DEFAULT_FONT}" w:hAnsi="${DEFAULT_FONT}" w:cs="${DEFAULT_FONT}"/>
+          <w:sz w:val="${BODY_FONT_SIZE}"/>
+          <w:szCs w:val="${BODY_FONT_SIZE}"/>
+        </w:rPr>
+      </w:rPrDefault>
+    </w:docDefaults>
     <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
       <w:name w:val="Normal"/>
       <w:qFormat/>
       <w:rPr>
         <w:rFonts w:ascii="${DEFAULT_FONT}" w:hAnsi="${DEFAULT_FONT}" w:cs="${DEFAULT_FONT}"/>
-        <w:sz w:val="${DEFAULT_FONT_SIZE}"/>
-        <w:szCs w:val="${DEFAULT_FONT_SIZE}"/>
+        <w:sz w:val="${BODY_FONT_SIZE}"/>
+        <w:szCs w:val="${BODY_FONT_SIZE}"/>
         <w:color w:val="1F2937"/>
       </w:rPr>
     </w:style>
   </w:styles>`);
+  word.file('settings.xml', buildSettingsXml());
+  word.file('fontTable.xml', buildFontTableXml([{
+    name: DEFAULT_FONT,
+    regularId: 'rIdRobotoRegular',
+    regularKey: robotoRegularKey,
+    boldId: 'rIdRobotoBold',
+    boldKey: robotoBoldKey,
+  }]));
   if (hasLogo) {
     word.folder('media').file('header.png', fs.readFileSync(logoPath));
   }
+  word.folder('fonts').file('Roboto-Regular.odttf', robotoRegularFont);
+  word.folder('fonts').file('Roboto-Bold.odttf', robotoBoldFont);
   word.folder('_rels').file('header1.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
   <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
     ${hasLogo ? '<Relationship Id="rIdLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/header.png"/>' : ''}
@@ -639,10 +771,17 @@ async function generateQuoteDocxBuffer(quote, client) {
   <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
     <Relationship Id="rIdWebsite" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://www.teambeescorp.com/" TargetMode="External"/>
   </Relationships>`);
+  word.folder('_rels').file('fontTable.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+    <Relationship Id="rIdRobotoRegular" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="fonts/Roboto-Regular.odttf"/>
+    <Relationship Id="rIdRobotoBold" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="fonts/Roboto-Bold.odttf"/>
+  </Relationships>`);
   word.folder('_rels').file('document.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
   <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
     <Relationship Id="rIdHeader1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
     <Relationship Id="rIdFooter1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
+    <Relationship Id="rIdFontTable1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable" Target="fontTable.xml"/>
+    <Relationship Id="rIdSettings1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
   </Relationships>`);
 
   return zip.generateAsync({ type: 'nodebuffer' });

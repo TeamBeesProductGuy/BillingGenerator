@@ -601,21 +601,22 @@
     try {
       var res = await apiCall('GET', '/api/quotes/' + id);
       var q = res.data;
+      var today = toLocalDateInputValue(new Date());
       window.quoteEdit = id;
       window.quoteAmendSource = null;
       document.getElementById('quoteModalTitle').textContent = 'Edit Quote';
       document.getElementById('quoteFormSubmitBtn').textContent = 'Save Changes';
       document.getElementById('quoteId').value = id;
       document.getElementById('quoteClient').value = q.client_id;
-      document.getElementById('quoteDate').value = q.quote_date;
-      document.getElementById('quoteValidUntil').value = q.valid_until;
-      quoteValidUntilTouched = true;
+      document.getElementById('quoteDate').value = today;
+      document.getElementById('quoteValidUntil').value = addDaysToInputDate(today, 10);
+      quoteValidUntilTouched = false;
       var parsedNotes = splitStoredQuoteNotes(q.notes || '');
       setQuoteMailFormFields(parseQuoteMailFormat(parsedNotes.mailFormat));
       document.getElementById('quoteSideNote').value = parsedNotes.sideNote;
       document.getElementById('quoteItemsBody').innerHTML = '';
       q.items.forEach(function (item) { addItemRow(item); });
-      syncQuoteBodyAutofills(false);
+      syncQuoteBodyAutofills(true);
       recalcQuote();
       openModal('quoteModal');
     } catch (err) { showToast(err.message, 'danger'); }
