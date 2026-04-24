@@ -279,7 +279,7 @@ const QuoteModel = {
       base_quote_number: baseQuoteNumber,
       version_number: versionNumber,
       parent_quote_id: id,
-      status: existing.status || 'Sent',
+      status: 'Draft',
     }, items);
 
     const { error: archiveErr } = await supabase

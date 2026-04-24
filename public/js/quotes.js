@@ -173,6 +173,13 @@
     updateQuoteValidityLine();
   }
 
+  function setQuoteDateDefaults(baseDateValue) {
+    var baseDate = baseDateValue || toLocalDateInputValue(new Date());
+    document.getElementById('quoteDate').value = baseDate;
+    document.getElementById('quoteValidUntil').value = addDaysToInputDate(baseDate, 10);
+    updateQuoteValidityLine();
+  }
+
   function syncQuoteBodyAutofills(forceValidity) {
     updateQuoteLocationLine();
     if (forceValidity === true) {
@@ -298,8 +305,8 @@
     document.getElementById('quoteId').value = '';
     quoteValidUntilTouched = false;
     setQuoteMailFormFields(getDefaultQuoteFormFields());
-    document.getElementById('quoteDate').value = toLocalDateInputValue(new Date());
-    syncQuoteBodyAutofills(true);
+    setQuoteDateDefaults();
+    updateQuoteLocationLine();
     document.getElementById('quoteSideNote').value = '';
     window.quoteEdit = null;
     window.quoteAmendSource = null;
@@ -608,15 +615,14 @@
       document.getElementById('quoteFormSubmitBtn').textContent = 'Save Changes';
       document.getElementById('quoteId').value = id;
       document.getElementById('quoteClient').value = q.client_id;
-      document.getElementById('quoteDate').value = today;
-      document.getElementById('quoteValidUntil').value = addDaysToInputDate(today, 10);
       quoteValidUntilTouched = false;
       var parsedNotes = splitStoredQuoteNotes(q.notes || '');
       setQuoteMailFormFields(parseQuoteMailFormat(parsedNotes.mailFormat));
       document.getElementById('quoteSideNote').value = parsedNotes.sideNote;
       document.getElementById('quoteItemsBody').innerHTML = '';
       q.items.forEach(function (item) { addItemRow(item); });
-      syncQuoteBodyAutofills(true);
+      setQuoteDateDefaults(today);
+      updateQuoteLocationLine();
       recalcQuote();
       openModal('quoteModal');
     } catch (err) { showToast(err.message, 'danger'); }
@@ -633,15 +639,14 @@
       document.getElementById('quoteFormSubmitBtn').textContent = 'Create Amendment';
       document.getElementById('quoteId').value = q.id;
       document.getElementById('quoteClient').value = q.client_id;
-      document.getElementById('quoteDate').value = today;
-      document.getElementById('quoteValidUntil').value = addDaysToInputDate(today, 10);
       quoteValidUntilTouched = false;
       var parsedNotes = splitStoredQuoteNotes(q.notes || '');
       setQuoteMailFormFields(parseQuoteMailFormat(parsedNotes.mailFormat));
       document.getElementById('quoteSideNote').value = parsedNotes.sideNote;
       document.getElementById('quoteItemsBody').innerHTML = '';
       q.items.forEach(function (item) { addItemRow(item); });
-      syncQuoteBodyAutofills(true);
+      setQuoteDateDefaults(today);
+      updateQuoteLocationLine();
       recalcQuote();
       openModal('quoteModal');
     } catch (err) { showToast(err.message, 'danger'); }
@@ -798,7 +803,7 @@
   document.getElementById('quoteFilterClient').addEventListener('change', loadQuotes);
   document.getElementById('quoteFilterStatus').addEventListener('change', loadQuotes);
   document.getElementById('quoteDate').addEventListener('input', function () {
-    syncValidUntilFromQuoteDate(false);
+    updateQuoteValidityLine();
   });
   document.getElementById('quoteValidUntil').addEventListener('input', function () {
     quoteValidUntilTouched = true;
