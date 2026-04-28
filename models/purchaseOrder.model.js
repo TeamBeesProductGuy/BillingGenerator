@@ -9,6 +9,84 @@ function isDuplicateKeyError(error) {
   return Boolean(error && (error.code === '23505' || message.includes('duplicate key') || message.includes('UNIQUE')));
 }
 
+function extractStructuredField(notes, label, nextLabels) {
+  const raw = String(notes || '');
+  const escapedLabel = String(label || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const lookAhead = (nextLabels || []).map((item) => `\\n${String(item || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:`).join('|');
+  const endOfInput = '(?![\\s\\S])';
+  const pattern = new RegExp(`^\\s*${escapedLabel}:\\s*\\n?([\\s\\S]*?)(?=${lookAhead || endOfInput}|${endOfInput})`, 'im');
+  const match = raw.match(pattern);
+  return match ? match[1].trim() : '';
+}
+
+function uniqueStrings(values) {
+  const seen = new Set();
+  return (values || []).filter((value) => {
+    const normalized = String(value || '').trim();
+    const key = normalized.toLowerCase();
+    if (!normalized || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+async function enrichPurchaseOrders(rows) {
+  const items = Array.isArray(rows) ? rows : [];
+  if (items.length === 0) return items;
+
+  const clientIds = uniqueStrings(items.map((row) => row.client_id));
+  const quoteIds = uniqueStrings(items.map((row) => row.quote_id));
+  const sowIds = uniqueStrings(items.map((row) => row.sow_id));
+
+  const [clientsResult, quotesResult, sowItemsResult] = await Promise.all([
+    clientIds.length > 0
+      ? supabase.from('clients').select('id, abbreviation, client_name').in('id', clientIds)
+      : Promise.resolve({ data: [], error: null }),
+    quoteIds.length > 0
+      ? supabase.from('quotes').select('id, notes').in('id', quoteIds)
+      : Promise.resolve({ data: [], error: null }),
+    sowIds.length > 0
+      ? supabase.from('sow_items').select('sow_id, role_position').in('sow_id', sowIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (clientsResult.error) throw new Error(clientsResult.error.message);
+  if (quotesResult.error) throw new Error(quotesResult.error.message);
+  if (sowItemsResult.error) throw new Error(sowItemsResult.error.message);
+
+  const clientMap = {};
+  (clientsResult.data || []).forEach((client) => {
+    clientMap[String(client.id)] = client;
+  });
+
+  const quoteMap = {};
+  (quotesResult.data || []).forEach((quote) => {
+    quoteMap[String(quote.id)] = {
+      candidate_name: extractStructuredField(quote.notes, 'Candidate', ['Dear', 'Body', 'Regards', 'Designation']) || '',
+      designation: extractStructuredField(quote.notes, 'Designation', ['Dear', 'Body', 'Regards']) || '',
+    };
+  });
+
+  const sowRoleMap = {};
+  (sowItemsResult.data || []).forEach((item) => {
+    const key = String(item.sow_id);
+    if (!sowRoleMap[key]) sowRoleMap[key] = [];
+    sowRoleMap[key].push(item.role_position);
+  });
+
+  return items.map((row) => {
+    const client = clientMap[String(row.client_id)] || {};
+    const quote = quoteMap[String(row.quote_id)] || {};
+    const roles = uniqueStrings(sowRoleMap[String(row.sow_id)] || []);
+    return {
+      ...row,
+      client_abbreviation: client.abbreviation || row.client_name || '',
+      candidate_name: quote.candidate_name || '',
+      role_summary: roles.join(', ') || quote.designation || '',
+    };
+  });
+}
+
 const POModel = {
   async generatePONumber(offset = 0) {
     const now = new Date();
@@ -33,7 +111,7 @@ const POModel = {
     query = query.order('created_at', { ascending: false });
     const { data, error } = await query;
     if (error) throw new Error(error.message);
-    return data;
+    return enrichPurchaseOrders(data || []);
   },
 
   async findById(id) {
@@ -61,7 +139,8 @@ const POModel = {
     if (logResult.error) throw new Error(logResult.error.message);
     if (empResult.error) throw new Error(empResult.error.message);
 
-    return { ...po, consumptionLog: logResult.data, linkedEmployees: empResult.data };
+    const [enriched] = await enrichPurchaseOrders([{ ...po, consumptionLog: logResult.data, linkedEmployees: empResult.data }]);
+    return enriched;
   },
 
   async findByNumber(poNumber) {

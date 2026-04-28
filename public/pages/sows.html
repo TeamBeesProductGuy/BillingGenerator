@@ -146,15 +146,58 @@
       </div>
       <div class="p-6 space-y-4">
         <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-2">Upload Mode</label>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label class="rounded-xl border border-outline-variant/12 bg-surface px-4 py-3 flex items-start gap-3 cursor-pointer">
+              <input type="radio" name="sowDocumentUploadMode" value="with-quote" checked>
+              <span>
+                <span class="block text-sm font-medium text-on-surface">Link With Quote</span>
+                <span class="block text-xs text-on-surface-variant mt-1">Use accepted quote and auto-create quote document.</span>
+              </span>
+            </label>
+            <label class="rounded-xl border border-outline-variant/12 bg-surface px-4 py-3 flex items-start gap-3 cursor-pointer">
+              <input type="radio" name="sowDocumentUploadMode" value="without-quote">
+              <span>
+                <span class="block text-sm font-medium text-on-surface">Upload Without Quote</span>
+                <span class="block text-xs text-on-surface-variant mt-1">Create the same folder structure without a linked quote file.</span>
+              </span>
+            </label>
+          </div>
+        </div>
+        <div id="sowDocumentQuoteFields">
           <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Associated Quote *</label>
-          <select id="sowDocumentQuote" required>
+          <select id="sowDocumentQuote">
             <option value="">Select Accepted Quote</option>
           </select>
+        </div>
+        <div id="sowDocumentManualFields" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Client *</label>
+            <select id="sowDocumentClient">
+              <option value="">Select</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Candidate *</label>
+            <input type="text" id="sowDocumentCandidate" placeholder="Candidate name">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Role</label>
+            <input type="text" id="sowDocumentRole" placeholder="Role / designation">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">SOW Number</label>
+            <input type="text" id="sowDocumentManualSowNumber" placeholder="Optional SOW number">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Reference Date *</label>
+            <input type="date" id="sowDocumentReferenceDate">
+          </div>
         </div>
         <div>
           <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">SOW File *</label>
           <input type="file" id="sowDocumentFile" accept=".pdf,.doc,.docx" required>
-          <p class="mt-2 text-xs text-on-surface-variant">Accepted formats: PDF, DOC, DOCX. The app will create one folder and store the generated quote DOCX together with this uploaded file. You can later add PO files to the same folder using Link PO.</p>
+          <p class="mt-2 text-xs text-on-surface-variant">Accepted formats: PDF, DOC, DOCX. The app will create one folder and store the uploaded SOW file. When linked with a quote, the generated quote DOCX is stored in the same folder. You can later add PO files using Link PO.</p>
         </div>
       </div>
       <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
@@ -217,17 +260,17 @@
         <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <div>
             <label
-              class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">SOW ID
-              *</label>
-            <input type="text" id="sowNumber" required>
-          </div>
-          <div>
-            <label
               class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Client
               *</label>
             <select id="sowClient" required>
               <option value="">Select</option>
             </select>
+          </div>
+          <div>
+            <label
+              class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">SOW ID
+              *</label>
+            <input type="text" id="sowNumber" required>
           </div>
           <div>
             <label
@@ -247,27 +290,22 @@
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div class="max-w-[220px]">
             <label
-              class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Effective
-              Start *</label>
+              class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">SOW
+              End Date *</label>
+            <input type="date" id="sowEnd" required class="w-full">
+          </div>
+          <div class="max-w-[220px]">
+            <label
+              class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Effect
+              Start / DOJ Client *</label>
             <input type="date" id="sowStart" required class="w-full">
           </div>
           <div class="max-w-[220px]">
             <label
               class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Effective
-              For Months</label>
-            <input type="number" id="sowEffectiveMonths" min="1" step="1" class="w-full" placeholder="e.g. 9">
+              Months</label>
+            <input type="number" id="sowEffectiveMonths" min="1" step="1" class="w-full" placeholder="Auto-calculated" readonly>
           </div>
-          <div class="max-w-[220px]">
-            <label
-              class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Effective
-              End *</label>
-            <input type="date" id="sowEnd" required class="w-full">
-          </div>
-        </div>
-        <div>
-          <label
-            class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Notes</label>
-          <textarea id="sowNotes" rows="2"></textarea>
         </div>
 
         <h6 class="section-label pt-2">Line Items</h6>
@@ -297,6 +335,11 @@
               </tr>
             </table>
           </div>
+        </div>
+        <div>
+          <label
+            class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Notes</label>
+          <textarea id="sowNotes" rows="2"></textarea>
         </div>
       </div>
       <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">

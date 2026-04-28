@@ -75,8 +75,15 @@ const rateCardController = {
       if (po.status !== 'Active') throw new AppError(400, 'Purchase order must be Active. Current status: ' + po.status);
     }
 
-    await RateCardModel.update(id, req.body);
-    res.json({ success: true, data: { id } });
+    try {
+      await RateCardModel.update(id, req.body);
+      res.json({ success: true, data: { id } });
+    } catch (err) {
+      if (err.message && (err.message.includes('UNIQUE') || err.message.includes('duplicate key'))) {
+        throw new AppError(409, 'Employee code already exists for this client');
+      }
+      throw err;
+    }
   }),
 
   remove: catchAsync(async (req, res) => {

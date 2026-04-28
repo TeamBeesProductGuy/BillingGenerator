@@ -115,6 +115,7 @@ const RateCardModel = {
     let { error } = await supabase
       .from('rate_cards')
       .update({
+        emp_code: data.emp_code,
         emp_name: data.emp_name,
         doj: data.doj || null,
         reporting_manager: data.reporting_manager || null,

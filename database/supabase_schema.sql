@@ -227,7 +227,7 @@ CREATE INDEX IF NOT EXISTS idx_quote_items_quote ON quote_items(quote_id);
 
 CREATE TABLE IF NOT EXISTS sows (
     id              SERIAL PRIMARY KEY,
-    sow_number      TEXT NOT NULL UNIQUE,
+    sow_number      TEXT NOT NULL,
     client_id       INTEGER NOT NULL REFERENCES clients(id),
     quote_id        INTEGER REFERENCES quotes(id),
     sow_date        TEXT NOT NULL,
