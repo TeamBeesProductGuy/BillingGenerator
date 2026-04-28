@@ -10,7 +10,12 @@ const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
 
 function isEditableStatus(status) {
-  return status === 'Draft' || status === 'Amendment Draft';
+  return status === 'Draft' || status === 'Amendment Draft' || status === 'Signed';
+}
+
+function isDuplicateKeyError(error) {
+  const message = String(error && error.message ? error.message : '');
+  return Boolean(error && (error.code === '23505' || message.includes('duplicate key') || message.includes('UNIQUE')));
 }
 
 const quoteSideNoteMarker = '\n\n---SIDE_NOTE---\n';
@@ -342,6 +347,24 @@ async function buildFolderMetadataFromQuote(quote, client, candidateNameFromQuot
   };
 }
 
+function buildManualFolderMetadata(client, candidateName, role, sowNumber) {
+  const normalizedCandidate = String(candidateName || '').trim();
+  const normalizedRole = String(role || '').trim();
+  const normalizedSow = String(sowNumber || '').trim();
+  return {
+    quote_id: null,
+    quote_number: '',
+    client_id: client && client.id ? client.id : null,
+    client_name: client && client.client_name ? client.client_name : '',
+    client_abbreviation: client && client.abbreviation ? client.abbreviation : '',
+    candidate_name: normalizedCandidate,
+    candidate_names: normalizedCandidate ? [normalizedCandidate] : [],
+    sow_numbers: normalizedSow ? [normalizedSow] : [],
+    roles: normalizedRole ? [normalizedRole] : [],
+    updated_at: new Date().toISOString(),
+  };
+}
+
 async function upsertDocumentIndex(folderName, metadata) {
   const payload = {
     folder_name: folderName,
@@ -528,15 +551,22 @@ const sowController = {
 
   create: catchAsync(async (req, res) => {
     const { sow_number, client_id, quote_id, sow_date, effective_start, effective_end, notes, items } = req.body;
-    const result = await SOWModel.create({ sow_number, client_id, quote_id, sow_date, effective_start, effective_end, notes }, items);
-    res.status(201).json({ success: true, data: result });
+    try {
+      const result = await SOWModel.create({ sow_number, client_id, quote_id, sow_date, effective_start, effective_end, notes }, items);
+      res.status(201).json({ success: true, data: result });
+    } catch (err) {
+      if (isDuplicateKeyError(err)) {
+        throw new AppError(409, 'This SOW number is still blocked by the database unique constraint. Run the Supabase SQL update to allow the same SOW number across different clients.');
+      }
+      throw err;
+    }
   }),
 
   update: catchAsync(async (req, res) => {
     const id = parseInt(req.params.id, 10);
     const existing = await SOWModel.findById(id);
     if (!existing) throw new AppError(404, 'SOW not found');
-    if (!isEditableStatus(existing.status)) throw new AppError(400, 'Only Draft or Amendment Draft SOWs can be edited');
+    if (!isEditableStatus(existing.status)) throw new AppError(400, 'Only Draft, Amendment Draft, or Signed SOWs can be edited');
     const { client_id, quote_id, sow_date, effective_start, effective_end, notes, items } = req.body;
     const result = await SOWModel.update(id, { client_id, quote_id, sow_date, effective_start, effective_end, notes }, items || []);
     res.json({ success: true, data: { id: result.id, sow_number: result.sow_number, replaced_sow_id: id } });
@@ -682,53 +712,96 @@ const sowController = {
 
   uploadLinkedDocuments: catchAsync(async (req, res) => {
     if (!req.file) throw new AppError(400, 'SOW file is required');
-    const quoteId = parseInt(req.body.quote_id, 10);
-    if (!quoteId) {
-      try { fs.unlinkSync(req.file.path); } catch (e) { /* ignore */ }
-      throw new AppError(400, 'quote_id is required');
-    }
+    const uploadMode = String(req.body.upload_mode || 'with-quote').trim().toLowerCase();
 
     try {
-      const quote = await QuoteModel.findById(quoteId);
-      if (!quote) throw new AppError(404, 'Quote not found');
+      let folderName = '';
+      let targetDir = '';
+      let quoteDocxPath = null;
+      let metadata = null;
+      let sowDocPath = null;
 
-      const client = await ClientModel.findById(quote.client_id);
-      if (!client) throw new AppError(404, 'Client not found for quote');
+      if (uploadMode === 'without-quote') {
+        const clientId = parseInt(req.body.client_id, 10);
+        const candidateName = String(req.body.candidate_name || '').trim();
+        const role = String(req.body.role || '').trim();
+        const sowNumber = String(req.body.sow_number || '').trim();
+        const referenceDate = String(req.body.reference_date || '').trim();
 
-      const candidateName = extractStructuredField(getMailFormatNotes(quote.notes), 'Candidate', ['Dear', 'Body', 'Regards', 'Designation']);
-      const folderName = [
-        sanitizeSegment(client.abbreviation || 'client'),
-        sanitizeSegment(candidateName || 'no_candidate'),
-        formatFolderDate(quote.quote_date),
-      ].filter(Boolean).join('_');
+        if (!clientId) throw new AppError(400, 'client_id is required');
+        if (!candidateName) throw new AppError(400, 'candidate_name is required');
+        if (!referenceDate) throw new AppError(400, 'reference_date is required');
 
-      const baseDir = getLinkedDocumentsBaseDir();
-      const targetDir = path.join(baseDir, folderName);
-      fs.mkdirSync(targetDir, { recursive: true });
+        const client = await ClientModel.findById(clientId);
+        if (!client) throw new AppError(404, 'Client not found');
 
-      const quoteBuffer = await generateQuoteDocxBuffer(quote, client);
-      const quoteDocxPath = ensureUniqueFilePath(path.join(targetDir, `${buildQuoteDocumentBaseName(quote, client)}.docx`));
-      fs.writeFileSync(quoteDocxPath, quoteBuffer);
+        folderName = [
+          sanitizeSegment(client.abbreviation || 'client'),
+          sanitizeSegment(candidateName || 'no_candidate'),
+          formatFolderDate(referenceDate),
+        ].filter(Boolean).join('_');
 
-      const latestSow = await findLatestSowForQuote(quoteId);
-      const latestSowNumber = latestSow && latestSow.sow_number ? latestSow.sow_number : '';
-      const sowBaseName = [
-        buildQuoteDocumentBaseCore(quote, client),
-        latestSowNumber ? sanitizeSegment(latestSowNumber) : '',
-        formatFolderDate(quote.quote_date),
-      ].filter(Boolean).join('_');
-      const sowDocPath = buildStoredDocumentPath(targetDir, `${sowBaseName}${path.extname(req.file.originalname || req.file.filename || '')}`, sowBaseName || 'sow_document');
-      fs.copyFileSync(req.file.path, sowDocPath);
+        targetDir = path.join(getLinkedDocumentsBaseDir(), folderName);
+        fs.mkdirSync(targetDir, { recursive: true });
 
-      const metadata = await buildFolderMetadataFromQuote(quote, client, candidateName);
-      writeFolderMetadata(targetDir, metadata);
+        const manualBaseName = [
+          sanitizeSegment(client.abbreviation || 'client'),
+          role ? sanitizeSegment(role) : '',
+          sowNumber ? sanitizeSegment(sowNumber) : '',
+          sanitizeSegment(candidateName || 'no_candidate'),
+          formatFolderDate(referenceDate),
+        ].filter(Boolean).join('_');
+        sowDocPath = buildStoredDocumentPath(targetDir, `${manualBaseName}${path.extname(req.file.originalname || req.file.filename || '')}`, manualBaseName || 'sow_document');
+        fs.copyFileSync(req.file.path, sowDocPath);
+
+        metadata = buildManualFolderMetadata(client, candidateName, role, sowNumber);
+        writeFolderMetadata(targetDir, metadata);
+        await upsertDocumentIndex(folderName, metadata);
+      } else {
+        const quoteId = parseInt(req.body.quote_id, 10);
+        if (!quoteId) throw new AppError(400, 'quote_id is required');
+
+        const quote = await QuoteModel.findById(quoteId);
+        if (!quote) throw new AppError(404, 'Quote not found');
+
+        const client = await ClientModel.findById(quote.client_id);
+        if (!client) throw new AppError(404, 'Client not found for quote');
+
+        const candidateName = extractStructuredField(getMailFormatNotes(quote.notes), 'Candidate', ['Dear', 'Body', 'Regards', 'Designation']);
+        folderName = [
+          sanitizeSegment(client.abbreviation || 'client'),
+          sanitizeSegment(candidateName || 'no_candidate'),
+          formatFolderDate(quote.quote_date),
+        ].filter(Boolean).join('_');
+
+        targetDir = path.join(getLinkedDocumentsBaseDir(), folderName);
+        fs.mkdirSync(targetDir, { recursive: true });
+
+        const quoteBuffer = await generateQuoteDocxBuffer(quote, client);
+        quoteDocxPath = ensureUniqueFilePath(path.join(targetDir, `${buildQuoteDocumentBaseName(quote, client)}.docx`));
+        fs.writeFileSync(quoteDocxPath, quoteBuffer);
+
+        const latestSow = await findLatestSowForQuote(quoteId);
+        const latestSowNumber = latestSow && latestSow.sow_number ? latestSow.sow_number : '';
+        const sowBaseName = [
+          buildQuoteDocumentBaseCore(quote, client),
+          latestSowNumber ? sanitizeSegment(latestSowNumber) : '',
+          formatFolderDate(quote.quote_date),
+        ].filter(Boolean).join('_');
+        sowDocPath = buildStoredDocumentPath(targetDir, `${sowBaseName}${path.extname(req.file.originalname || req.file.filename || '')}`, sowBaseName || 'sow_document');
+        fs.copyFileSync(req.file.path, sowDocPath);
+
+        metadata = await buildFolderMetadataFromQuote(quote, client, candidateName);
+        writeFolderMetadata(targetDir, metadata);
+        await upsertDocumentIndex(folderName, metadata);
+      }
 
       res.json({
         success: true,
         data: {
           folderName,
           folderPath: targetDir,
-          quoteFile: path.basename(quoteDocxPath),
+          quoteFile: quoteDocxPath ? path.basename(quoteDocxPath) : null,
           sowFile: path.basename(sowDocPath),
           metadata,
         },

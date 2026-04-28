@@ -1,6 +1,7 @@
 (function () {
   // openModal / closeModal provided by app.js (with scroll lock + Escape + backdrop)
   var poActionMap = {};
+  var poSowMap = {};
 
   window.openPOModal = function () {
     document.getElementById('poForm').reset();
@@ -52,16 +53,42 @@
 
   async function loadSOWsForClient(clientId) {
     var sel = document.getElementById('poSOW');
+    poSowMap = {};
     sel.innerHTML = '<option value="">Select SOW</option>';
     if (!clientId) return;
     try {
       var res = await apiCall('GET', '/api/sows?clientId=' + clientId);
       res.data.forEach(function (s) {
-        if (s.status === 'Signed' || s.status === 'Active') {
-          sel.innerHTML += '<option value="' + s.id + '">' + escapeHtml(s.sow_number) + ' (' + escapeHtml(s.status) + ')</option>';
-        }
+        if (s.status === 'Expired' || s.status === 'Terminated') return;
+        poSowMap[String(s.id)] = s;
+        var optionLabel = [
+          s.sow_number || '',
+          s.status || '',
+          s.effective_start ? ('Start ' + formatDate(s.effective_start)) : '',
+          s.effective_end ? ('End ' + formatDate(s.effective_end)) : '',
+        ].filter(Boolean).join(' | ');
+        sel.innerHTML += '<option value="' + s.id + '">' + escapeHtml(optionLabel) + '</option>';
       });
     } catch (e) { /* ignore */ }
+  }
+
+  function applySelectedSowDefaults(force) {
+    var sow = poSowMap[String(document.getElementById('poSOW').value)];
+    if (!sow) return;
+
+    var startInput = document.getElementById('poStartDate');
+    var monthsInput = document.getElementById('poEffectiveMonths');
+    var endInput = document.getElementById('poEndDate');
+
+    if (force || !startInput.value) {
+      startInput.value = sow.effective_start || '';
+    }
+    if (force || !monthsInput.value) {
+      monthsInput.value = getInclusiveMonthSpan(sow.effective_start, sow.effective_end) || '';
+    }
+    if (force || !endInput.value) {
+      endInput.value = addMonthsToDateValue(startInput.value, monthsInput.value) || sow.effective_end || '';
+    }
   }
 
   function toDateInputValue(date) {
@@ -152,6 +179,7 @@
 
       if (context.sowId) {
         document.getElementById('poSOW').value = String(context.sowId);
+        applySelectedSowDefaults(true);
       }
     } catch (e) {
       /* ignore malformed pending state */
@@ -220,7 +248,7 @@
       var res = await apiCall('GET', url);
       updatePOSummary(res.data || []);
       if (res.data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="11" class="text-center text-on-surface-variant py-8">No purchase orders found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12" class="text-center text-on-surface-variant py-8">No purchase orders found</td></tr>';
       } else {
         poActionMap = {};
         tbody.innerHTML = res.data.map(function (po) {
@@ -229,9 +257,14 @@
             status: po.status,
           };
 
+          var clientDisplay = po.client_abbreviation || po.client_name || '-';
+          var roleDisplay = po.role_summary || '-';
+          var candidateDisplay = po.candidate_name || '-';
+
           return '<tr>' +
             '<td><div class="table-cell-box"><span class="entity-pill entity-pill-strong">' + escapeHtml(po.po_number) + '</span></div></td>' +
-            '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(po.client_name) + '">' + escapeHtml(po.client_name) + '</span></div></td>' +
+            '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(clientDisplay) + '">' + escapeHtml(clientDisplay) + '</span></div></td>' +
+            '<td><div class="table-cell-box table-cell-stack"><span class="table-cell-primary" title="' + escapeHtml(candidateDisplay) + '">' + escapeHtml(candidateDisplay) + '</span><span class="table-cell-secondary" title="' + escapeHtml(roleDisplay) + '">' + escapeHtml(roleDisplay) + '</span></div></td>' +
             '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(po.sow_number || 'Not linked') + '">' + escapeHtml(po.sow_number || 'Not linked') + '</span></div></td>' +
             '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(po.start_date) + '</span></div></td>' +
             '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(po.end_date) + '</span></div></td>' +
@@ -446,6 +479,10 @@
   // Load SOWs when client changes in PO form
   document.getElementById('poClient').addEventListener('change', function () {
     loadSOWsForClient(this.value);
+  });
+
+  document.getElementById('poSOW').addEventListener('change', function () {
+    applySelectedSowDefaults(false);
   });
 
   document.getElementById('poStartDate').addEventListener('input', function () {

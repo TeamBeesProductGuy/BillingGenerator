@@ -5,7 +5,7 @@ const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
 
 function isLinkableSowStatus(status) {
-  return status === 'Signed' || status === 'Active';
+  return status === 'Draft' || status === 'Amendment Draft' || status === 'Signed' || status === 'Active';
 }
 
 const poController = {
@@ -33,13 +33,13 @@ const poController = {
   create: catchAsync(async (req, res) => {
     const { po_number, client_id, po_date, start_date, end_date, po_value, alert_threshold, sow_id, notes } = req.body;
 
-    // Validate SOW exists, belongs to same client, and is Signed
-    const sow = await SOWModel.findById(sow_id);
-    if (!sow) throw new AppError(404, 'SOW not found');
-    if (sow.client_id !== client_id) throw new AppError(400, 'SOW belongs to a different client');
-    if (!isLinkableSowStatus(sow.status)) {
-      throw new AppError(400, 'SOW must be Signed to link a PO. Current status: ' + sow.status);
-    }
+    // Validate SOW exists and belongs to same client
+      const sow = await SOWModel.findById(sow_id);
+      if (!sow) throw new AppError(404, 'SOW not found');
+      if (sow.client_id !== client_id) throw new AppError(400, 'SOW belongs to a different client');
+      if (!isLinkableSowStatus(sow.status)) {
+        throw new AppError(400, 'SOW cannot be linked to a PO in its current status: ' + sow.status);
+      }
 
     try {
       const result = await POModel.create({ po_number, client_id, po_date, start_date, end_date, po_value, alert_threshold, sow_id, notes });
@@ -63,7 +63,7 @@ const poController = {
       if (!sow) throw new AppError(404, 'SOW not found');
       if (sow.client_id !== req.body.client_id) throw new AppError(400, 'SOW belongs to a different client');
       if (!isLinkableSowStatus(sow.status)) {
-        throw new AppError(400, 'SOW must be Signed to link a PO. Current status: ' + sow.status);
+        throw new AppError(400, 'SOW cannot be linked to a PO in its current status: ' + sow.status);
       }
     }
 

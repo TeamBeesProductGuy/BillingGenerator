@@ -2,9 +2,13 @@
   // openModal / closeModal provided by app.js
   var sowActionMap = {};
   var sowClientMap = {};
+  var sowDocumentUploadMode = 'with-quote';
 
   window.openSowDocumentUploadModal = async function () {
     document.getElementById('sowDocumentUploadForm').reset();
+    document.getElementById('sowDocumentReferenceDate').value = toDateInputValue(new Date());
+    sowDocumentUploadMode = 'with-quote';
+    updateSowDocumentUploadMode();
     await loadAcceptedQuotesForDocumentUpload();
     openModal('sowDocumentUploadModal');
   };
@@ -95,6 +99,46 @@
     } finally {
       sowDateSyncState.updating = false;
     }
+  }
+
+  function extractStructuredField(notes, label, nextLabels) {
+    var raw = String(notes || '');
+    var escapedLabel = String(label || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    var lookAhead = (nextLabels || []).map(function (item) {
+      return '\\n' + String(item || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ':';
+    }).join('|');
+    var endOfInput = '(?![\\s\\S])';
+    var pattern = new RegExp('^\\s*' + escapedLabel + ':\\s*\\n?([\\s\\S]*?)(?=' + (lookAhead || endOfInput) + '|' + endOfInput + ')', 'im');
+    var match = raw.match(pattern);
+    return match ? match[1].trim() : '';
+  }
+
+  function getQuoteCandidateLabel(quote) {
+    return extractStructuredField(quote && quote.notes, 'Candidate', ['Dear', 'Body', 'Regards', 'Designation']) || '';
+  }
+
+  function getQuoteRoleLabel(quote) {
+    return extractStructuredField(quote && quote.notes, 'Designation', ['Dear', 'Body', 'Regards']) || '';
+  }
+
+  function populateSowDocumentClientOptions() {
+    var sel = document.getElementById('sowDocumentClient');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Select</option>';
+    Object.keys(sowClientMap).forEach(function (key) {
+      var client = sowClientMap[key];
+      sel.innerHTML += '<option value="' + client.id + '">' + escapeHtml(getClientDisplayName(client)) + '</option>';
+    });
+  }
+
+  function updateSowDocumentUploadMode() {
+    var useQuote = sowDocumentUploadMode === 'with-quote';
+    document.getElementById('sowDocumentQuoteFields').classList.toggle('hidden', !useQuote);
+    document.getElementById('sowDocumentManualFields').classList.toggle('hidden', useQuote);
+    document.getElementById('sowDocumentQuote').required = useQuote;
+    document.getElementById('sowDocumentClient').required = !useQuote;
+    document.getElementById('sowDocumentCandidate').required = !useQuote;
+    document.getElementById('sowDocumentReferenceDate').required = !useQuote;
   }
 
   function formatDateTime(value) {
@@ -210,6 +254,8 @@
     window.sowEdit = null;
     window.sowAmend = null;
     addSowItemRow();
+    document.getElementById('sowDate').value = toDateInputValue(new Date());
+    document.getElementById('sowEffectiveMonths').value = '';
     openModal('sowModal');
   };
   window.closeSOWModal = function () { closeModal('sowModal'); };
@@ -226,6 +272,7 @@
       (res.data || []).forEach(function (client) {
         sowClientMap[String(client.id)] = client;
       });
+      populateSowDocumentClientOptions();
       ['sowFilterClient', 'sowClient'].forEach(function (id) {
         var sel = document.getElementById(id);
         if (!sel) return;
@@ -257,7 +304,12 @@
     try {
       var res = await apiCall('GET', '/api/quotes?status=Accepted');
       res.data.forEach(function (q) {
-        sel.innerHTML += '<option value="' + q.id + '">' + escapeHtml(q.quote_number) + ' - ' + escapeHtml(q.client_name || '') + '</option>';
+        var candidate = getQuoteCandidateLabel(q);
+        var role = getQuoteRoleLabel(q);
+        var labelParts = [q.quote_number || ''];
+        if (candidate) labelParts.push(candidate);
+        if (role) labelParts.push(role);
+        sel.innerHTML += '<option value="' + q.id + '">' + escapeHtml(labelParts.join('_')) + '</option>';
       });
     } catch (err) {
       showToast(err.message, 'danger');
@@ -311,6 +363,7 @@
         tbody.innerHTML = res.data.map(function (s) {
           var client = sowClientMap[String(s.client_id)] || null;
           var clientDisplay = client ? getClientDisplayName(client) : (s.client_name || '');
+          var clientFullName = client ? (client.client_name || clientDisplay) : (s.client_name || clientDisplay);
           var VALID_TRANSITIONS = { Draft: ['Signed'], 'Amendment Draft': ['Signed'], Signed: ['Expired', 'Terminated'], Expired: [], Terminated: [] };
           var STATUS_LABELS = { Signed: 'Mark Signed', Expired: 'Mark Expired', Terminated: 'Terminate', Draft: 'Revert to Draft' };
           var allowed = VALID_TRANSITIONS[s.status] || [];
@@ -322,7 +375,7 @@
           };
 
           var actionsHtml = '<div class="table-action-group">';
-          if (s.status === 'Draft' || s.status === 'Amendment Draft') {
+          if (s.status === 'Draft' || s.status === 'Amendment Draft' || s.status === 'Signed') {
             actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="editSOW(' + s.id + ')" title="Edit"><span class="material-symbols-outlined text-base">edit</span></button>';
           }
           actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="viewSOW(' + s.id + ')" title="View"><span class="material-symbols-outlined text-base">visibility</span></button>';
@@ -334,8 +387,8 @@
           actionsHtml += '</div>';
 
           return '<tr>' +
-            '<td><div class="table-cell-box"><span class="entity-pill entity-pill-strong">' + escapeHtml(s.sow_number) + '</span></div></td>' +
-            '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(clientDisplay) + '">' + escapeHtml(clientDisplay) + '</span></div></td>' +
+            '<td><div class="table-cell-box table-cell-stack"><span class="entity-pill entity-pill-strong">' + escapeHtml(s.sow_number) + '</span><span class="table-cell-secondary">Row #' + s.id + '</span></div></td>' +
+            '<td><div class="table-cell-box table-cell-stack"><span class="entity-pill" title="' + escapeHtml(clientFullName) + '">' + escapeHtml(clientDisplay) + '</span><span class="table-cell-secondary" title="' + escapeHtml(clientFullName) + '">' + escapeHtml(clientFullName) + '</span></div></td>' +
             '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(s.sow_date) + '</span></div></td>' +
             '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(s.effective_start) + '</span></div></td>' +
             '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(s.effective_end) + '</span></div></td>' +
@@ -561,12 +614,7 @@
   });
 
   document.getElementById('sowStart').addEventListener('input', function () {
-    syncSowEndFromMonths();
     syncSowMonthsFromEnd();
-  });
-
-  document.getElementById('sowEffectiveMonths').addEventListener('input', function () {
-    syncSowEndFromMonths();
   });
 
   document.getElementById('sowEnd').addEventListener('input', function () {
@@ -581,7 +629,16 @@
       return;
     }
     var fd = new FormData();
-    fd.append('quote_id', document.getElementById('sowDocumentQuote').value);
+    fd.append('upload_mode', sowDocumentUploadMode);
+    if (sowDocumentUploadMode === 'with-quote') {
+      fd.append('quote_id', document.getElementById('sowDocumentQuote').value);
+    } else {
+      fd.append('client_id', document.getElementById('sowDocumentClient').value);
+      fd.append('candidate_name', document.getElementById('sowDocumentCandidate').value.trim());
+      fd.append('role', document.getElementById('sowDocumentRole').value.trim());
+      fd.append('sow_number', document.getElementById('sowDocumentManualSowNumber').value.trim());
+      fd.append('reference_date', document.getElementById('sowDocumentReferenceDate').value);
+    }
     fd.append('file', fileInput.files[0]);
     try {
       var res = await apiCall('POST', '/api/sows/documents/upload', fd);
@@ -626,6 +683,12 @@
   });
 
   document.getElementById('btnAddSowItem').addEventListener('click', function () { addSowItemRow(); });
+  document.querySelectorAll('input[name="sowDocumentUploadMode"]').forEach(function (radio) {
+    radio.addEventListener('change', function () {
+      sowDocumentUploadMode = this.value;
+      updateSowDocumentUploadMode();
+    });
+  });
   document.getElementById('sowFilterClient').addEventListener('change', loadSOWs);
   document.getElementById('sowFilterStatus').addEventListener('change', loadSOWs);
   document.getElementById('sowDocumentSearch').addEventListener('input', loadLinkedDocumentLibrary);
