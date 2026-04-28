@@ -1,7 +1,7 @@
-# TeamBees Billing Generator
+# TeamBees Billing Engine
 
-Project overview, technical architecture, setup, workflows, route map, and operational notes are documented in:
+TeamBees Billing Engine is a Node.js and Express application for billing operations, service-request workflows, and permanent hiring follow-up. It serves a browser-based SPA from `public/` and uses Supabase for authentication and PostgreSQL-backed data storage.
 
-- `DOCUMENTATION.md`
+## Documentation
 
-This repository now treats `DOCUMENTATION.md` as the single source of truth to avoid documentation drift.
+- [`DOCUMENTATION.md`](./DOCUMENTATION.md) - single source of truth for product, architecture, setup, APIs, and deployment

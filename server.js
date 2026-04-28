@@ -7,8 +7,8 @@ async function start() {
   console.log('Supabase connection verified');
 
   const app = require('./app');
-  const server = app.listen(env.port, () => {
-    console.log(`Billing Engine running at http://localhost:${env.port}`);
+  const server = app.listen(env.port, '127.0.0.1', () => {
+    console.log(`Billing Engine running at http://127.0.0.1:${env.port}`);
     console.log(`Environment: ${env.nodeEnv}`);
   });
   reminderScheduler.start();

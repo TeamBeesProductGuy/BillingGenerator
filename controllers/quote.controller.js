@@ -93,12 +93,16 @@ function sanitizeSegment(value) {
 function formatFolderDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return String(value || '').replace(/[^0-9]/g, '').substring(0, 8) || new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const fallback = new Date();
+    const fallbackDay = String(fallback.getDate()).padStart(2, '0');
+    const fallbackMonth = String(fallback.getMonth() + 1).padStart(2, '0');
+    const fallbackYear = String(fallback.getFullYear()).slice(-2);
+    return String(value || '').replace(/[^0-9]/g, '').substring(0, 6) || `${fallbackDay}${fallbackMonth}${fallbackYear}`;
   }
-  const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
-  return `${year}${month}${day}`;
+  const year = String(date.getFullYear()).slice(-2);
+  return `${day}${month}${year}`;
 }
 
 function buildLinkedDocumentFolderName(quote, client) {
