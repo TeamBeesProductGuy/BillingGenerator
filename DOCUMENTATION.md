@@ -1,910 +1,518 @@
-# TeamBees Billing Generator Documentation
+# TeamBees Billing Engine Documentation
 
-## 1. Executive Summary
+## 1. Overview
 
-TeamBees Billing Generator is a business operations system built for staffing and consulting teams. It helps teams manage the full path from client documents to billing output, while also supporting follow-up workflows for permanent hiring invoices and reminders.
+TeamBees Billing Engine is a Node.js and Express application for billing operations, service-request workflows, and permanent hiring follow-up. It serves a browser-based single-page application from the `public/` directory and uses Supabase for authentication and PostgreSQL-backed data storage.
 
-At a simple level, the platform helps a business answer questions like:
+The product is designed to replace fragmented spreadsheet and email-based processes with a controlled system that can:
 
-- Which clients are active?
-- What commercial documents exist for each client?
-- Which employees are billable under which purchase order?
-- What attendance was recorded for the month?
-- What billing should be raised?
-- Has that billing been approved?
-- Has the linked purchase order been reduced only after approval?
-- For permanent hiring work, which reminders, invoices, and payments are still pending?
+- manage clients and commercial documents
+- generate and review billing runs
+- track purchase order consumption
+- support permanent hiring reminders and invoice follow-up
+- export business-friendly Excel workbooks and document outputs
 
-This documentation is written in layers:
+This document is the canonical reference for the repository.
 
-1. First, it explains the product in business language.
-2. Then, it explains the workflows and modules.
-3. Finally, it goes deeper into the technical design, APIs, and deployment approach.
+## 2. Business Scope
 
-The goal is that a non-technical stakeholder can read the beginning and understand the product, while engineers and operations teams can continue deeper into the later sections.
+### 2.1 Contractual billing operations
 
----
+The contractual side of the application covers:
 
-## 2. What the Product Does
-
-### 2.1 Business purpose
-
-The system replaces fragmented spreadsheet-based billing operations with a structured process.
-
-Instead of tracking clients, quotes, agreements, purchase orders, attendance, invoices, and reminders across many disconnected sheets and emails, the platform brings them into one system.
-
-### 2.2 Main business areas
-
-The product supports two major operational areas.
-
-#### Contractual billing operations
-
-This area covers:
-
-- client records
+- clients
 - quotes
 - statements of work
 - purchase orders
-- employee rate cards
+- rate cards
 - attendance
-- billing generation
-- approval and PO consumption
+- billing generation and approval
 
-#### Permanent hiring follow-up
+### 2.2 Permanent hiring operations
 
-This area covers:
+The permanent workflow covers:
 
 - permanent clients
 - permanent orders
-- reminders
+- open reminders
 - invoice sent tracking
 - payment status tracking
-- email reminder follow-up
+- reminder email sending
 
-### 2.3 Why this matters
+### 2.3 Operational goals
 
-Without a controlled system, businesses commonly face:
+The system aims to:
 
-- billing mistakes caused by manual calculations
-- missing visibility into how much of a purchase order is already used
-- weak traceability between commercial documents and billing output
-- difficult invoice dispute resolution
-- inconsistent follow-up for permanent hiring invoices
+- reduce manual billing errors
+- keep commercial documents connected
+- prevent premature purchase order consumption
+- give finance and operations teams better visibility
+- support structured follow-up for permanent hiring invoices
 
-This platform improves:
+## 3. Requirements
 
-- accuracy
-- auditability
-- control
-- visibility
-- speed of monthly operations
+### 3.1 Runtime requirements
 
----
+- Node.js 18 or newer
+- npm
+- A Supabase project
+- Microsoft Graph credentials if reminder email sending is enabled
 
-## 3. Product Journey in Plain Language
+### 3.2 Database requirements
 
-### 3.1 Contractual billing journey
+- The schema in `database/supabase_schema.sql` must be applied in Supabase
+- Any later migration files in `database/migrations/` must also be applied
+- The app expects the required tables, views, and stored procedures to exist
 
-In simple terms, the contractual billing journey works like this:
+### 3.3 Environment requirements
 
-1. A client is created.
-2. A quote is prepared for that client.
-3. The quote becomes a statement of work.
-4. A purchase order is linked to the work.
-5. Employees are attached through rate cards.
-6. Attendance is recorded.
-7. Billing is generated.
-8. The billing is reviewed as a service request.
-9. Only after approval is the purchase order balance reduced.
+The application expects configuration for:
 
-This is an important control. The system does not immediately reduce a purchase order just because a file was generated. It waits for an acceptance decision.
+- server port and runtime mode
+- Supabase connection details
+- upload and output directories
+- request logging and file upload limits
+- CORS configuration
+- billing divisor behavior
+- Microsoft Graph mail settings
 
-### 3.2 Permanent hiring journey
+## 4. Application Flow
 
-For permanent hiring, the process is different:
+### 4.1 Authentication flow
 
-1. A permanent client is created.
-2. A permanent order is created for a role or candidate.
-3. A reminder is tracked around the expected billing date.
-4. Teams can record whether the invoice was sent.
-5. Teams can record whether the payment is still pending or already received.
-6. Reminder emails can be sent manually or automatically.
-
-### 3.3 Why the approval step is important
-
-Many systems reduce purchase order value immediately when billing is generated. That creates financial risk if the billing is still under review.
-
-This system introduces a controlled approval step:
-
-- billing is generated first
-- the result is stored
-- the output is reviewed
-- a decision is recorded
-- only approved billing affects the purchase order balance
-
-That makes the system safer for finance and operations teams.
-
----
-
-## 4. Functional Overview
-
-### 4.1 Billing
-
-The billing module allows users to:
-
-- generate billing from uploaded Excel files
-- generate billing from records already stored in the system
-- store each run for history and audit
-- download output workbooks
-- review errors without losing valid output
-- accept or reject the billing request
-
-### 4.2 Clients
-
-The client module stores the business entities that all other operations depend on.
-
-It supports:
-
-- client creation
-- updates
-- viewing
-- removal or deactivation through the application flow
-
-### 4.3 Quotes
-
-The quote module supports commercial proposal creation.
-
-It includes:
-
-- quote details
-- line items
-- structured text sections for business communication
-- downloadable documents
-- quote status management
-- conversion into a statement of work
-
-### 4.4 Statements of work
-
-The SOW module handles formal work agreements.
-
-It supports:
-
-- creation
-- amendment
-- status updates
-- document linking
-- linked commercial file storage
-
-### 4.5 Purchase orders
-
-The purchase order module tracks:
-
-- purchase order details
-- alerts
-- linked employees
-- consumption activity
-- renewal
-
-### 4.6 Rate cards
-
-Rate cards define billable employee information such as:
-
-- employee identity
-- reporting details
-- leave allowance
-- billable rate
-- linked commercial context
-
-### 4.7 Attendance
-
-Attendance can be recorded through:
-
-- manual entry
-- bulk entry
-- Excel upload
-
-This information supports monthly billing calculations.
-
-### 4.8 Dashboard and reporting
-
-The dashboard gives a high-level operational view, including:
-
-- overall counts
-- recent billing activity
-- purchase order alerts
-- revenue trends
-- tracker export support
-
-### 4.9 Permanent reminders
-
-Permanent reminder workflows support:
-
-- reminder tracking
-- invoice status updates
-- payment status updates
-- recipient updates
-- due date extensions
-- manual mail sending
-- scheduled mail sending
-
----
-
-## 5. How the System Is Organized
-
-### 5.1 High-level view
-
-The product has four main layers:
-
-1. The browser interface used by the business team
-2. The application server
-3. The business-logic layer
-4. The database
-
-### 5.2 Browser interface
-
-Users work through a browser-based single-page application.
-
-This interface provides:
-
-- login
-- navigation between modules
-- forms and tables
-- dashboard views
-- downloads
-- reminder actions
-
-### 5.3 Application server
-
-The application server receives requests from the browser, validates them, runs business logic, talks to the database, and returns results.
-
-It also:
-
-- serves the web interface
-- handles file uploads
-- protects API routes
-- runs the reminder scheduler
-
-### 5.4 Business-logic layer
-
-The system separates request handling from core business rules.
-
-This means:
-
-- controllers handle incoming requests
-- services perform calculations and workflow logic
-- models handle database access
-
-This structure makes the application easier to maintain and extend.
-
-### 5.5 Database layer
-
-The database stores:
-
-- clients
-- commercial records
-- purchase orders
-- employee billing records
-- attendance
-- billing history
-- reminders
-- invoice and payment tracking details
-
----
-
-## 6. Important Business Controls
-
-### 6.1 Approval before PO reduction
-
-This is one of the most important controls in the system.
-
-The platform does not reduce purchase order value immediately when billing is generated. It stores the billing request first. A user must approve it before the related purchase order is affected.
-
-### 6.2 Error collection instead of full failure
-
-When some billing rows are invalid, the system does not necessarily discard the entire run. It captures the errors and still allows valid output to be produced where appropriate.
-
-This is useful for operational teams because one bad row does not always stop the month-end process completely.
-
-### 6.3 Traceability between commercial records and billing
-
-The platform is designed so that billing can be traced back through the related commercial records. This improves audit readiness and dispute handling.
-
-### 6.4 Reminder state tracking
-
-In the permanent workflow, reminder records can track whether:
-
-- the reminder is still open
-- the invoice was sent
-- the payment is pending
-- the payment is complete
-- reminder communication has already been sent
-
----
-
-## 7. User-Facing Modules
-
-### 7.1 Dashboard
-
-The dashboard is the overview screen for the platform. It is intended for quick operational understanding.
-
-Typical information shown:
-
-- totals and counts
-- recent billing runs
-- purchase order alert indicators
-- revenue trends
-
-### 7.2 Clients
-
-The client area is the foundation for all business activity in the platform. It stores the client records needed for commercial and billing flows.
-
-### 7.3 Quotes
-
-The quote area is used to prepare and manage commercial proposals. Quotes can later move into more formal agreement stages.
-
-### 7.4 Statements of work
-
-The SOW area is used to manage structured work agreements, including document linking and amendments.
-
-### 7.5 Purchase orders
-
-The PO area is used to manage financial approval boundaries for work being billed.
-
-### 7.6 Rate cards
-
-The rate card area connects employees to billable commercial context.
-
-### 7.7 Attendance
-
-The attendance area captures the time and leave information needed to calculate billing correctly.
-
-### 7.8 Billing
-
-The billing area is where monthly billing is generated, reviewed, and finalized.
-
-### 7.9 Orders and reminders
-
-The permanent operations area manages order follow-up, reminders, and payment progress for permanent hiring work.
-
----
-
-## 8. Technical Architecture
-
-### 8.1 Technology summary
-
-The system uses a modern but lightweight stack:
-
-- Node.js for server runtime
-- Express for the web server and APIs
-- Supabase PostgreSQL for data storage
-- Supabase Auth for authentication
-- vanilla JavaScript in the frontend
-- Tailwind CSS for interface styling
-- Excel processing libraries for import and export
-- document generation for quote output
-- Microsoft Graph integration for reminder email sending
-
-### 8.2 Frontend architecture
-
-The frontend is a single-page application.
-
-Key characteristics:
-
-- browser-based
-- no build pipeline required for deployment
-- page modules loaded dynamically
-- route-based navigation inside the application shell
-- direct interaction with the backend API
-
-### 8.3 Backend architecture
-
-The backend is an Express application that:
-
-- exposes business APIs
-- validates requests
-- handles uploads
-- serves static frontend files
-- checks health status
-- schedules reminder dispatch
-
-### 8.4 Application layering
-
-The codebase is intentionally layered:
-
-- routes define API entry points
-- controllers coordinate request handling
-- services execute business rules
-- models manage database operations
-- middleware handles cross-cutting concerns like auth, validation, upload, and errors
-
-### 8.5 Database architecture
-
-The system uses a PostgreSQL database hosted through Supabase.
-
-The repository includes:
-
-- a main schema file
-- migration files for incremental changes
-- seed and support scripts
-
-Database-side logic supports areas such as:
-
-- reporting views
-- workflow support
-- purchase order logic
-- dashboard aggregation
-- reminder and invoice tracking additions
-
----
-
-## 9. Repository Structure
-
-The project is organized into clear application areas.
-
-### 9.1 Main folders
-
-- `config` for application configuration
-- `controllers` for request handling
-- `database` for schema, migrations, and seed logic
-- `middleware` for authentication, validation, upload, and error handling
-- `models` for database access
-- `public` for the browser interface
-- `routes` for API definitions
-- `services` for business logic
-- `validators` for request validation rules
-- `uploads` for uploaded files
-- `output` for generated files
-
-### 9.2 Why this matters
-
-This structure makes the code understandable for developers because each responsibility lives in a predictable place.
-
----
-
-## 10. Setup and Environment
-
-### 10.1 Prerequisites
-
-To run the application, the hosting environment needs:
-
-- a supported Node.js runtime
-- package management through npm
-- access to the backing database platform
-- proper application configuration values
-
-### 10.2 Application configuration
-
-The application depends on configuration for:
-
-- server runtime behavior
-- database connectivity
-- upload and output storage locations
-- security and CORS behavior
-- billing behavior settings
-- reminder email integration
-
-For security reasons, this documentation intentionally does not publish confidential configuration values or deployment secrets.
-
-### 10.3 Database preparation
-
-Before the application runs correctly, the database schema and later migrations must be applied.
-
-This is especially important for features such as:
-
-- billing approval workflow
-- reminder email flow
-- invoice tracking
-- document indexing
-
-### 10.4 Starting the application
-
-The project supports:
-
-- a development mode
-- a standard production server start
-
-It also includes supporting commands for:
-
-- seeding sample data
-- linting
-- formatting
-
----
-
-## 11. Authentication and Security
-
-### 11.1 Authentication model
-
-The platform uses token-based authentication through Supabase Auth.
+Authentication is handled by Supabase Auth.
 
 In practice:
 
-- users sign in through the web interface
-- the frontend keeps the user session
-- API requests include the user token
-- protected routes reject requests without valid authentication
+1. The user signs in in the browser UI.
+2. The frontend obtains a Supabase session token.
+3. API requests include `Authorization: Bearer <token>`.
+4. The backend validates the token before processing protected requests.
 
-### 11.2 Protected APIs
+All API routes are protected by auth middleware except the health check endpoint.
 
-All application APIs are protected except the health-check endpoint.
+### 4.2 Request flow
 
-### 11.3 Security middleware
+The backend uses a request-scoped Supabase client:
 
-The backend uses common web protections such as:
+- the service role client is used for server initialization and health checks
+- a request-specific client is created from the user bearer token
+- the token-scoped client is used while handling authenticated requests
 
-- secure HTTP header handling
-- cross-origin request control
-- request rate limiting
+This keeps API access aligned with the signed-in user.
 
-### 11.4 Data sensitivity
+### 4.3 Billing flow
 
-This system handles commercially sensitive operational data. Documentation and deployment practices should avoid exposing:
+Billing runs can start from:
 
-- secrets
-- tokens
-- credentials
-- server-specific confidential paths
-- internal-only configuration data
+- uploaded Excel files
+- database records already stored in Supabase
 
----
+The application generates billing output, stores the run, and supports a review decision. Purchase order consumption is only applied after the billing decision step.
 
-## 12. API Overview
+### 4.4 Reminder flow
 
-This section describes the main application capabilities exposed through the backend.
+Permanent reminders are processed through the application and, when configured, through Microsoft Graph:
 
-### 12.1 Billing APIs
+1. Due reminders are found in Supabase.
+2. The scheduler sends reminder emails.
+3. The reminder records are updated with sent or failed status.
+4. Operators can also update reminder state manually through the UI and API.
 
-Used for:
+## 5. Feature Areas
 
-- billing generation
-- billing history lookup
-- service-request decisions
-- file downloads
+### 5.1 Dashboard
 
-### 12.2 Client APIs
+The dashboard provides high-level operational visibility, including:
 
-Used for:
+- summary statistics
+- recent billing activity
+- purchase order alerts
+- tracker export generation
 
-- listing clients
-- viewing a client
-- creating clients
-- updating clients
-- removing clients
+### 5.2 Clients
 
-### 12.3 Rate card APIs
+Client records store the business entities used across contractual and permanent workflows.
 
-Used for:
+### 5.3 Quotes
 
-- rate card management
-- export
-- import
-- leave allowance updates
+Quotes support lifecycle management, document download, PDF export, amendment flow, and conversion to SOW records.
 
-### 12.4 Attendance APIs
+### 5.4 Statements of work
 
-Used for:
+SOWs provide structured work agreements and support document linking, amendments, status updates, and related document management.
 
-- submission
-- bulk upload
-- summary lookup
-- month-based cleanup
+### 5.5 Purchase orders
 
-### 12.5 Quote APIs
+Purchase orders track commercial value, consumption, renewals, alerting, and linked employee data.
 
-Used for:
+### 5.6 Rate cards
 
-- quote lifecycle management
-- document download
-- status changes
-- conversion into SOW records
+Rate cards define employee billing details, including reporting manager, monthly rate, leave allowance, reporting date, and PO linkage.
 
-### 12.6 SOW APIs
+### 5.7 Attendance
 
-Used for:
+Attendance can be entered manually, uploaded in bulk, or imported from Excel.
 
-- SOW lifecycle management
-- amendments
-- linked document upload and retrieval
+### 5.8 Billing
 
-### 12.7 Purchase order APIs
+Billing supports:
 
-Used for:
+- file-based generation
+- database-based generation
+- run history
+- download of generated output
+- run-level acceptance or rejection
 
-- purchase order management
-- alerts
-- consumption actions
-- renewal
-- employee linkage lookup
+### 5.9 Permanent modules
 
-### 12.8 Permanent workflow APIs
+Permanent client, order, and reminder modules manage the follow-up workflow for invoice and payment tracking.
 
-Used for:
+### 5.10 Sample exports
 
-- permanent client management
-- permanent order management
-- reminder actions
-- invoice tracking updates
-- payment tracking updates
-- reminder email sending
+The application includes sample Excel downloads for:
 
-### 12.9 Dashboard APIs
-
-Used for:
-
-- dashboard statistics
-- tracker export
-
-### 12.10 Sample file APIs
-
-Used for:
-
-- sample rate card downloads
-- sample attendance downloads
-
-### 12.11 Public health API
-
-Used for:
-
-- service health verification
-- deployment and uptime checks
-
----
-
-## 13. Billing Logic in More Detail
-
-### 13.1 Billing input options
-
-Billing can begin in two ways:
-
-- from uploaded source files
-- from records already stored in the application
-
-This makes the system useful both for teams still using spreadsheets and for teams already working fully inside the platform.
-
-### 13.2 Main calculation concepts
-
-The billing calculation depends on concepts such as:
-
-- billing month
-- monthly rate
-- reporting or charging date
+- rate cards
 - attendance
-- leaves allowed
-- effective billing days
-- divisor rules
 
-### 13.3 Business behavior
+## 6. Technical Architecture
 
-The system supports:
+### 6.1 Stack summary
 
-- pro-rated billing for employees who start within the month
-- skip or error handling for invalid future billing scenarios
-- controlled chargeable-day limits
-- structured error reporting
+- Node.js runtime
+- Express web server
+- Supabase PostgreSQL
+- Supabase Auth
+- vanilla JavaScript frontend
+- Tailwind CDN for UI styling
+- ExcelJS for workbook generation
+- PDFKit for quote PDF output
+- Microsoft Graph for reminder mail
 
-### 13.4 Output
+### 6.2 Frontend architecture
 
-Billing output is generated as a workbook with business-friendly worksheets, including a working sheet, summary sheet, and error sheet.
+The frontend is a browser SPA served directly by the Express server.
 
-The output can then be downloaded for operational use.
+Key characteristics:
 
----
+- no separate frontend build step in the repository
+- page modules are loaded from `public/pages/` and `public/js/`
+- the UI shell is served from `public/index.html`
+- assets such as Tailwind, fonts, and Chart.js are loaded from CDN
 
-## 14. Quote and Document Handling
+### 6.3 Backend architecture
 
-### 14.1 Quote documents
+The backend is structured as:
 
-Quotes support document output suitable for business communication.
+- routes for API entry points
+- controllers for request orchestration
+- services for business logic and integrations
+- models for database access
+- middleware for auth, validation, upload, and error handling
 
-The application primarily generates quote documents in a modern editable format, while also maintaining an alternate export path for PDF.
+### 6.4 Database architecture
 
-### 14.2 Structured content
+The data layer lives in Supabase PostgreSQL.
 
-Quote content is not treated as just a single text block. The system supports a more structured communication format so that business messaging can be prepared more consistently.
+The repository includes:
 
-### 14.3 Linked documents for SOWs and POs
+- `database/supabase_schema.sql` for the bootstrap schema
+- `database/schema.sql` for legacy or supporting schema material
+- `database/migrations/` for incremental changes
+- `database/seed.js` for sample data
 
-The system also supports linked commercial document management.
+## 7. Repository Structure
 
-This helps teams keep related business documents connected to the right agreement context instead of leaving them scattered outside the application.
+- `config/` - runtime and database configuration
+- `controllers/` - request handlers
+- `database/` - schema, migrations, and seed scripts
+- `middleware/` - auth, validation, upload, and error handling
+- `models/` - Supabase data access
+- `public/` - frontend pages, scripts, styles, images, and fonts
+- `routes/` - API route definitions
+- `services/` - Excel, document, mail, and scheduler logic
+- `validators/` - Joi validation rules
+- `uploads/` - uploaded source files
+- `output/` - generated output files
 
----
+## 8. Configuration
 
-## 15. Reminder and Mail Workflow
+### 8.1 `.env.example`
 
-### 15.1 Reminder lifecycle
+The example environment file documents the expected configuration:
 
-A reminder can move through a business process such as:
+- `PORT`
+- `NODE_ENV`
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `UPLOAD_DIR`
+- `OUTPUT_DIR`
+- `LOG_LEVEL`
+- `MAX_FILE_SIZE`
+- `CORS_ORIGINS`
+- `BILLING_DIVISOR`
+- Microsoft Graph mail settings used by the reminder scheduler
 
-- open
-- invoice sent
-- payment pending
-- payment completed
-- closed
+### 8.2 Environment behavior
 
-### 15.2 Manual reminder actions
+Important runtime notes:
 
-Users can:
+- `PORT` defaults to `3000`
+- upload and output directories are resolved relative to the repository unless overridden
+- CORS can be allowlisted or left open in development
+- the reminder scheduler only starts when Graph configuration is complete
 
-- update recipients
-- mark invoice sent
-- update payment status
-- extend due dates
-- close reminders
-- send reminder emails manually
+## 9. Setup and Local Run
 
-### 15.3 Scheduled reminder sending
+### 9.1 Install dependencies
 
-The backend includes a scheduler that can check for due reminders and send emails automatically at configured intervals.
+```bash
+npm install
+```
 
-### 15.4 Operational safeguards
+### 9.2 Configure the environment
 
-The scheduler is designed not to start improperly when required mail configuration is incomplete.
+1. Copy `.env.example` to `.env`
+2. Fill in the required Supabase values
+3. Add Microsoft Graph values if reminder mail should run
 
-The reminder logic also provides resilience when some reminder-related database fields are not yet available in an older environment.
+### 9.3 Apply the database schema
 
----
+Run `database/supabase_schema.sql` in the Supabase SQL editor, then apply any relevant migrations in `database/migrations/`.
 
-## 16. Data, Files, and Generated Output
+### 9.4 Start the application
 
-### 16.1 Upload handling
+```bash
+npm run dev
+```
 
-The system handles file upload for areas such as:
+For a production-style start:
 
-- billing source files
+```bash
+npm start
+```
+
+### 9.5 Seed sample data
+
+```bash
+npm run db:seed
+```
+
+### 9.6 Code quality commands
+
+- `npm run lint`
+- `npm run format`
+
+## 10. API Reference
+
+### 10.1 Health
+
+- `GET /health`
+
+### 10.2 Dashboard
+
+- `GET /api/dashboard/stats`
+- `GET /api/dashboard/tracker/export`
+
+### 10.3 Billing
+
+- `POST /api/billing/generate`
+- `POST /api/billing/generate-from-db`
+- `GET /api/billing/runs`
+- `GET /api/billing/runs/:id`
+- `POST /api/billing/runs/:id/decision`
+- `GET /api/billing/runs/:id/download`
+- `GET /api/billing/runs/:id/download/:worksheet`
+
+### 10.4 Clients
+
+- `GET /api/clients`
+- `GET /api/clients/:id`
+- `POST /api/clients`
+- `PUT /api/clients/:id`
+- `DELETE /api/clients/:id`
+
+### 10.5 Rate cards
+
+- `GET /api/rate-cards`
+- `GET /api/rate-cards/export`
+- `GET /api/rate-cards/:id`
+- `POST /api/rate-cards`
+- `POST /api/rate-cards/upload`
+- `PUT /api/rate-cards/:id`
+- `PATCH /api/rate-cards/:id/leaves-allowed`
+- `DELETE /api/rate-cards/:id`
+
+### 10.6 Attendance
+
+- `GET /api/attendance`
+- `GET /api/attendance/summary`
+- `GET /api/attendance/employee/:empCode`
+- `POST /api/attendance`
+- `POST /api/attendance/bulk`
+- `POST /api/attendance/upload`
+- `DELETE /api/attendance`
+- `DELETE /api/attendance/by-month`
+
+### 10.7 Quotes
+
+- `GET /api/quotes`
+- `GET /api/quotes/amendments`
+- `GET /api/quotes/:id`
+- `POST /api/quotes`
+- `PUT /api/quotes/:id`
+- `POST /api/quotes/:id/amend`
+- `PATCH /api/quotes/:id/status`
+- `DELETE /api/quotes/:id`
+- `GET /api/quotes/:id/download`
+- `GET /api/quotes/:id/pdf`
+- `POST /api/quotes/:id/convert-to-sow`
+
+### 10.8 SOWs
+
+- `GET /api/sows`
+- `GET /api/sows/documents`
+- `GET /api/sows/documents/download`
+- `DELETE /api/sows/documents`
+- `POST /api/sows/documents/upload`
+- `POST /api/sows/documents/link-po`
+- `GET /api/sows/:id`
+- `POST /api/sows`
+- `POST /api/sows/:id/amend`
+- `PUT /api/sows/:id`
+- `PATCH /api/sows/:id/status`
+- `DELETE /api/sows/:id`
+
+### 10.9 Purchase orders
+
+- `GET /api/purchase-orders/alerts`
+- `GET /api/purchase-orders`
+- `GET /api/purchase-orders/:id/employees`
+- `GET /api/purchase-orders/:id`
+- `POST /api/purchase-orders`
+- `PUT /api/purchase-orders/:id`
+- `PATCH /api/purchase-orders/:id/consume`
+- `PATCH /api/purchase-orders/:id/renew`
+
+### 10.10 Permanent modules
+
+Canonical routes:
+
+- `GET /api/permanent/clients`
+- `GET /api/permanent/clients/:id`
+- `POST /api/permanent/clients`
+- `PUT /api/permanent/clients/:id`
+- `DELETE /api/permanent/clients/:id`
+- `GET /api/permanent/orders`
+- `GET /api/permanent/orders/:id`
+- `POST /api/permanent/orders`
+- `PUT /api/permanent/orders/:id`
+- `DELETE /api/permanent/orders/:id`
+- `GET /api/permanent/reminders`
+- `PATCH /api/permanent/reminders/:id/emails`
+- `PATCH /api/permanent/reminders/:id/payment-status`
+- `PATCH /api/permanent/reminders/:id/invoice-sent`
+- `POST /api/permanent/reminders/:id/send-mail`
+- `PATCH /api/permanent/reminders/:id/close`
+- `PATCH /api/permanent/reminders/:id/extend`
+
+Backward-compatible aliases also exist for:
+
+- `/api/clients/permanent`
+- `/api/orders/permanent`
+- `/api/reminders/permanent`
+
+### 10.11 Samples
+
+- `GET /api/samples/rate-card`
+- `GET /api/samples/attendance`
+
+## 11. Data and Files
+
+### 11.1 Uploads
+
+The application handles uploaded files for:
+
+- billing source inputs
 - rate card imports
 - attendance imports
 - linked commercial documents
 
-### 16.2 Generated files
+### 11.2 Generated output
 
-The system generates files such as:
+Generated files are written to the configured output directory and include:
 
 - billing workbooks
 - quote documents
-- tracker exports
+- dashboard tracker exports
 
-### 16.3 Storage behavior
+### 11.3 File handling notes
 
-Uploaded files and generated outputs are stored in application-controlled directories configured for the environment.
+- the server enforces upload size limits
+- output and upload directories are configurable
+- the repository does not include a Docker or object-storage deployment definition
 
-This documentation intentionally does not disclose deployment-specific filesystem details.
+## 12. Security and Operational Controls
 
----
+### 12.1 Security middleware
 
-## 17. Database Evolution and Migrations
+The app uses:
 
-### 17.1 Why migrations matter
+- Helmet for security headers
+- CORS handling with optional allowlisting
+- request rate limiting for `/api`
+- structured error responses
 
-The project has evolved over time. New features were added through database migrations, not just application code changes.
+### 12.2 Authentication
 
-That means successful deployment depends on both:
+Protected endpoints rely on Supabase JWT validation.
 
-- the application code
-- the correct database version
+### 12.3 Health and uptime
 
-### 17.2 Feature areas affected by migrations
+The health endpoint reports:
 
-Migrations are important for:
+- app version
+- database connectivity status
+- uptime
+- timestamp
 
-- billing approval flow
-- permanent client and order support
-- reminder mail support
-- invoice tracking
-- document indexing
-- row-level isolation improvements
+### 12.4 Reminder scheduler
 
-### 17.3 Operational recommendation
+The reminder scheduler:
 
-Whenever a new version of the application is deployed, the database migration status should be checked before the application is considered fully updated.
+- only starts when enabled
+- only starts when Microsoft Graph variables are present
+- can be stopped cleanly during shutdown
 
----
+## 13. Deployment and Hosting
 
-## 18. Deployment Architecture
+The repository itself is hosting-agnostic. It does not include Docker, Kubernetes, or platform-specific deployment manifests.
 
-### 18.1 Production hosting context
+Operationally, the current production environment is an AWS Lightsail instance running the Node.js server, with Supabase providing the database and authentication backend.
 
-This application is deployed on an AWS Lightsail instance.
+### 13.1 Production characteristics
 
-That means the production setup typically consists of:
+- the app listens on the configured `PORT`
+- Express serves the frontend and API from the same process
+- runtime secrets are supplied through environment variables
+- the database must remain reachable from the host environment
 
-- the application code on the Lightsail server
-- a Node.js runtime on that server
-- process management to keep the app running
-- environment-specific configuration on the server
-- connectivity from the server to the hosted database platform
+### 13.2 Typical deployment checklist
 
-### 18.2 Typical production flow
-
-A standard production update usually follows this order:
-
-1. Update the code on the Lightsail instance.
+1. Deploy the application code.
 2. Install or refresh dependencies.
-3. apply any required database migrations.
-4. verify secure configuration values on the server.
-5. restart the application process.
-6. validate the health endpoint and main workflows.
+3. Verify the Supabase schema and migrations are up to date.
+4. Confirm environment variables are present.
+5. Restart the Node.js process.
+6. Check `/health`.
+7. Validate login, dashboard, and at least one protected API.
 
-### 18.3 Runtime management
+## 14. Notes for Maintainers
 
-For production reliability, the application should run under a proper process manager or service manager so that:
+- `DOCUMENTATION.md` is the source of truth for long-form documentation.
+- `README.md` should remain concise and point here.
 
-- it starts automatically
-- it restarts on failure
-- logs can be monitored
+## 15. Summary
 
-### 18.4 Post-deployment validation
-
-After deployment, the following should be checked:
-
-- health endpoint response
-- login flow
-- dashboard load
-- at least one protected API
-- billing generation path
-- reminder workflow if mail is enabled
-
-### 18.5 Security guidance for deployment
-
-Production documentation and operational notes should never expose:
-
-- credentials
-- API keys
-- tokens
-- instance-specific sensitive file locations
-- confidential configuration values
-
----
-
-## 19. Scripts and Developer Workflow
-
-The project includes commands for:
-
-- starting the server in production mode
-- running in development mode
-- seeding sample data
-- linting code
-- formatting code
-
-These commands support local development and operational maintenance, but production credentials and infrastructure details should always remain outside committed documentation.
-
----
-
-## 20. Known Notes for Teams
-
-### 20.1 Terminology
-
-Different parts of the project may still use older naming in places. For example, some areas may refer to the product as a billing engine, while current business-facing wording is closer to a service-request and billing operations platform.
-
-### 20.2 Legacy support
-
-Some features remain available for compatibility even when another path is now the preferred path. For example, quote PDF support still exists even though the editable document path is the more current primary output.
-
-### 20.3 Audience guidance
-
-Non-technical readers should focus mainly on:
-
-- sections 1 through 7
-- section 18 for deployment context
-
-Technical readers should continue into:
-
-- sections 8 onward
-
----
-
-## 21. Final Summary
-
-TeamBees Billing Generator is a professional operations platform for managing billing and follow-up workflows in staffing and consulting environments.
-
-Its main strengths are:
-
-- structured business workflow
-- approval-based financial control
-- billing traceability
-- document support
-- reminder tracking
-- production-friendly architecture
-- operational deployment on AWS Lightsail
-
-This document is intended to remain the primary professional documentation for the project, without exposing confidential environment details, local machine paths, or sensitive deployment information.
+TeamBees Billing Engine provides a structured workflow for contractual billing and permanent hiring follow-up. The codebase is organized as a lightweight Express app with Supabase-backed storage, authentication, file generation, and scheduled reminder support.

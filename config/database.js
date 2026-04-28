@@ -49,6 +49,10 @@ module.exports = {
   async init() {
     const { error } = await adminSupabase.from('clients').select('id', { count: 'exact', head: true });
     if (error) {
+      if (env.nodeEnv === 'development' && String(error.message || '').toLowerCase().includes('fetch failed')) {
+        console.warn('Supabase connection check failed in development mode, continuing without startup verification.');
+        return;
+      }
       console.error('Supabase connection check failed:', error.message);
       console.error('Make sure you have run database/supabase_schema.sql in the Supabase SQL Editor');
       process.exit(1);

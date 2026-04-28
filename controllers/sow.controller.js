@@ -52,12 +52,16 @@ function sanitizeSegment(value) {
 function formatFolderDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return String(value || '').replace(/[^0-9]/g, '').substring(0, 8) || new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const fallback = new Date();
+    const fallbackDay = String(fallback.getDate()).padStart(2, '0');
+    const fallbackMonth = String(fallback.getMonth() + 1).padStart(2, '0');
+    const fallbackYear = String(fallback.getFullYear()).slice(-2);
+    return String(value || '').replace(/[^0-9]/g, '').substring(0, 6) || `${fallbackDay}${fallbackMonth}${fallbackYear}`;
   }
-  const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
-  return `${year}${month}${day}`;
+  const year = String(date.getFullYear()).slice(-2);
+  return `${day}${month}${year}`;
 }
 
 function buildQuoteDocumentBaseName(quote, client) {
@@ -76,7 +80,7 @@ function buildQuoteDocumentBaseCore(quote, client) {
   const parts = String(fullName || '').split('_').filter(Boolean);
   if (parts.length <= 1) return fullName;
   const last = parts[parts.length - 1];
-  return /^\d{8}$/.test(last) ? parts.slice(0, -1).join('_') : fullName;
+  return /^\d{6}$/.test(last) ? parts.slice(0, -1).join('_') : fullName;
 }
 
 async function findLatestSowForQuote(quoteId) {
@@ -144,7 +148,7 @@ function parseFolderName(folderName) {
   const parts = String(folderName || '').split('_').filter(Boolean);
   if (parts.length < 3) return { clientAbbreviation: '', candidateName: '' };
   const datePart = parts[parts.length - 1];
-  const hasDate = /^\d{8}$/.test(datePart);
+  const hasDate = /^\d{6}$/.test(datePart);
   const clientAbbreviation = parts[0] || '';
   const candidateParts = hasDate ? parts.slice(1, parts.length - 1) : parts.slice(1);
   return {
@@ -180,7 +184,7 @@ async function resolveClientFromFolderName(folderName) {
 function extractFolderDate(folderName) {
   const parts = String(folderName || '').split('_').filter(Boolean);
   const last = parts[parts.length - 1] || '';
-  return /^\d{8}$/.test(last) ? last : '';
+  return /^\d{6}$/.test(last) ? last : '';
 }
 
 function toLowerSet(values) {
@@ -200,9 +204,9 @@ function extractCandidatesFromFiles(files) {
     const base = path.basename(fileName, path.extname(fileName));
     const parts = base.split('_').filter(Boolean);
     if (parts.length < 4) return;
-    // Generated quote docx format: <abbr>_<description>_<candidate>_<yyyymmdd>
+    // Generated quote docx format: <abbr>_<description>_<candidate>_<ddmmyy>
     const maybeDate = parts[parts.length - 1];
-    if (!/^\d{8}$/.test(maybeDate)) return;
+    if (!/^\d{6}$/.test(maybeDate)) return;
     const candidatePart = parts[parts.length - 2];
     if (candidatePart) candidates.push(candidatePart);
   });
