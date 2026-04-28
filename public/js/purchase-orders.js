@@ -7,10 +7,16 @@
     document.getElementById('poId').value = '';
     document.getElementById('poModalTitle').textContent = 'Link Purchase Order';
     document.getElementById('poSOW').innerHTML = '<option value="">Select SOW</option>';
+    document.getElementById('poEffectiveMonths').value = '';
     window.poEdit = null;
     openModal('poModal');
   };
-  window.closePOModal = function () { closeModal('poModal'); document.getElementById('poForm').reset(); window.poEdit = null; };
+  window.closePOModal = function () {
+    closeModal('poModal');
+    document.getElementById('poForm').reset();
+    document.getElementById('poEffectiveMonths').value = '';
+    window.poEdit = null;
+  };
   window.closePODetailModal = function () { closeModal('poDetailModal'); };
   window.closeConsumeModal = function () { closeModal('consumeModal'); };
   window.closeRenewModal = function () { closeModal('renewModal'); };
@@ -56,6 +62,78 @@
         }
       });
     } catch (e) { /* ignore */ }
+  }
+
+  function toDateInputValue(date) {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+    var year = date.getFullYear();
+    var month = String(date.getMonth() + 1).padStart(2, '0');
+    var day = String(date.getDate()).padStart(2, '0');
+    return year + '-' + month + '-' + day;
+  }
+
+  function parseDateInput(value) {
+    if (!value) return null;
+    var parts = String(value).split('-');
+    if (parts.length !== 3) return null;
+    var year = parseInt(parts[0], 10);
+    var month = parseInt(parts[1], 10) - 1;
+    var day = parseInt(parts[2], 10);
+    if (!year || month < 0 || day < 1) return null;
+    var date = new Date(year, month, day);
+    if (Number.isNaN(date.getTime())) return null;
+    return date;
+  }
+
+  function addMonthsToDateValue(startValue, months) {
+    var start = parseDateInput(startValue);
+    var count = parseInt(months, 10);
+    if (!start || !Number.isFinite(count) || count <= 0) return '';
+    var targetMonthIndex = start.getMonth() + count;
+    var end = new Date(start.getFullYear(), targetMonthIndex, 1);
+    var lastDay = new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate();
+    end.setDate(Math.min(start.getDate(), lastDay));
+    return toDateInputValue(end);
+  }
+
+  function getInclusiveMonthSpan(startValue, endValue) {
+    var start = parseDateInput(startValue);
+    var end = parseDateInput(endValue);
+    if (!start || !end) return '';
+    if (end < start) return '';
+    return ((end.getFullYear() - start.getFullYear()) * 12) + (end.getMonth() - start.getMonth()) + 1;
+  }
+
+  var poDateSyncState = {
+    updating: false,
+  };
+
+  function syncPOEndFromMonths() {
+    if (poDateSyncState.updating) return;
+    poDateSyncState.updating = true;
+    try {
+      var startValue = document.getElementById('poStartDate').value;
+      var monthsValue = document.getElementById('poEffectiveMonths').value;
+      var endValue = addMonthsToDateValue(startValue, monthsValue);
+      if (endValue) {
+        document.getElementById('poEndDate').value = endValue;
+      }
+    } finally {
+      poDateSyncState.updating = false;
+    }
+  }
+
+  function syncPOMonthsFromEnd() {
+    if (poDateSyncState.updating) return;
+    poDateSyncState.updating = true;
+    try {
+      var startValue = document.getElementById('poStartDate').value;
+      var endValue = document.getElementById('poEndDate').value;
+      var monthCount = getInclusiveMonthSpan(startValue, endValue);
+      document.getElementById('poEffectiveMonths').value = monthCount || '';
+    } finally {
+      poDateSyncState.updating = false;
+    }
   }
 
   async function consumePendingPoLinkContext() {
@@ -159,7 +237,7 @@
             '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(po.end_date) + '</span></div></td>' +
             '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(po.po_value) + '</span></div></td>' +
             '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(po.consumed_value) + '</span></div></td>' +
-            '<td><div class="table-cell-box">' + progressBar(po.consumption_pct || 0) + '</div></td>' +
+            '<td class="po-progress-cell"><div class="table-cell-box">' + progressBar(po.consumption_pct || 0) + '</div></td>' +
             '<td><div class="table-cell-box">' + statusBadge(po.status) + '</div></td>' +
             '<td class="text-center"><div class="table-cell-box table-cell-center"><span class="table-count-badge">' + (po.linked_employees || 0) + '</span></div></td>' +
             '<td class="text-center"><div class="table-cell-box table-cell-center"><button class="btn-secondary btn-sm table-action-trigger inline-flex items-center justify-center" title="Open purchase order actions" aria-label="Open purchase order actions" onclick="openPOActions(' + po.id + ')"><span class="material-symbols-outlined text-base">more_horiz</span></button></div></td>' +
@@ -280,6 +358,7 @@
       document.getElementById('poDate').value = po.po_date;
       document.getElementById('poStartDate').value = po.start_date;
       document.getElementById('poEndDate').value = po.end_date;
+      syncPOMonthsFromEnd();
       document.getElementById('poValue').value = po.po_value;
       document.getElementById('poThreshold').value = po.alert_threshold;
       document.getElementById('poNotes').value = po.notes || '';
@@ -368,6 +447,15 @@
   document.getElementById('poClient').addEventListener('change', function () {
     loadSOWsForClient(this.value);
   });
+
+  document.getElementById('poStartDate').addEventListener('input', function () {
+    syncPOEndFromMonths();
+    syncPOMonthsFromEnd();
+  });
+
+  document.getElementById('poEffectiveMonths').addEventListener('input', syncPOEndFromMonths);
+
+  document.getElementById('poEndDate').addEventListener('input', syncPOMonthsFromEnd);
 
   document.getElementById('poFilterClient').addEventListener('change', loadPOs);
   document.getElementById('poFilterStatus').addEventListener('change', loadPOs);

@@ -1,6 +1,39 @@
 (function () {
   var leaveCalendarState = {};
 
+  function setupUploadZone(zoneId, inputId, nameId) {
+    var zone = document.getElementById(zoneId);
+    var input = document.getElementById(inputId);
+    var nameEl = document.getElementById(nameId);
+    if (!zone || !input) return;
+
+    ['dragenter', 'dragover'].forEach(function (evt) {
+      zone.addEventListener(evt, function (e) {
+        e.preventDefault();
+        zone.classList.add('dragover');
+      });
+    });
+
+    ['dragleave', 'drop'].forEach(function (evt) {
+      zone.addEventListener(evt, function (e) {
+        e.preventDefault();
+        zone.classList.remove('dragover');
+      });
+    });
+
+    zone.addEventListener('drop', function (e) {
+      var files = e.dataTransfer.files;
+      if (files.length > 0) {
+        input.files = files;
+        if (nameEl) nameEl.textContent = files[0].name;
+      }
+    });
+
+    input.addEventListener('change', function () {
+      if (nameEl) nameEl.textContent = input.files.length > 0 ? input.files[0].name : '';
+    });
+  }
+
   // Tab switching
   window.switchAttTab = function (tabId) {
     document.querySelectorAll('.att-tab').forEach(function (btn) {
@@ -99,6 +132,7 @@
   }
   autoFillMonthInputs();
   renderLeaveCalendar();
+  setupUploadZone('attUploadZone', 'attFile', 'attFileName');
 
   function clearAttendanceEmployeeDetails() {
     document.getElementById('attEmpName').value = '';

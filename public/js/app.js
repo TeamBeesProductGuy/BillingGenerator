@@ -534,8 +534,7 @@
     window.getDefaultBillingMonth = function () {
         var now = new Date();
         var year = now.getFullYear();
-        var month = now.getMonth(); // 0-indexed, so Jan=0, which means "previous month" = Dec of last year
-        if (month === 0) { month = 12; year--; }
+        var month = now.getMonth() + 1;
         return String(year) + String(month).padStart(2, "0");
     };
 

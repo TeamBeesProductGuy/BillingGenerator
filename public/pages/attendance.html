@@ -4,10 +4,6 @@
   <div>
     <div class="flex gap-1 border-b border-outline-variant/8 mb-6" id="attendanceTabs">
       <button class="tab-btn att-tab active px-5 py-3 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2"
-              data-tab="tab-manual" onclick="switchAttTab('tab-manual')">
-        <span class="material-symbols-outlined text-lg">keyboard</span>Manual Entry
-      </button>
-      <button class="tab-btn att-tab px-5 py-3 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2"
               data-tab="tab-upload-att" onclick="switchAttTab('tab-upload-att')">
         <span class="material-symbols-outlined text-lg">upload</span>Upload Excel
       </button>
@@ -18,7 +14,7 @@
     </div>
 
     <!-- Manual Entry -->
-    <div class="att-tab-pane" id="tab-manual">
+    <div class="att-tab-pane hidden" id="tab-manual">
       <div class="stat-card !p-6">
         <form id="attManualForm">
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
@@ -75,7 +71,7 @@
     </div>
 
     <!-- Upload Excel -->
-    <div class="att-tab-pane hidden" id="tab-upload-att">
+    <div class="att-tab-pane" id="tab-upload-att">
       <div class="stat-card !p-6 space-y-4">
         <!-- Sample download hint -->
         <div class="bg-surface-container-high/50 rounded-xl border border-outline-variant/8 p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
@@ -92,17 +88,21 @@
         </div>
 
         <form id="attUploadForm">
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Attendance Excel File *</label>
-              <input type="file" id="attFile" accept=".xlsx,.xls" required>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
+            <div class="flex flex-col justify-between rounded-2xl border border-black/10 bg-white shadow-[0_16px_40px_rgba(15,23,42,0.10),0_4px_12px_rgba(15,23,42,0.08)] p-4 sm:p-5">
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-2">Billing Month *</label>
+              <input type="month" id="attUploadMonth" required class="!border-2 !border-black !rounded-xl !bg-white shadow-none focus:!border-black focus:!shadow-[0_0_0_3px_rgba(0,0,0,0.08)]">
+              <p class="text-xs text-on-surface-variant mt-3">Select the month this file should be billed against.</p>
             </div>
-            <div>
-              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Billing Month *</label>
-              <input type="month" id="attUploadMonth" required>
+            <div class="upload-zone cursor-pointer relative !border-black !bg-white shadow-[0_16px_40px_rgba(15,23,42,0.10),0_4px_12px_rgba(15,23,42,0.08)] min-h-[132px] flex flex-col justify-center" id="attUploadZone">
+              <span class="material-symbols-outlined text-3xl text-on-surface-variant/30 mb-2">cloud_upload</span>
+              <div class="text-sm text-on-surface-variant">Drop Attendance file here</div>
+              <div class="text-[11px] text-text-muted font-medium mt-1">.xlsx or .xls files only</div>
+              <div class="text-xs text-primary font-semibold mt-2 min-h-[1rem]" id="attFileName"></div>
+              <input type="file" id="attFile" accept=".xlsx,.xls" required class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
             </div>
-            <div class="flex items-end">
-              <button type="submit" class="btn-primary w-full flex items-center justify-center gap-2" style="height: 48px;">
+            <div class="md:col-span-2 flex items-end justify-end">
+              <button type="submit" class="btn-primary w-full md:w-auto md:min-w-[180px] flex items-center justify-center gap-2" style="height: 48px;">
                 <span class="material-symbols-outlined">upload</span>Upload
               </button>
             </div>
