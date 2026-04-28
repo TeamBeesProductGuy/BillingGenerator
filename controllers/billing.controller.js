@@ -373,11 +373,18 @@ const billingController = {
   }),
 
   generateFromDb: catchAsync(async (req, res) => {
+    const clientIdsRaw = Array.isArray(req.body.clientIds)
+      ? req.body.clientIds
+      : (req.body.clientIds !== undefined && req.body.clientIds !== null ? [req.body.clientIds] : []);
+    const clientIds = clientIdsRaw
+      .map((value) => parseInt(value, 10))
+      .filter((value) => Number.isInteger(value) && value > 0);
     const { clientId, billingMonth } = req.body;
     const monthError = validateBillingMonth(billingMonth);
     if (monthError) throw new AppError(400, monthError);
 
-    const rateCards = await RateCardModel.findAll(clientId || null);
+    const selectedClientIds = clientIds.length > 0 ? clientIds : (clientId ? [parseInt(clientId, 10)] : []);
+    const rateCards = await RateCardModel.findAll(selectedClientIds.length > 0 ? selectedClientIds : null);
 
     if (rateCards.length === 0) {
       throw new AppError(400, 'No active rate cards found');
@@ -414,7 +421,7 @@ const billingController = {
     if (fatalErrors.length > 0) {
       const allErrors = [...fatalErrors, ...warningErrors];
       const responseData = await createStoredRun({
-        clientId: clientId || null,
+        clientId: selectedClientIds.length === 1 ? selectedClientIds[0] : null,
         billingMonth,
         billingItems: [],
         allErrors,
@@ -438,7 +445,7 @@ const billingController = {
     if (fatalErrors.length > 0) {
       const allErrors = [...fatalErrors, ...warningErrors];
       const responseData = await createStoredRun({
-        clientId: clientId || null,
+        clientId: selectedClientIds.length === 1 ? selectedClientIds[0] : null,
         billingMonth,
         billingItems: [],
         allErrors,
@@ -453,7 +460,7 @@ const billingController = {
       return res.json({ success: true, data: responseData });
     }
     const responseData = await createStoredRun({
-      clientId: clientId || null,
+      clientId: selectedClientIds.length === 1 ? selectedClientIds[0] : null,
       billingMonth,
       billingItems: result.billingItems,
       allErrors: [...warningErrors],

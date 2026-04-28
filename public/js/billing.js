@@ -98,6 +98,56 @@
     document.getElementById('downloadErrorReportBtn').setAttribute('data-url', '/api/billing/runs/' + runId + '/download/error_report');
   }
 
+  function renderClientCheckboxPicker(clients) {
+    var allToggle = document.getElementById('dbClientAll');
+    var list = document.getElementById('dbClientList');
+    if (!allToggle || !list) return;
+
+    var items = clients || [];
+    list.innerHTML = '';
+
+    if (items.length === 0) {
+      list.innerHTML = '<div class="px-2 py-3 text-xs text-on-surface-variant">No clients found.</div>';
+      allToggle.checked = false;
+      allToggle.disabled = true;
+      return;
+    }
+
+    allToggle.disabled = false;
+    allToggle.checked = true;
+
+    items.forEach(function (client) {
+      var id = 'dbClient_' + client.id;
+      var label = escapeHtml(getClientDisplayName(client));
+      list.innerHTML +=
+        '<label class="flex items-center gap-3 rounded-lg px-2 py-2 cursor-pointer hover:bg-surface-container-high/60">' +
+          '<input type="checkbox" class="db-client-checkbox h-4 w-4 accent-black" id="' + id + '" value="' + client.id + '" checked>' +
+          '<span class="text-sm text-on-surface">' + label + '</span>' +
+        '</label>';
+    });
+
+    var checkboxes = function () {
+      return Array.from(document.querySelectorAll('.db-client-checkbox'));
+    };
+
+    allToggle.onchange = function () {
+      var checked = allToggle.checked;
+      checkboxes().forEach(function (cb) {
+        cb.checked = checked;
+      });
+    };
+
+    list.onchange = function () {
+      var boxes = checkboxes();
+      var allChecked = boxes.length > 0 && boxes.every(function (cb) { return cb.checked; });
+      allToggle.checked = allChecked;
+    };
+
+    if (items.length === 1) {
+      allToggle.checked = true;
+    }
+  }
+
   function renderMissingPoInputs(items, poCandidatesByEmp) {
     var missing = items.filter(function (item) { return !item.po_id; });
     var section = document.getElementById('missingPoSection');
@@ -229,12 +279,7 @@
   async function loadClients() {
     try {
       var res = await apiCall('GET', '/api/clients');
-      var sel = document.getElementById('dbClientId');
-      if (sel) {
-        res.data.forEach(function (c) {
-          sel.innerHTML += '<option value="' + c.id + '">' + escapeHtml(getClientDisplayName(c)) + '</option>';
-        });
-      }
+      renderClientCheckboxPicker(res.data || []);
     } catch (e) { /* ignore */ }
   }
 
@@ -383,10 +428,17 @@
     btn.innerHTML = '<div class="inline-block animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent mr-2"></div> Processing...';
 
     try {
-      var clientId = document.getElementById('dbClientId').value;
+      var allToggle = document.getElementById('dbClientAll');
+      var clientCheckboxes = Array.from(document.querySelectorAll('.db-client-checkbox'));
+      var clientIds = (allToggle && allToggle.checked)
+        ? []
+        : clientCheckboxes
+          .filter(function (checkbox) { return checkbox.checked && checkbox.value; })
+          .map(function (checkbox) { return parseInt(checkbox.value, 10); })
+        .filter(function (value) { return Number.isInteger(value) && value > 0; });
       var billingMonth = monthInputToYYYYMM(document.getElementById('dbBillingMonth').value.trim());
       var body = { billingMonth: billingMonth };
-      if (clientId) body.clientId = parseInt(clientId, 10);
+      if (clientIds.length > 0) body.clientIds = clientIds;
       await generateRequest('/api/billing/generate-from-db', body, false);
     } catch (err) {
       showToast(err.message, 'danger');

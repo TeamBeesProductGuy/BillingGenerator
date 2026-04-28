@@ -1,4 +1,4 @@
-<div class="p-5 sm:p-8 space-y-6 fade-in">
+<div class="p-5 sm:p-8 space-y-6 fade-in min-h-[calc(100vh-8rem)] pb-8">
 
   <!-- Header with Add button -->
   <div class="purchaseorders-hero">
@@ -68,7 +68,7 @@
       <h3 class="table-section-title">Purchase Order Register</h3>
       <div class="table-section-count" id="poTableCount">0 rows</div>
     </div>
-    <div class="overflow-x-auto styled-scrollbar purchaseorders-table-scroll">
+    <div class="overflow-auto styled-scrollbar purchaseorders-table-scroll max-h-[calc(100vh-22rem)]">
       <table class="stitch-table" id="poTable">
         <thead>
           <tr>
@@ -79,7 +79,7 @@
             <th class="sortable" data-sort-key="4" data-sort-type="date">End</th>
             <th class="sortable text-right" data-sort-key="5" data-sort-type="currency">PO Value</th>
             <th class="sortable text-right" data-sort-key="6" data-sort-type="currency">Consumed</th>
-            <th style="width:150px">Progress</th>
+            <th class="po-progress-header" style="width:190px">Progress</th>
             <th class="sortable" data-sort-key="8">Status</th>
             <th class="sortable text-center" data-sort-key="9" data-sort-type="number">Employees</th>
             <th class="text-center">Actions</th>
@@ -121,8 +121,8 @@
 </div>
 
 <!-- Create/Edit PO Modal -->
-<div id="poModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
-  <div class="bg-surface-container-high rounded-2xl w-full max-w-lg mx-4 border border-outline-variant/15 shadow-2xl">
+<div id="poModal" class="fixed inset-0 z-[200] hidden items-start justify-center sm:items-center bg-black/60 backdrop-blur-sm py-4 sm:py-6">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-lg mx-4 border border-outline-variant/15 shadow-2xl max-h-[calc(100vh-2rem)] overflow-y-auto styled-scrollbar">
     <form id="poForm">
       <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8">
         <h5 class="font-headline font-bold text-lg text-on-surface" id="poModalTitle">Link Purchase Order</h5>
@@ -140,16 +140,22 @@
           <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Client *</label>
           <select id="poClient" required><option value="">Select</option></select>
         </div>
-        <div>
-          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">PO Date *</label>
-          <input type="date" id="poDate" required>
-        </div>
-        <div class="grid grid-cols-2 gap-4">
-          <div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="max-w-[220px]">
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">PO Date *</label>
+            <input type="date" id="poDate" required>
+          </div>
+          <div class="max-w-[220px]">
             <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Start Date *</label>
             <input type="date" id="poStartDate" required>
           </div>
-          <div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="max-w-[220px]">
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Effective For Months</label>
+            <input type="number" id="poEffectiveMonths" min="1" step="1" placeholder="No. of months">
+          </div>
+          <div class="max-w-[220px]">
             <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">End Date *</label>
             <input type="date" id="poEndDate" required>
           </div>

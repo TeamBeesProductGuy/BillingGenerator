@@ -25,7 +25,8 @@ const ATTENDANCE_ALIASES = {
 };
 
 const ATTENDANCE_PRESENT_CODES = new Set(['P', 'PR', 'ODW', 'WFH']);
-const ATTENDANCE_FULL_LEAVE_CODES = new Set(['L', 'CL', 'SL', 'EL', 'HL', 'WO', 'PRTO', 'A']);
+// Weekend off and holiday leave are paid days, not leave days.
+const ATTENDANCE_FULL_LEAVE_CODES = new Set(['L', 'CL', 'SL', 'EL', 'PRTO', 'A']);
 const ATTENDANCE_HALF_LEAVE_CODES = new Set(['HDL', 'HDS', 'HD']);
 
 function resolveColumn(normalizedHeader, aliases) {

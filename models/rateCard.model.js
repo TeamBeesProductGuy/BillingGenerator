@@ -14,7 +14,11 @@ const RateCardModel = {
       .from('rate_cards_view')
       .select('*')
       .eq('is_active', true);
-    if (clientId) query = query.eq('client_id', clientId);
+    if (Array.isArray(clientId) && clientId.length > 0) {
+      query = query.in('client_id', clientId);
+    } else if (clientId) {
+      query = query.eq('client_id', clientId);
+    }
     query = query.order('client_name').order('emp_code');
     const { data, error } = await query;
     if (error) throw new Error(error.message);

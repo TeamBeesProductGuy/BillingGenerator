@@ -108,8 +108,7 @@
     try {
       var res = await apiCall('GET', '/api/purchase-orders?clientId=' + clientId + '&status=Active');
       res.data.forEach(function (po) {
-        sel.innerHTML += '<option value="' + po.id + '">' + escapeHtml(po.po_number) +
-          ' (' + formatCurrency(po.remaining_value) + ' remaining)</option>';
+        sel.innerHTML += '<option value="' + po.id + '">' + escapeHtml(po.po_number) + '</option>';
       });
     } catch (e) { /* ignore */ }
   }

@@ -25,6 +25,78 @@
     return (size / (1024 * 1024)).toFixed(1).replace(/\.0$/, '') + ' MB';
   }
 
+  function toDateInputValue(date) {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+    var year = date.getFullYear();
+    var month = String(date.getMonth() + 1).padStart(2, '0');
+    var day = String(date.getDate()).padStart(2, '0');
+    return year + '-' + month + '-' + day;
+  }
+
+  function parseDateInput(value) {
+    if (!value) return null;
+    var parts = String(value).split('-');
+    if (parts.length !== 3) return null;
+    var year = parseInt(parts[0], 10);
+    var month = parseInt(parts[1], 10) - 1;
+    var day = parseInt(parts[2], 10);
+    if (!year || month < 0 || day < 1) return null;
+    var date = new Date(year, month, day);
+    if (Number.isNaN(date.getTime())) return null;
+    return date;
+  }
+
+  function addMonthsToDateValue(startValue, months) {
+    var start = parseDateInput(startValue);
+    var count = parseInt(months, 10);
+    if (!start || !Number.isFinite(count) || count <= 0) return '';
+    var targetMonthIndex = start.getMonth() + count;
+    var end = new Date(start.getFullYear(), targetMonthIndex, 1);
+    var lastDay = new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate();
+    end.setDate(Math.min(start.getDate(), lastDay));
+    return toDateInputValue(end);
+  }
+
+  function getInclusiveMonthSpan(startValue, endValue) {
+    var start = parseDateInput(startValue);
+    var end = parseDateInput(endValue);
+    if (!start || !end) return '';
+    if (end < start) return '';
+    return ((end.getFullYear() - start.getFullYear()) * 12) + (end.getMonth() - start.getMonth()) + 1;
+  }
+
+  var sowDateSyncState = {
+    updating: false,
+  };
+
+  function syncSowEndFromMonths() {
+    if (sowDateSyncState.updating) return;
+    sowDateSyncState.updating = true;
+    try {
+      var startValue = document.getElementById('sowStart').value;
+      var monthsValue = document.getElementById('sowEffectiveMonths').value;
+      var endValue = addMonthsToDateValue(startValue, monthsValue);
+      if (endValue) {
+        document.getElementById('sowEnd').value = endValue;
+      }
+    } finally {
+      sowDateSyncState.updating = false;
+    }
+  }
+
+  function syncSowMonthsFromEnd() {
+    if (sowDateSyncState.updating) return;
+    sowDateSyncState.updating = true;
+    try {
+      var startValue = document.getElementById('sowStart').value;
+      var endValue = document.getElementById('sowEnd').value;
+      var monthCount = getInclusiveMonthSpan(startValue, endValue);
+      document.getElementById('sowEffectiveMonths').value = monthCount || '';
+    } finally {
+      sowDateSyncState.updating = false;
+    }
+  }
+
   function formatDateTime(value) {
     if (!value) return '-';
     var date = new Date(value);
@@ -371,6 +443,7 @@
       document.getElementById('sowDate').value = s.sow_date;
       document.getElementById('sowStart').value = s.effective_start;
       document.getElementById('sowEnd').value = s.effective_end;
+      syncSowMonthsFromEnd();
       document.getElementById('sowNotes').value = s.notes || '';
       document.getElementById('sowItemsBody').innerHTML = '';
       s.items.forEach(function (item) { addSowItemRow(item); });
@@ -394,6 +467,7 @@
       document.getElementById('sowDate').value = s.sow_date;
       document.getElementById('sowStart').value = s.effective_start;
       document.getElementById('sowEnd').value = s.effective_end;
+      syncSowMonthsFromEnd();
       document.getElementById('sowNotes').value = s.notes || '';
       document.getElementById('sowItemsBody').innerHTML = '';
       s.items.forEach(function (item) { addSowItemRow(item); });
@@ -484,6 +558,19 @@
       closeSOWModal();
       loadSOWs();
     } catch (err) { showToast(err.message, 'danger'); }
+  });
+
+  document.getElementById('sowStart').addEventListener('input', function () {
+    syncSowEndFromMonths();
+    syncSowMonthsFromEnd();
+  });
+
+  document.getElementById('sowEffectiveMonths').addEventListener('input', function () {
+    syncSowEndFromMonths();
+  });
+
+  document.getElementById('sowEnd').addEventListener('input', function () {
+    syncSowMonthsFromEnd();
   });
 
   document.getElementById('sowDocumentUploadForm').addEventListener('submit', async function (e) {
