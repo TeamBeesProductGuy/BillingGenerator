@@ -538,8 +538,12 @@ function resolveLinkedDocumentPath(folderName, fileName) {
 
 const sowController = {
   list: catchAsync(async (req, res) => {
-    const { clientId, status } = req.query;
-    const sows = await SOWModel.findAll(clientId ? parseInt(clientId, 10) : null, status);
+    const { clientId, status, includeLinked } = req.query;
+    const sows = await SOWModel.findAll(
+      clientId ? parseInt(clientId, 10) : null,
+      status,
+      { includeLinked: includeLinked === '1' || includeLinked === 'true' }
+    );
     res.json({ success: true, data: sows });
   }),
 

@@ -8,6 +8,37 @@ function isLinkableSowStatus(status) {
   return status === 'Draft' || status === 'Amendment Draft' || status === 'Signed' || status === 'Active';
 }
 
+async function validateSowForClient(clientId, sowId, sowSourceClientId) {
+  const sow = await SOWModel.findById(sowId);
+  if (!sow) throw new AppError(404, 'SOW not found');
+  if (!isLinkableSowStatus(sow.status)) {
+    throw new AppError(400, 'SOW cannot be linked to a PO in its current status: ' + sow.status);
+  }
+
+  if (sow.client_id === clientId) {
+    return sow;
+  }
+
+  const hasExistingLink = await SOWModel.hasClientLink(sowId, clientId);
+  if (hasExistingLink) {
+    return sow;
+  }
+
+  if (!sowSourceClientId || sow.client_id !== sowSourceClientId) {
+    throw new AppError(400, 'Choose the correct source SOW client before linking this SOW to another client branch.');
+  }
+
+  try {
+    await SOWModel.ensureClientLink(sowId, clientId);
+  } catch (err) {
+    if (String(err.message || '').indexOf('sow_client_links table is missing') !== -1) {
+      throw new AppError(400, 'Cross-client SOW linking is not enabled in the database yet. Run the Supabase SQL migration first.');
+    }
+    throw err;
+  }
+  return sow;
+}
+
 const poController = {
   list: catchAsync(async (req, res) => {
     const { clientId, status } = req.query;
@@ -31,15 +62,9 @@ const poController = {
   }),
 
   create: catchAsync(async (req, res) => {
-    const { po_number, client_id, po_date, start_date, end_date, po_value, alert_threshold, sow_id, notes } = req.body;
+    const { po_number, client_id, po_date, start_date, end_date, po_value, alert_threshold, sow_id, sow_source_client_id, notes } = req.body;
 
-    // Validate SOW exists and belongs to same client
-      const sow = await SOWModel.findById(sow_id);
-      if (!sow) throw new AppError(404, 'SOW not found');
-      if (sow.client_id !== client_id) throw new AppError(400, 'SOW belongs to a different client');
-      if (!isLinkableSowStatus(sow.status)) {
-        throw new AppError(400, 'SOW cannot be linked to a PO in its current status: ' + sow.status);
-      }
+    await validateSowForClient(client_id, sow_id, sow_source_client_id || null);
 
     try {
       const result = await POModel.create({ po_number, client_id, po_date, start_date, end_date, po_value, alert_threshold, sow_id, notes });
@@ -59,12 +84,7 @@ const poController = {
 
     // Validate SOW if provided
     if (req.body.sow_id) {
-      const sow = await SOWModel.findById(req.body.sow_id);
-      if (!sow) throw new AppError(404, 'SOW not found');
-      if (sow.client_id !== req.body.client_id) throw new AppError(400, 'SOW belongs to a different client');
-      if (!isLinkableSowStatus(sow.status)) {
-        throw new AppError(400, 'SOW cannot be linked to a PO in its current status: ' + sow.status);
-      }
+      await validateSowForClient(req.body.client_id, req.body.sow_id, req.body.sow_source_client_id || null);
     }
 
     await POModel.update(id, req.body);

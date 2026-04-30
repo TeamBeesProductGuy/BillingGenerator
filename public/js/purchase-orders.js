@@ -2,12 +2,15 @@
   // openModal / closeModal provided by app.js (with scroll lock + Escape + backdrop)
   var poActionMap = {};
   var poSowMap = {};
+  var poClientMap = {};
+  var latestSowLoadToken = 0;
 
   window.openPOModal = function () {
     document.getElementById('poForm').reset();
     document.getElementById('poId').value = '';
     document.getElementById('poModalTitle').textContent = 'Link Purchase Order';
     document.getElementById('poSOW').innerHTML = '<option value="">Select SOW</option>';
+    document.getElementById('poSowSourceClient').value = '';
     document.getElementById('poEffectiveMonths').value = '';
     window.poEdit = null;
     openModal('poModal');
@@ -15,6 +18,7 @@
   window.closePOModal = function () {
     closeModal('poModal');
     document.getElementById('poForm').reset();
+    document.getElementById('poSowSourceClient').value = '';
     document.getElementById('poEffectiveMonths').value = '';
     window.poEdit = null;
   };
@@ -39,7 +43,11 @@
   async function loadClients() {
     try {
       var res = await apiCall('GET', '/api/clients');
-      ['poFilterClient', 'poClient'].forEach(function (id) {
+      poClientMap = {};
+      (res.data || []).forEach(function (client) {
+        poClientMap[String(client.id)] = client;
+      });
+      ['poFilterClient', 'poClient', 'poSowSourceClient'].forEach(function (id) {
         var sel = document.getElementById(id);
         if (!sel) return;
         var first = sel.querySelector('option');
@@ -51,24 +59,48 @@
     } catch (e) { /* ignore */ }
   }
 
-  async function loadSOWsForClient(clientId) {
+  function buildSowOptionLabel(sow, ownerClientId, isBorrowed) {
+    var ownerClient = poClientMap[String(ownerClientId)] || null;
+    var ownerLabel = ownerClient ? getClientDisplayName(ownerClient) : '';
+    if (ownerLabel) {
+      return (sow.sow_number || '') + ' | From ' + ownerLabel;
+    }
+    return sow.sow_number || '';
+  }
+
+  async function loadSOWsForClient(clientId, sourceClientId) {
     var sel = document.getElementById('poSOW');
+    var loadToken = ++latestSowLoadToken;
     poSowMap = {};
     sel.innerHTML = '<option value="">Select SOW</option>';
     if (!clientId) return;
     try {
-      var res = await apiCall('GET', '/api/sows?clientId=' + clientId);
-      res.data.forEach(function (s) {
-        if (s.status === 'Expired' || s.status === 'Terminated') return;
-        poSowMap[String(s.id)] = s;
-        var optionLabel = [
-          s.sow_number || '',
-          s.status || '',
-          s.effective_start ? ('Start ' + formatDate(s.effective_start)) : '',
-          s.effective_end ? ('End ' + formatDate(s.effective_end)) : '',
-        ].filter(Boolean).join(' | ');
-        sel.innerHTML += '<option value="' + s.id + '">' + escapeHtml(optionLabel) + '</option>';
+      var hasBorrowedClient = sourceClientId && String(sourceClientId) !== String(clientId);
+      var requests = [apiCall('GET', '/api/sows?clientId=' + clientId)];
+      if (hasBorrowedClient) {
+        requests.push(apiCall('GET', '/api/sows?clientId=' + sourceClientId));
+      }
+
+      var responses = await Promise.all(requests);
+      if (loadToken !== latestSowLoadToken) return;
+
+      var seen = {};
+      var optionMarkup = ['<option value="">Select SOW</option>'];
+      responses.forEach(function (res, index) {
+        var requestedClientId = index === 0 ? clientId : sourceClientId;
+        (res.data || []).forEach(function (s) {
+          if (s.status === 'Expired' || s.status === 'Terminated' || seen[String(s.id)]) return;
+          seen[String(s.id)] = true;
+          var ownerId = s.client_id || requestedClientId;
+          var isBorrowed = String(ownerId) !== String(clientId);
+          poSowMap[String(s.id)] = Object.assign({}, s, {
+            owner_client_id: ownerId,
+            borrowed_for_client_id: isBorrowed ? clientId : null,
+          });
+          optionMarkup.push('<option value="' + s.id + '">' + escapeHtml(buildSowOptionLabel(s, ownerId, isBorrowed)) + '</option>');
+        });
       });
+      sel.innerHTML = optionMarkup.join('');
     } catch (e) { /* ignore */ }
   }
 
@@ -185,7 +217,8 @@
 
       openPOModal();
       document.getElementById('poClient').value = String(context.clientId);
-      await loadSOWsForClient(context.clientId);
+      document.getElementById('poSowSourceClient').value = '';
+      await loadSOWsForClient(context.clientId, '');
 
       if (context.sowId) {
         document.getElementById('poSOW').value = String(context.sowId);
@@ -396,7 +429,8 @@
       document.getElementById('poId').value = id;
       document.getElementById('poNumber').value = po.po_number;
       document.getElementById('poClient').value = po.client_id;
-      await loadSOWsForClient(po.client_id);
+      document.getElementById('poSowSourceClient').value = '';
+      await loadSOWsForClient(po.client_id, '');
       document.getElementById('poSOW').value = po.sow_id || '';
       document.getElementById('poDate').value = po.po_date;
       document.getElementById('poStartDate').value = po.start_date;
@@ -428,6 +462,7 @@
     var sowVal = document.getElementById('poSOW').value;
     if (!sowVal) { showToast('SOW is required', 'danger'); return; }
     if (!validateDateRange('poStartDate', 'poEndDate')) return;
+    var sourceClientVal = document.getElementById('poSowSourceClient').value;
     var data = {
       po_number: document.getElementById('poNumber').value.trim(),
       client_id: parseInt(document.getElementById('poClient').value, 10),
@@ -437,6 +472,7 @@
       po_value: parseFloat(document.getElementById('poValue').value),
       alert_threshold: parseFloat(document.getElementById('poThreshold').value) || 80,
       sow_id: sowVal ? parseInt(sowVal, 10) : null,
+      sow_source_client_id: sourceClientVal ? parseInt(sourceClientVal, 10) : null,
       notes: document.getElementById('poNotes').value.trim(),
     };
     try {
@@ -490,7 +526,11 @@
 
   // Load SOWs when client changes in PO form
   document.getElementById('poClient').addEventListener('change', function () {
-    loadSOWsForClient(this.value);
+    loadSOWsForClient(this.value, document.getElementById('poSowSourceClient').value);
+  });
+
+  document.getElementById('poSowSourceClient').addEventListener('change', function () {
+    loadSOWsForClient(document.getElementById('poClient').value, this.value);
   });
 
   document.getElementById('poSOW').addEventListener('change', function () {

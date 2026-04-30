@@ -41,6 +41,11 @@ const createPO = Joi.object({
     .required()
     .messages({ 'any.required': 'SOW is required. A Purchase Order must be linked to a Statement of Work.' }),
 
+  sow_source_client_id: Joi.number()
+    .integer()
+    .positive()
+    .allow(null),
+
   notes: Joi.string()
     .trim()
     .allow('', null)
@@ -79,6 +84,11 @@ const updatePO = Joi.object({
     .positive()
     .required()
     .messages({ 'any.required': 'SOW is required. A Purchase Order must be linked to a Statement of Work.' }),
+
+  sow_source_client_id: Joi.number()
+    .integer()
+    .positive()
+    .allow(null),
 
   notes: Joi.string()
     .trim()
