@@ -16,6 +16,12 @@ const RATE_CARD_ALIASES = {
   sow_number: ['sow_number', 'sow', 'sow_id', 'sowid'],
   po_number: ['po_number', 'ponumber', 'po', 'purchase_order', 'purchaseorder', 'po_no'],
   charging_date: ['charging_date', 'chargingdate', 'date_of_reporting', 'dateofreporting', 'reporting_date', 'reportingdate', 'date_of_reporting'],
+  service_description: ['service_description', 'servicedescription', 'role', 'role_position', 'position', 'service'],
+  pause_billing: ['pause_billing', 'pausebilling', 'pause'],
+  pause_start_date: ['pause_start_date', 'pause_from', 'pausefrom'],
+  pause_end_date: ['pause_end_date', 'pause_to', 'pauseto'],
+  disable_billing: ['disable_billing', 'disablebilling', 'disable'],
+  disable_from_date: ['disable_from_date', 'disable_from', 'disablefrom'],
 };
 
 const ATTENDANCE_ALIASES = {
@@ -25,7 +31,8 @@ const ATTENDANCE_ALIASES = {
 };
 
 const ATTENDANCE_PRESENT_CODES = new Set(['P', 'PR', 'ODW', 'WFH']);
-// Weekend off and holiday leave are paid days, not leave days.
+// WO is not a leave, but it is also not billed for SGTC hourly-prorated clients.
+const ATTENDANCE_NON_BILLABLE_CODES = new Set(['WO', 'W/O', 'WEEKOFF', 'WEEK_OFF', 'WEEK OFF', 'OFF']);
 const ATTENDANCE_FULL_LEAVE_CODES = new Set(['L', 'CL', 'SL', 'EL', 'PRTO', 'A']);
 const ATTENDANCE_HALF_LEAVE_CODES = new Set(['HDL', 'HDS', 'HD']);
 
@@ -61,9 +68,11 @@ function normalizeEmployeeName(value) {
 
 function mapAttendanceCode(rawValue) {
   const code = String(rawValue || '').trim().toUpperCase();
+  const compactCode = code.replace(/[\s_/-]+/g, '');
   if (!code) return { status: 'P', leaveUnits: 0 };
   if (ATTENDANCE_HALF_LEAVE_CODES.has(code)) return { status: 'L', leaveUnits: 0.5 };
   if (ATTENDANCE_FULL_LEAVE_CODES.has(code)) return { status: 'L', leaveUnits: 1 };
+  if (ATTENDANCE_NON_BILLABLE_CODES.has(code) || compactCode === 'WO' || compactCode === 'WEEKOFF') return { status: 'WO', leaveUnits: 0 };
   if (ATTENDANCE_PRESENT_CODES.has(code)) return { status: 'P', leaveUnits: 0 };
   return { status: 'P', leaveUnits: 0 };
 }
@@ -174,7 +183,7 @@ async function parseRateCard(filePath) {
     empCodes.add(empCodeStr);
 
     const monthlyRate = parseFloat(getValue('monthly_rate'));
-    if (isNaN(monthlyRate) || monthlyRate <= 0) {
+    if (isNaN(monthlyRate) || monthlyRate < 0) {
       errors.push({ emp_code: empCodeStr, error_message: `Invalid monthly_rate: ${getValue('monthly_rate')}` });
       continue;
     }
@@ -212,11 +221,17 @@ async function parseRateCard(filePath) {
       emp_name: String(getValue('emp_name') || '').trim(),
       doj: doj || null,
       reporting_manager: String(getValue('reporting_manager') || '').trim(),
+      service_description: String(getValue('service_description') || '').trim(),
       monthly_rate: monthlyRate,
       leaves_allowed: leavesAllowed,
       sow_number: sowNumber,
       po_number: poNumber,
       charging_date: chargingDate || null,
+      pause_billing: ['TRUE', 'YES', 'Y', '1'].includes(String(getValue('pause_billing') || '').trim().toUpperCase()),
+      pause_start_date: getValue('pause_start_date') || null,
+      pause_end_date: getValue('pause_end_date') || null,
+      disable_billing: ['TRUE', 'YES', 'Y', '1'].includes(String(getValue('disable_billing') || '').trim().toUpperCase()),
+      disable_from_date: getValue('disable_from_date') || null,
     });
   }
 
@@ -305,12 +320,14 @@ async function parseAttendance(filePath, billingMonth, options = {}) {
     const days = {};
     const dayLeaveUnits = {};
     let leavesTaken = 0;
+    let daysPresent = 0;
 
     for (let day = 1; day <= daysInMonth; day++) {
       const col = dayColumns[day];
       if (!col) {
         days[day] = 'P';
         dayLeaveUnits[day] = 0;
+        daysPresent += 1;
         continue;
       }
       const val = readCellValue(row.getCell(col).value);
@@ -318,6 +335,8 @@ async function parseAttendance(filePath, billingMonth, options = {}) {
       days[day] = mapped.status;
       dayLeaveUnits[day] = mapped.leaveUnits;
       leavesTaken += mapped.leaveUnits;
+      if (mapped.status === 'P') daysPresent += 1;
+      if (mapped.status === 'L') daysPresent += (1 - mapped.leaveUnits);
     }
 
     records.push({
@@ -327,6 +346,8 @@ async function parseAttendance(filePath, billingMonth, options = {}) {
       days,
       day_leave_units: dayLeaveUnits,
       leaves_taken: leavesTaken,
+      days_present: daysPresent,
+      billable_hours: Math.round(daysPresent * 8.5 * 100) / 100,
     });
   }
 

@@ -90,7 +90,7 @@ async function resolvePoFromSow(records) {
 
   const { data: pos, error } = await supabase
     .from('purchase_orders')
-    .select('id, po_number, sow_id, client_id, status, created_at')
+    .select('id, po_number, po_date, sow_id, client_id, status, created_at')
     .in('sow_id', sowIds)
     .eq('status', 'Active')
     .order('created_at', { ascending: false });
@@ -108,6 +108,7 @@ async function resolvePoFromSow(records) {
       const po = poMap.get(record.sow_id);
       record.po_id = po.id;
       record.po_number = record.po_number || po.po_number;
+      record.po_date = record.po_date || po.po_date;
       record.client_id = record.client_id || po.client_id;
     }
   }
@@ -194,6 +195,10 @@ async function hydrateRunItemsForDecision(run) {
     item.sow_id = item.sow_id || currentRateCard.sow_id || null;
     item.sow_number = item.sow_number || currentRateCard.sow_number || null;
     item.po_id = item.po_id || currentRateCard.po_id || null;
+    item.po_number = item.po_number || currentRateCard.po_number || null;
+    item.po_date = item.po_date || currentRateCard.po_date || null;
+    item.service_description = item.service_description || currentRateCard.service_description || null;
+    item.client_abbreviation = item.client_abbreviation || currentRateCard.client_abbreviation || null;
   }
 
   await resolvePoFromSow(run.items);
@@ -392,8 +397,9 @@ const billingController = {
 
     await resolvePoFromSow(rateCards);
 
-    const attendanceSummary = await AttendanceModel.getSummary(billingMonth);
-    const allowedEmpCodes = new Set(rateCards.map((rc) => String(rc.emp_code || '').trim()));
+    const billableRateCards = rateCards.filter((rc) => !(rc.no_invoice || rc.billing_active === false));
+    const allowedEmpCodes = new Set(billableRateCards.map((rc) => String(rc.emp_code || '').trim()));
+    const attendanceSummary = await AttendanceModel.getDetailedByMonth(billingMonth, Array.from(allowedEmpCodes));
 
     const attendanceRecords = attendanceSummary
       .filter((a) => allowedEmpCodes.has(String(a.emp_code || '').trim()))
@@ -402,24 +408,37 @@ const billingController = {
         emp_name: a.emp_name,
         reporting_manager: a.reporting_manager,
         leaves_taken: Number(a.leaves_taken),
-        days: {},
+        days_present: Number(a.days_present),
+        billable_hours: a.billable_hours !== undefined ? Number(a.billable_hours) : Math.round(Number(a.days_present || 0) * 8.5 * 100) / 100,
+        days: a.days || {},
+        day_leave_units: a.day_leave_units || {},
       }));
 
     const warningErrors = [];
     const fatalErrors = [];
+    const missingAttendanceErrors = [];
+    const attendanceEmpCodes = new Set(attendanceRecords.map((a) => String(a.emp_code || '').trim()));
+    const calculableRateCards = billableRateCards.filter((rc) => attendanceEmpCodes.has(String(rc.emp_code || '').trim()));
 
-    // Warn about rate cards without PO linkage
-    for (const rc of rateCards) {
+    // Keep missing attendance in the error report, but still generate for employees that can be calculated.
+    for (const rc of billableRateCards) {
+      if (!attendanceEmpCodes.has(String(rc.emp_code || '').trim())) {
+        missingAttendanceErrors.push({
+          emp_code: rc.emp_code,
+          error_message: `Employee ${rc.emp_code} (${rc.emp_name}) found in Rate Card but missing in Attendance`,
+        });
+      }
+    }
+
+    // Warn about PO linkage only for rows that will be calculated.
+    for (const rc of calculableRateCards) {
       if (!rc.po_id) {
         warningErrors.push({ emp_code: rc.emp_code, error_message: `WARNING: ${rc.emp_code} (${rc.emp_name}) has no PO assignment. Billing will not consume from any PO.` });
       }
     }
 
-    const crossErrors = crossValidate(rateCards, attendanceRecords);
-    fatalErrors.push(...crossErrors);
-
-    if (fatalErrors.length > 0) {
-      const allErrors = [...fatalErrors, ...warningErrors];
+    if (calculableRateCards.length === 0 && missingAttendanceErrors.length > 0) {
+      const allErrors = [...missingAttendanceErrors, ...warningErrors];
       const responseData = await createStoredRun({
         clientId: selectedClientIds.length === 1 ? selectedClientIds[0] : null,
         billingMonth,
@@ -437,13 +456,13 @@ const billingController = {
       return res.json({ success: true, data: responseData });
     }
 
-    const result = calculateBilling(rateCards, attendanceRecords, billingMonth);
+    const result = calculateBilling(calculableRateCards, attendanceRecords, billingMonth);
     const calcWarnings = result.errors.filter(isWarningError);
     const calcFatalErrors = result.errors.filter((item) => !isWarningError(item));
     warningErrors.push(...calcWarnings);
     fatalErrors.push(...calcFatalErrors);
     if (fatalErrors.length > 0) {
-      const allErrors = [...fatalErrors, ...warningErrors];
+      const allErrors = [...fatalErrors, ...missingAttendanceErrors, ...warningErrors];
       const responseData = await createStoredRun({
         clientId: selectedClientIds.length === 1 ? selectedClientIds[0] : null,
         billingMonth,
@@ -463,8 +482,11 @@ const billingController = {
       clientId: selectedClientIds.length === 1 ? selectedClientIds[0] : null,
       billingMonth,
       billingItems: result.billingItems,
-      allErrors: [...warningErrors],
-      summary: result.summary,
+      allErrors: [...missingAttendanceErrors, ...warningErrors],
+      summary: {
+        ...result.summary,
+        errorCount: missingAttendanceErrors.length + warningErrors.length,
+      },
     });
 
     res.json({ success: true, data: responseData });
@@ -558,6 +580,9 @@ const billingController = {
   downloadFile: catchAsync(async (req, res) => {
     const run = await BillingModel.findRunById(parseInt(req.params.id, 10));
     if (!run) throw new AppError(404, 'Billing run not found');
+    await hydrateRunItemsForDecision(run);
+    const { filePath } = await generateBillingExcel(run.items || [], run.errors || [], run.billing_month);
+    run.output_file = filePath;
     if (!run.output_file || !fs.existsSync(run.output_file)) {
       throw new AppError(404, 'Output file not found');
     }
@@ -568,18 +593,19 @@ const billingController = {
   downloadWorksheet: catchAsync(async (req, res) => {
     const run = await BillingModel.findRunById(parseInt(req.params.id, 10));
     if (!run) throw new AppError(404, 'Billing run not found');
+    await hydrateRunItemsForDecision(run);
 
     const worksheet = String(req.params.worksheet || '').toLowerCase();
     const validWorksheets = {
-      billing_working: 'Billing_Working',
-      manager_summary: 'Manager_Summary',
+      billing_working: 'Service_Request',
+      manager_summary: 'Manager_Approval_Request',
       error_report: 'Error_Report',
     };
     if (!validWorksheets[worksheet]) {
       throw new AppError(400, 'Invalid worksheet requested');
     }
 
-    const buffer = await generateBillingWorksheetBuffer(run.items || [], run.errors || [], worksheet);
+    const buffer = await generateBillingWorksheetBuffer(run.items || [], run.errors || [], worksheet, run.billing_month);
     const filename = `${validWorksheets[worksheet]}_${run.billing_month}.xlsx`;
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename=${filename}`);

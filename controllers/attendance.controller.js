@@ -50,7 +50,14 @@ const attendanceController = {
 
   submitSingle: catchAsync(async (req, res) => {
     const { emp_code, emp_name, reporting_manager, billing_month, day_number, status } = req.body;
-    await AttendanceModel.bulkUpsert([{ emp_code, emp_name, reporting_manager, billing_month, day_number, status: status.toUpperCase() }]);
+    try {
+      await AttendanceModel.bulkUpsert([{ emp_code, emp_name, reporting_manager, billing_month, day_number, status: status.toUpperCase() }]);
+    } catch (err) {
+      if (err && err.message && err.message.includes('WO attendance requires DB migration 016')) {
+        throw new AppError(400, err.message);
+      }
+      throw err;
+    }
     res.json({ success: true, data: { message: 'Attendance recorded' } });
   }),
 
@@ -172,7 +179,7 @@ const attendanceController = {
         try {
           await AttendanceModel.bulkUpsert(dbRecords);
         } catch (err) {
-          if (err && err.message && err.message.includes('Half-day attendance requires DB migration 006')) {
+          if (err && err.message && (err.message.includes('Half-day attendance requires DB migration 006') || err.message.includes('WO attendance requires DB migration 016'))) {
             throw new AppError(400, err.message);
           }
           throw err;

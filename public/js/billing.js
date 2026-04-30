@@ -193,6 +193,11 @@
         monthly_rate: item.monthly_rate,
         allowed_leaves: item.allowed_leaves !== undefined ? item.allowed_leaves : item.leaves_allowed,
         leaves_taken: item.leaves_taken,
+        days_present: item.days_present,
+        billing_hours: item.billing_hours,
+        billing_method: item.billing_method,
+        billing_status: item.billing_status,
+        billing_note: item.billing_note,
         chargeable_days: item.chargeable_days,
         invoice_amount: item.invoice_amount,
         po_id: item.po_id || null,
@@ -221,9 +226,10 @@
     var items = normalizeItems(data.billingItems || data.items || []);
     var itemsBody = document.getElementById('billingItemsBody');
     if (items.length === 0) {
-      itemsBody.innerHTML = '<tr><td colspan="9" class="text-center text-on-surface-variant py-6">No service request items</td></tr>';
+      itemsBody.innerHTML = '<tr><td colspan="12" class="text-center text-on-surface-variant py-6">No service request items</td></tr>';
     } else {
       itemsBody.innerHTML = items.map(function (i) {
+        var billingHours = i.billing_hours !== null && i.billing_hours !== undefined ? i.billing_hours : '-';
         return '<tr>' +
           '<td>' + escapeHtml(i.client_name) + '</td>' +
           '<td>' + escapeHtml(i.emp_code) + '</td>' +
@@ -232,6 +238,9 @@
           '<td class="text-right">' + formatCurrency(i.monthly_rate) + '</td>' +
           '<td class="text-center">' + i.allowed_leaves + '</td>' +
           '<td class="text-center">' + i.leaves_taken + '</td>' +
+          '<td class="text-center">' + (i.days_present !== undefined && i.days_present !== null ? i.days_present : '-') + '</td>' +
+          '<td class="text-center">' + billingHours + '</td>' +
+          '<td class="text-center">' + escapeHtml(i.billing_status || 'Active') + '</td>' +
           '<td class="text-center">' + i.chargeable_days + '</td>' +
           '<td class="text-right font-bold">' + formatCurrency(i.invoice_amount) + '</td>' +
           '</tr>';
@@ -323,8 +332,8 @@
         tbody.innerHTML = res.data.map(function (r) {
           var actions = '<div class="inline-flex items-center gap-1">' +
             '<button onclick="downloadFile(\'/api/billing/runs/' + r.id + '/download\')" class="btn-secondary btn-sm inline-flex items-center gap-1" title="Download"><span class="material-symbols-outlined text-base">download</span></button>' +
-            '<button onclick="downloadFile(\'/api/billing/runs/' + r.id + '/download/billing_working\')" class="btn-secondary btn-sm inline-flex items-center gap-1" title="Billing Working"><span class="material-symbols-outlined text-base">table_view</span></button>' +
-            '<button onclick="downloadFile(\'/api/billing/runs/' + r.id + '/download/manager_summary\')" class="btn-secondary btn-sm inline-flex items-center gap-1" title="Manager Summary"><span class="material-symbols-outlined text-base">table_chart</span></button>' +
+            '<button onclick="downloadFile(\'/api/billing/runs/' + r.id + '/download/billing_working\')" class="btn-secondary btn-sm inline-flex items-center gap-1" title="Service Request"><span class="material-symbols-outlined text-base">table_view</span></button>' +
+            '<button onclick="downloadFile(\'/api/billing/runs/' + r.id + '/download/manager_summary\')" class="btn-secondary btn-sm inline-flex items-center gap-1" title="Manager Approval Request"><span class="material-symbols-outlined text-base">table_chart</span></button>' +
             '<button onclick="downloadFile(\'/api/billing/runs/' + r.id + '/download/error_report\')" class="btn-secondary btn-sm inline-flex items-center gap-1" title="Error Report"><span class="material-symbols-outlined text-base">warning</span></button>' +
             '<button onclick="window.reviewServiceRequest(' + r.id + ')" class="btn-secondary btn-sm inline-flex items-center gap-1" title="Review"><span class="material-symbols-outlined text-base">visibility</span></button>' +
           '</div>';

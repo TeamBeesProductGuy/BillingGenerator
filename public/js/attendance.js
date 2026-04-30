@@ -252,13 +252,17 @@
     try {
       var res = await apiCall('GET', '/api/attendance/summary?billingMonth=' + month);
       if (res.data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-on-surface-variant py-6">No attendance data for this month</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-on-surface-variant py-6">No attendance data for this month</td></tr>';
       } else {
         tbody.innerHTML = res.data.map(function (r) {
+          var billingHours = r.billable_hours !== undefined && r.billable_hours !== null
+            ? Number(r.billable_hours)
+            : Math.round((Number(r.days_present) || 0) * 8.5 * 100) / 100;
           return '<tr>' +
             '<td><strong>' + escapeHtml(r.emp_code) + '</strong></td>' +
             '<td>' + escapeHtml(r.emp_name || '') + '</td>' +
             '<td class="text-center">' + r.days_present + '</td>' +
+            '<td class="text-center">' + billingHours + '</td>' +
             '<td class="text-center">' + r.leaves_taken + '</td>' +
             '<td class="text-center">' + r.total_days + '</td>' +
             '</tr>';

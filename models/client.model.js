@@ -49,6 +49,7 @@ const ClientModel = {
         phone: data.phone || null,
         address: data.address || null,
         industry: data.industry || null,
+        leaves_allowed: Number(data.leaves_allowed || 0),
       })
       .select('id')
       .single();
@@ -67,6 +68,7 @@ const ClientModel = {
         phone: data.phone || null,
         address: data.address || null,
         industry: data.industry || null,
+        leaves_allowed: Number(data.leaves_allowed || 0),
         updated_at: new Date().toISOString(),
       })
       .eq('id', id);

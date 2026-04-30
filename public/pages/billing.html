@@ -155,10 +155,10 @@
         <span class="material-symbols-outlined">download</span>Download Full Excel
       </button>
       <button id="downloadBillingWorkingBtn" class="btn-secondary inline-flex items-center gap-2" onclick="downloadFile(this.getAttribute('data-url'))">
-        <span class="material-symbols-outlined">table_view</span>Billing Working
+        <span class="material-symbols-outlined">table_view</span>Service Request
       </button>
       <button id="downloadManagerSummaryBtn" class="btn-secondary inline-flex items-center gap-2" onclick="downloadFile(this.getAttribute('data-url'))">
-        <span class="material-symbols-outlined">table_chart</span>Manager Summary
+        <span class="material-symbols-outlined">table_chart</span>Manager Approval Request
       </button>
       <button id="downloadErrorReportBtn" class="btn-secondary inline-flex items-center gap-2" onclick="downloadFile(this.getAttribute('data-url'))">
         <span class="material-symbols-outlined">warning</span>Error Report
@@ -195,7 +195,8 @@
             <tr>
               <th>Client</th><th>Emp Code</th><th>Emp Name</th><th>Manager</th>
               <th class="text-right">Monthly Rate</th><th class="text-center">Allowed</th>
-              <th class="text-center">Taken</th><th class="text-center">Chargeable</th>
+              <th class="text-center">Taken</th><th class="text-center">Present</th>
+              <th class="text-center">Hours</th><th class="text-center">Status</th><th class="text-center">Chargeable</th>
               <th class="text-right">Invoice Amount</th>
             </tr>
           </thead>

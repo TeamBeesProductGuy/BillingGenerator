@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS clients (
     phone           TEXT,
     address         TEXT,
     industry        TEXT,
+    leaves_allowed  INTEGER NOT NULL DEFAULT 0 CHECK(leaves_allowed >= 0),
     is_active       BOOLEAN NOT NULL DEFAULT TRUE,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -127,10 +128,18 @@ CREATE TABLE IF NOT EXISTS rate_cards (
     emp_name          TEXT NOT NULL,
     doj               TEXT,
     reporting_manager TEXT,
-    monthly_rate      NUMERIC(15,2) NOT NULL CHECK(monthly_rate > 0),
+    service_description TEXT,
+    monthly_rate      NUMERIC(15,2) NOT NULL CHECK(monthly_rate >= 0),
     leaves_allowed    INTEGER NOT NULL DEFAULT 0 CHECK(leaves_allowed >= 0),
     charging_date     TEXT,
     po_id             INTEGER REFERENCES purchase_orders(id),
+    billing_active    BOOLEAN NOT NULL DEFAULT TRUE,
+    no_invoice        BOOLEAN NOT NULL DEFAULT FALSE,
+    pause_billing     BOOLEAN NOT NULL DEFAULT FALSE,
+    pause_start_date  TEXT,
+    pause_end_date    TEXT,
+    disable_billing   BOOLEAN NOT NULL DEFAULT FALSE,
+    disable_from_date TEXT,
     is_active         BOOLEAN NOT NULL DEFAULT TRUE,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -148,9 +157,10 @@ CREATE TABLE IF NOT EXISTS attendance (
     reporting_manager TEXT,
     billing_month     TEXT NOT NULL,
     day_number        INTEGER NOT NULL CHECK(day_number >= 1 AND day_number <= 31),
-    status            TEXT NOT NULL CHECK(status IN ('P', 'L')),
+    status            TEXT NOT NULL CHECK(status IN ('P', 'L', 'WO')),
     leave_units       NUMERIC(4,2) NOT NULL DEFAULT 0 CHECK(
                       (status = 'P' AND leave_units = 0)
+                      OR (status = 'WO' AND leave_units = 0)
                       OR (status = 'L' AND leave_units IN (0.5, 1))
                     ),
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -174,14 +184,22 @@ CREATE TABLE IF NOT EXISTS billing_items (
     id                SERIAL PRIMARY KEY,
     billing_run_id    INTEGER NOT NULL REFERENCES billing_runs(id) ON DELETE CASCADE,
     client_name       TEXT NOT NULL,
+    service_description TEXT,
+    po_number         TEXT,
+    po_date           TEXT,
     emp_code          TEXT NOT NULL,
     emp_name          TEXT NOT NULL,
     reporting_manager TEXT,
     monthly_rate      NUMERIC(15,2) NOT NULL,
     leaves_allowed    INTEGER NOT NULL DEFAULT 0,
     leaves_taken      NUMERIC(10,2) NOT NULL DEFAULT 0,
+    days_present      NUMERIC(10,2),
+    billing_hours     NUMERIC(10,2),
+    billing_method    TEXT,
     days_in_month     INTEGER NOT NULL,
     chargeable_days   NUMERIC(10,2) NOT NULL,
+    billing_status    TEXT,
+    billing_note      TEXT,
     invoice_amount    NUMERIC(15,2) NOT NULL,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -314,10 +332,11 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(user_action);
 -- ============================================================
 
 CREATE OR REPLACE VIEW rate_cards_view AS
-SELECT rc.*, c.client_name, po.po_number
+SELECT rc.*, c.client_name, c.abbreviation AS client_abbreviation, c.leaves_allowed AS client_leaves_allowed, po.po_number, po.po_date, sw.sow_number
 FROM rate_cards rc
 JOIN clients c ON rc.client_id = c.id
-LEFT JOIN purchase_orders po ON rc.po_id = po.id;
+LEFT JOIN purchase_orders po ON rc.po_id = po.id
+LEFT JOIN sows sw ON rc.sow_id = sw.id;
 
 CREATE OR REPLACE VIEW quotes_view AS
 SELECT q.*, c.client_name
@@ -343,15 +362,32 @@ LEFT JOIN sows sw ON po.sow_id = sw.id;
 -- ============================================================
 
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS leaves_allowed INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE permanent_clients ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
 ALTER TABLE permanent_client_contacts ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
 ALTER TABLE permanent_orders ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
 ALTER TABLE permanent_reminders ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
 ALTER TABLE sow_document_index ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
+ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS service_description TEXT;
+ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS billing_active BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS no_invoice BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS pause_billing BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS pause_start_date TEXT;
+ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS pause_end_date TEXT;
+ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS disable_billing BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS disable_from_date TEXT;
 ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
 ALTER TABLE attendance ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
 ALTER TABLE billing_runs ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
 ALTER TABLE billing_items ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
+ALTER TABLE billing_items ADD COLUMN IF NOT EXISTS service_description TEXT;
+ALTER TABLE billing_items ADD COLUMN IF NOT EXISTS po_number TEXT;
+ALTER TABLE billing_items ADD COLUMN IF NOT EXISTS po_date TEXT;
+ALTER TABLE billing_items ADD COLUMN IF NOT EXISTS days_present NUMERIC(10,2);
+ALTER TABLE billing_items ADD COLUMN IF NOT EXISTS billing_hours NUMERIC(10,2);
+ALTER TABLE billing_items ADD COLUMN IF NOT EXISTS billing_method TEXT;
+ALTER TABLE billing_items ADD COLUMN IF NOT EXISTS billing_status TEXT;
+ALTER TABLE billing_items ADD COLUMN IF NOT EXISTS billing_note TEXT;
 ALTER TABLE billing_errors ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
 ALTER TABLE quotes ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
 ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
@@ -384,10 +420,11 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_owner_user ON audit_log(owner_user_id);
 
 CREATE OR REPLACE VIEW rate_cards_view
 WITH (security_invoker = true) AS
-SELECT rc.*, c.client_name, po.po_number
+SELECT rc.*, c.client_name, c.abbreviation AS client_abbreviation, c.leaves_allowed AS client_leaves_allowed, po.po_number, po.po_date, sw.sow_number
 FROM rate_cards rc
 JOIN clients c ON rc.client_id = c.id
-LEFT JOIN purchase_orders po ON rc.po_id = po.id;
+LEFT JOIN purchase_orders po ON rc.po_id = po.id
+LEFT JOIN sows sw ON rc.sow_id = sw.id;
 
 CREATE OR REPLACE VIEW quotes_view
 WITH (security_invoker = true) AS
@@ -647,6 +684,7 @@ RETURNS TABLE (
   reporting_manager TEXT,
   leaves_taken NUMERIC,
   days_present NUMERIC,
+  billable_hours NUMERIC,
   total_days BIGINT
 ) LANGUAGE sql STABLE AS $$
   SELECT
@@ -659,6 +697,11 @@ RETURNS TABLE (
       WHEN a.status = 'L' THEN (1 - COALESCE(a.leave_units, 1))
       ELSE 0
     END) AS days_present,
+    ROUND((SUM(CASE
+      WHEN a.status = 'P' THEN 1
+      WHEN a.status = 'L' THEN (1 - COALESCE(a.leave_units, 1))
+      ELSE 0
+    END) * 8.5)::NUMERIC, 2) AS billable_hours,
     COUNT(*) AS total_days
   FROM attendance a
   WHERE a.billing_month = p_billing_month

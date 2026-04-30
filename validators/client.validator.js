@@ -63,7 +63,12 @@ const createClient = Joi.object({
   industry: Joi.string()
     .trim()
     .max(200)
-    .allow('', null)
+    .allow('', null),
+
+  leaves_allowed: Joi.number()
+    .integer()
+    .min(0)
+    .default(0)
 });
 
 const updateClient = createClient; // same shape

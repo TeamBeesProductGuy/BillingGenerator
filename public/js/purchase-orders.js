@@ -163,6 +163,16 @@
     }
   }
 
+  function validateDateRange(startId, endId) {
+    var startValue = document.getElementById(startId).value;
+    var endValue = document.getElementById(endId).value;
+    if (startValue && endValue && startValue > endValue) {
+      showToast('Start date must be less than or equal to end date', 'danger');
+      return false;
+    }
+    return true;
+  }
+
   async function consumePendingPoLinkContext() {
     var raw = sessionStorage.getItem('pendingPoLinkContext');
     if (!raw) return;
@@ -417,6 +427,7 @@
     e.preventDefault();
     var sowVal = document.getElementById('poSOW').value;
     if (!sowVal) { showToast('SOW is required', 'danger'); return; }
+    if (!validateDateRange('poStartDate', 'poEndDate')) return;
     var data = {
       po_number: document.getElementById('poNumber').value.trim(),
       client_id: parseInt(document.getElementById('poClient').value, 10),
@@ -460,6 +471,7 @@
   document.getElementById('renewForm').addEventListener('submit', async function (e) {
     e.preventDefault();
     var poId = document.getElementById('renewPoId').value;
+    if (!validateDateRange('renewStartDate', 'renewEndDate')) return;
     try {
       await apiCall('PATCH', '/api/purchase-orders/' + poId + '/renew', {
         po_number: document.getElementById('renewPoNumber').value.trim(),

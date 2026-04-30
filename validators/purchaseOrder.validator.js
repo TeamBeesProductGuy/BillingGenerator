@@ -1,5 +1,12 @@
 const Joi = require('joi');
 
+function dateRangeValidator(value, helpers) {
+  if (value.start_date && value.end_date && String(value.start_date) > String(value.end_date)) {
+    return helpers.message('Start date must be less than or equal to end date');
+  }
+  return value;
+}
+
 const createPO = Joi.object({
   po_number: Joi.string()
     .trim()
@@ -37,7 +44,7 @@ const createPO = Joi.object({
   notes: Joi.string()
     .trim()
     .allow('', null)
-});
+}).custom(dateRangeValidator);
 
 const updatePO = Joi.object({
   po_number: Joi.string()
@@ -76,7 +83,7 @@ const updatePO = Joi.object({
   notes: Joi.string()
     .trim()
     .allow('', null)
-});
+}).custom(dateRangeValidator);
 
 const recordConsumption = Joi.object({
   amount: Joi.number()
@@ -120,6 +127,6 @@ const renewPO = Joi.object({
   notes: Joi.string()
     .trim()
     .allow('', null)
-});
+}).custom(dateRangeValidator);
 
 module.exports = { createPO, updatePO, recordConsumption, renewPO };

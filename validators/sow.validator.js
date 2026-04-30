@@ -49,6 +49,11 @@ const createSOW = Joi.object({
     .items(sowItem)
     .min(1)
     .required()
+}).custom((value, helpers) => {
+  if (value.effective_start && value.effective_end && String(value.effective_start) > String(value.effective_end)) {
+    return helpers.message('Start date must be less than or equal to end date');
+  }
+  return value;
 });
 
 const updateSOW = createSOW;

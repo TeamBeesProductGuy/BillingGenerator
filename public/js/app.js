@@ -274,6 +274,10 @@
             el.classList.remove("hidden");
             el.classList.add("flex");
             document.body.classList.add("modal-open");
+            setTimeout(function () {
+                var primary = el.querySelector("button[type='submit'], .btn-primary");
+                if (primary && typeof primary.focus === "function") primary.focus();
+            }, 0);
         }
     };
 
@@ -456,6 +460,20 @@
         el.querySelector(".toast-close").addEventListener("click", function () { dismissToast(el); });
         setTimeout(function () { dismissToast(el); }, 4000);
     };
+
+    document.addEventListener("input", function (e) {
+        var target = e.target;
+        if (!target || !target.matches) return;
+        if (!target.matches("input[type='text'], input[type='search'], textarea")) return;
+        if (target.hasAttribute("data-no-uppercase")) return;
+        var start = target.selectionStart;
+        var end = target.selectionEnd;
+        var upper = target.value.toUpperCase();
+        if (target.value !== upper) {
+            target.value = upper;
+            try { target.setSelectionRange(start, end); } catch (_e) {}
+        }
+    });
 
     function dismissToast(el) {
         if (!el || el.classList.contains("toast-removing")) return;

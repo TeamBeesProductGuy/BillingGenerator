@@ -15,13 +15,13 @@ const clientController = {
   }),
 
   create: catchAsync(async (req, res) => {
-    const { client_name, abbreviation, contact_person, email, phone, address, industry } = req.body;
+    const { client_name, abbreviation, contact_person, email, phone, address, industry, leaves_allowed } = req.body;
     const duplicate = await ClientModel.findByNameAndAddress(client_name, address);
     if (duplicate) {
       throw new AppError(409, 'Client with the same name and location already exists');
     }
     try {
-      const id = await ClientModel.create({ client_name, abbreviation, contact_person, email, phone, address, industry });
+      const id = await ClientModel.create({ client_name, abbreviation, contact_person, email, phone, address, industry, leaves_allowed });
       res.status(201).json({ success: true, data: { id, client_name, abbreviation } });
     } catch (err) {
       if (err.message && (err.message.includes('UNIQUE') || err.message.includes('duplicate key'))) {
@@ -35,12 +35,12 @@ const clientController = {
     const id = parseInt(req.params.id, 10);
     const existing = await ClientModel.findById(id);
     if (!existing) throw new AppError(404, 'Client not found');
-    const { client_name, abbreviation, contact_person, email, phone, address, industry } = req.body;
+    const { client_name, abbreviation, contact_person, email, phone, address, industry, leaves_allowed } = req.body;
     const duplicate = await ClientModel.findByNameAndAddress(client_name, address, id);
     if (duplicate) {
       throw new AppError(409, 'Client with the same name and location already exists');
     }
-    await ClientModel.update(id, { client_name, abbreviation, contact_person, email, phone, address, industry });
+    await ClientModel.update(id, { client_name, abbreviation, contact_person, email, phone, address, industry, leaves_allowed });
     res.json({ success: true, data: { id, client_name, abbreviation } });
   }),
 

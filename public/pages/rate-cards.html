@@ -67,14 +67,16 @@
             <th class="sortable" data-sort-key="4">Manager</th>
             <th class="sortable text-right" data-sort-key="5" data-sort-type="currency">Monthly Rate</th>
             <th class="sortable text-center" data-sort-key="6" data-sort-type="number">Leaves</th>
-            <th class="sortable" data-sort-key="7">SOW#</th>
-            <th class="sortable" data-sort-key="8" data-sort-type="date">Date of Reporting</th>
-            <th class="sortable" data-sort-key="9">PO#</th>
+            <th class="sortable" data-sort-key="7">Service</th>
+            <th class="sortable" data-sort-key="8">SOW#</th>
+            <th class="sortable" data-sort-key="9" data-sort-type="date">Date of Reporting</th>
+            <th class="sortable" data-sort-key="10">PO#</th>
+            <th class="sortable text-center" data-sort-key="11">Billing</th>
             <th class="text-center">Actions</th>
           </tr>
         </thead>
         <tbody id="rcBody">
-          <tr><td colspan="11"><div class="loading-spinner"></div></td></tr>
+          <tr><td colspan="13"><div class="loading-spinner"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -136,12 +138,13 @@
         </div>
         <div id="rcMonthlyRateSection">
           <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Monthly Rate *</label>
-          <input type="number" id="rcRate" step="0.01" min="0.01" required>
+          <input type="number" id="rcRate" step="0.01" min="0" required>
+          <p id="rcRateHelper" class="hidden mt-1 text-xs text-on-surface-variant"></p>
         </div>
         <div id="rcHourlyRateSection" class="hidden grid grid-cols-3 gap-4">
           <div>
             <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Hourly Rate *</label>
-            <input type="number" id="rcHourlyRate" step="0.01" min="0.01">
+            <input type="number" id="rcHourlyRate" step="0.01" min="0">
           </div>
           <div>
             <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Hours Worked In Month *</label>
@@ -157,8 +160,39 @@
           <div id="rcComputedMonthlyRate" class="text-lg font-bold text-on-surface">&#8377;0.00</div>
         </div>
         <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Service Description</label>
+          <input type="text" id="rcServiceDescription" list="rcServiceDescriptionOptions" placeholder="Picked from selected SOW role/position">
+          <datalist id="rcServiceDescriptionOptions"></datalist>
+          <div id="rcSowRoleCapacity" class="mt-2 hidden rounded-xl border border-outline-variant/15 bg-surface-container p-3 text-xs text-on-surface-variant"></div>
+        </div>
+        <div class="rounded-xl border border-outline-variant/15 bg-surface-container p-4 space-y-4">
+          <label class="inline-flex items-center gap-2 text-sm font-semibold text-on-surface">
+            <input type="checkbox" id="rcPauseBilling" class="w-4 h-4">
+            Pause billing
+          </label>
+          <div id="rcPauseBillingDates" class="hidden grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Pause From</label>
+              <input type="date" id="rcPauseStartDate">
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Pause To</label>
+              <input type="date" id="rcPauseEndDate">
+            </div>
+          </div>
+          <label class="inline-flex items-center gap-2 text-sm font-semibold text-on-surface">
+            <input type="checkbox" id="rcDisableBilling" class="w-4 h-4">
+            Disable billing
+          </label>
+          <div id="rcDisableBillingDates" class="hidden">
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Disable From</label>
+            <input type="date" id="rcDisableFromDate">
+          </div>
+        </div>
+        <div>
           <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Date of Reporting</label>
           <input type="date" id="rcChargingDate">
+          <p class="mt-1 text-xs text-on-surface-variant">Check Date of Reporting at the Client Side</p>
         </div>
         <div>
           <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Purchase Order</label>
@@ -170,8 +204,34 @@
         </div>
       </div>
       <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
-        <button type="button" class="btn-secondary" onclick="closeRCModal()">Cancel</button>
         <button type="submit" class="btn-primary">Save</button>
+        <button type="button" class="btn-secondary" onclick="closeRCModal()">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="rcLinkPOModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-md mx-4 border border-outline-variant/15 shadow-2xl">
+    <form id="rcLinkPOForm">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8">
+        <h5 class="font-headline font-bold text-lg text-on-surface">Link PO</h5>
+        <button type="button" onclick="closeRCLinkPOModal()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="p-6 space-y-4">
+        <input type="hidden" id="rcLinkPOCardId">
+        <input type="hidden" id="rcLinkPOClientId">
+        <input type="hidden" id="rcLinkPOSowId">
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Purchase Order</label>
+          <select id="rcLinkPOSelect" required><option value="">Select PO</option></select>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
+        <button type="submit" class="btn-primary">Link PO</button>
+        <button type="button" class="btn-secondary" onclick="createPOLaterFromRC()">Create PO Later</button>
       </div>
     </form>
   </div>
@@ -198,8 +258,8 @@
         </div>
       </div>
       <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
-        <button type="button" class="btn-secondary" onclick="closeUploadRCModal()">Cancel</button>
         <button type="submit" class="btn-primary">Upload</button>
+        <button type="button" class="btn-secondary" onclick="closeUploadRCModal()">Cancel</button>
       </div>
     </form>
   </div>

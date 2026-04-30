@@ -24,7 +24,7 @@ const submitSingle = Joi.object({
     .required(),
 
   status: Joi.string()
-    .valid('P', 'L', 'p', 'l')
+    .valid('P', 'L', 'WO', 'p', 'l', 'wo')
     .required()
 });
 

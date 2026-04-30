@@ -206,6 +206,7 @@
         billing_pattern: '',
         billing_rate: '',
         industry: item.industry || '',
+        leaves_allowed: item.leaves_allowed || 0,
         raw: item,
       };
     });
@@ -278,6 +279,7 @@
         '<td>' + renderClientCell(escapeHtml(c.email || ''), 'client-cell-text') + '</td>' +
         '<td>' + renderClientCell(escapeHtml(c.phone || ''), 'client-cell-text client-cell-phone') + '</td>' +
         '<td>' + renderClientCell(escapeHtml(c.industry || '-'), 'client-cell-text') + '</td>' +
+        '<td>' + renderClientCell(String(c.leaves_allowed || 0), 'client-cell-text client-cell-rate') + '</td>' +
         '<td class="text-center">' + renderClientCell(renderClientActions(c), 'client-cell-actions') + '</td>' +
       '</tr>';
     }).join('');
@@ -381,6 +383,7 @@
           '<col style="width:220px">' +
           '<col style="width:180px">' +
           '<col style="width:150px">' +
+          '<col style="width:130px">' +
           '<col style="width:120px">' +
         '</colgroup>',
         table: '<thead><tr>' +
@@ -391,6 +394,7 @@
           '<th class="sortable" data-sort-key="4">Email</th>' +
           '<th class="sortable" data-sort-key="5">Phone</th>' +
           '<th class="sortable" data-sort-key="6">Industry</th>' +
+          '<th class="sortable" data-sort-key="7" data-sort-type="number">Default Leaves</th>' +
           '<th class="text-center">Actions</th>' +
         '</tr></thead>',
       },
@@ -502,6 +506,7 @@
         document.getElementById('clientPhone').value = phoneParts.number;
         setStructuredAddress('clientAddress', c.address || '');
         document.getElementById('clientIndustry').value = c.industry || '';
+        document.getElementById('clientLeavesAllowed').value = c.leaves_allowed || 0;
       }
 
       openModal('clientModal');
@@ -599,6 +604,7 @@
           phone: buildPhone(phoneCountryCode, phoneNumber),
           address: buildStructuredAddress('clientAddress', true),
           industry: document.getElementById('clientIndustry').value.trim(),
+          leaves_allowed: parseInt(document.getElementById('clientLeavesAllowed').value, 10) || 0,
         };
 
         if (window.clientEdit) {

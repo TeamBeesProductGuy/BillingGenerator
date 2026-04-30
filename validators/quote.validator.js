@@ -49,6 +49,11 @@ const createQuote = Joi.object({
     .items(quoteItem)
     .min(1)
     .required()
+}).custom((value, helpers) => {
+  if (value.quote_date && value.valid_until && String(value.quote_date) > String(value.valid_until)) {
+    return helpers.message('Quote date must be less than or equal to valid until date');
+  }
+  return value;
 });
 
 const updateQuote = createQuote;

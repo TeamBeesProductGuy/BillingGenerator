@@ -154,6 +154,9 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
     border: 1px solid rgba(var(--color-border-strong-rgb), 0.8);
     box-shadow: 0 8px 32px rgba(var(--color-secondary-rgb), 0.16), 0 0 0 1px rgba(var(--color-text-inverse-rgb), 0.22);
 }
+#toast-container {
+    z-index: 1000 !important;
+}
 .toast-success {
     background: rgba(var(--color-success-rgb), 0.12);
     color: var(--color-success);
@@ -1153,8 +1156,9 @@ input[type="file"]::file-selector-button:hover {
 .btn-primary:focus-visible,
 .btn-secondary:focus-visible,
 .btn-danger:focus-visible {
-    outline: 2px solid var(--color-primary);
-    outline-offset: 2px;
+    outline: 3px solid var(--color-accent);
+    outline-offset: 3px;
+    box-shadow: 0 0 0 6px rgba(var(--color-accent-rgb), 0.18), 0 12px 28px rgba(var(--color-accent-rgb), 0.22);
 }
 
 /* --- Upload Zone --- */

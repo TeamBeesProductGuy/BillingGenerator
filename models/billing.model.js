@@ -45,16 +45,24 @@ const BillingModel = {
       client_name: item.client_name,
       sow_id: item.sow_id || null,
       sow_number: item.sow_number || null,
+      service_description: item.service_description || null,
+      po_number: item.po_number || null,
+      po_date: item.po_date || null,
       emp_code: item.emp_code,
       emp_name: item.emp_name,
       reporting_manager: item.reporting_manager,
       monthly_rate: item.monthly_rate,
       leaves_allowed: item.allowed_leaves,
       leaves_taken: item.leaves_taken,
+      days_present: item.days_present,
+      billing_hours: item.billing_hours,
+      billing_method: item.billing_method,
       days_in_month: item.days_in_month,
       effective_days: item.effective_days,
       charging_date: item.charging_date,
       chargeable_days: item.chargeable_days,
+      billing_status: item.billing_status || 'Active',
+      billing_note: item.billing_note || null,
       invoice_amount: item.invoice_amount,
       po_id: item.po_id || null,
     }));
@@ -63,8 +71,16 @@ const BillingModel = {
     if (isMissingColumnError(error, 'client_id')
       || isMissingColumnError(error, 'sow_id')
       || isMissingColumnError(error, 'sow_number')
+      || isMissingColumnError(error, 'service_description')
+      || isMissingColumnError(error, 'po_number')
+      || isMissingColumnError(error, 'po_date')
       || isMissingColumnError(error, 'effective_days')
       || isMissingColumnError(error, 'charging_date')
+      || isMissingColumnError(error, 'days_present')
+      || isMissingColumnError(error, 'billing_hours')
+      || isMissingColumnError(error, 'billing_method')
+      || isMissingColumnError(error, 'billing_status')
+      || isMissingColumnError(error, 'billing_note')
       || isMissingColumnError(error, 'po_id')) {
       const fallbackRows = items.map((item) => ({
         billing_run_id: runId,

@@ -1,13 +1,9 @@
 ALTER TABLE attendance
-  ADD COLUMN IF NOT EXISTS leave_units NUMERIC(4,2);
-
-UPDATE attendance
-SET leave_units = CASE WHEN status = 'L' THEN 1 ELSE 0 END
-WHERE leave_units IS NULL;
+  DROP CONSTRAINT IF EXISTS attendance_status_check;
 
 ALTER TABLE attendance
-  ALTER COLUMN leave_units SET DEFAULT 0,
-  ALTER COLUMN leave_units SET NOT NULL;
+  ADD CONSTRAINT attendance_status_check
+  CHECK (status IN ('P', 'L', 'WO'));
 
 ALTER TABLE attendance
   DROP CONSTRAINT IF EXISTS attendance_leave_units_check;
@@ -20,8 +16,7 @@ ALTER TABLE attendance
     OR (status = 'L' AND leave_units IN (0.5, 1))
   );
 
-ALTER TABLE billing_items
-  ALTER COLUMN leaves_taken TYPE NUMERIC(10,2) USING leaves_taken::NUMERIC(10,2);
+DROP FUNCTION IF EXISTS get_attendance_summary(TEXT);
 
 CREATE OR REPLACE FUNCTION get_attendance_summary(p_billing_month TEXT)
 RETURNS TABLE (
@@ -51,5 +46,6 @@ RETURNS TABLE (
     COUNT(*) AS total_days
   FROM attendance a
   WHERE a.billing_month = p_billing_month
-  GROUP BY a.emp_code;
+  GROUP BY a.emp_code
+  ORDER BY a.emp_code;
 $$;

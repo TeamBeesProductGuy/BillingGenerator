@@ -579,6 +579,10 @@
 
   document.getElementById('sowForm').addEventListener('submit', async function (e) {
     e.preventDefault();
+    if (document.getElementById('sowStart').value && document.getElementById('sowEnd').value && document.getElementById('sowStart').value > document.getElementById('sowEnd').value) {
+      showToast('Start date must be less than or equal to end date', 'danger');
+      return;
+    }
     var items = [];
     document.querySelectorAll('#sowItemsBody tr').forEach(function (row) {
       items.push({

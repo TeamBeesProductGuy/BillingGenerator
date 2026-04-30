@@ -738,6 +738,10 @@
 
   document.getElementById('quoteForm').addEventListener('submit', async function (e) {
     e.preventDefault();
+    if (document.getElementById('quoteDate').value && document.getElementById('quoteValidUntil').value && document.getElementById('quoteDate').value > document.getElementById('quoteValidUntil').value) {
+      showToast('Quote date must be less than or equal to valid until date', 'danger');
+      return;
+    }
     var items = [];
     document.querySelectorAll('#quoteItemsBody .quote-item-card').forEach(function (row) {
       items.push({
@@ -781,6 +785,10 @@
     e.preventDefault();
     var quoteId = document.getElementById('convertQuoteId').value;
     var mode = document.getElementById('convertSowMode').value;
+    if (mode === 'new' && document.getElementById('convertEffectiveStart').value && document.getElementById('convertEffectiveEnd').value && document.getElementById('convertEffectiveStart').value > document.getElementById('convertEffectiveEnd').value) {
+      showToast('Start date must be less than or equal to end date', 'danger');
+      return;
+    }
     var payload = {
       mode: mode,
       sow_id: document.getElementById('convertExistingSowId').value ? parseInt(document.getElementById('convertExistingSowId').value, 10) : null,
