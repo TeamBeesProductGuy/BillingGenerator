@@ -646,8 +646,23 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
 }
 
 #rcTable {
-    min-width: 1550px;
+    width: auto;
+    min-width: 1900px;
 }
+
+#rcTable .rc-client-col { width: 180px; }
+#rcTable .rc-emp-code-col { width: 130px; }
+#rcTable .rc-name-col { width: 220px; }
+#rcTable .rc-doj-col { width: 140px; }
+#rcTable .rc-manager-col { width: 280px; }
+#rcTable .rc-rate-col { width: 170px; }
+#rcTable .rc-leaves-col { width: 110px; }
+#rcTable .rc-service-col { width: 420px; }
+#rcTable .rc-sow-col { width: 130px; }
+#rcTable .rc-reporting-col { width: 170px; }
+#rcTable .rc-po-col { width: 180px; }
+#rcTable .rc-billing-col { width: 140px; }
+#rcTable .rc-actions-col { width: 150px; }
 
 #ordersTable {
     min-width: 1760px;
@@ -725,6 +740,17 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
 
 .table-cell-text {
     word-break: break-word;
+}
+
+#rcTable .table-cell-manager {
+    min-width: 15rem;
+}
+
+#rcTable .table-cell-service {
+    min-width: 24rem;
+    align-items: flex-start;
+    padding-top: 0.45rem;
+    padding-bottom: 0.45rem;
 }
 
 .table-cell-client {

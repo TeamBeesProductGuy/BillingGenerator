@@ -434,10 +434,10 @@
             '<td><div class="table-cell-box"><span class="entity-pill entity-pill-strong" title="' + escapeHtml(r.emp_code || '') + '">' + escapeHtml(r.emp_code || '') + '</span></div></td>' +
             '<td><div class="table-cell-box table-cell-stack"><span class="table-cell-primary">' + escapeHtml(r.emp_name || '') + '</span><span class="table-cell-secondary">' + escapeHtml(r.sow_number ? ('SOW ' + r.sow_number) : 'No SOW linked') + '</span></div></td>' +
             '<td><div class="table-cell-box"><span class="table-date-chip">' + (r.doj ? formatDate(r.doj) : 'Not set') + '</span></div></td>' +
-            '<td><div class="table-cell-box table-cell-text">' + escapeHtml(r.reporting_manager || '---') + '</div></td>' +
+            '<td><div class="table-cell-box table-cell-text table-cell-manager" title="' + escapeHtml(r.reporting_manager || '') + '">' + escapeHtml(r.reporting_manager || '---') + '</div></td>' +
             '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(r.monthly_rate) + '</span></div></td>' +
             '<td class="text-center"><div class="table-cell-box table-cell-center"><span class="table-count-badge">' + r.leaves_allowed + '</span></div></td>' +
-            '<td><div class="table-cell-box table-cell-text" title="' + escapeHtml(r.service_description || '') + '">' + escapeHtml(r.service_description || '-') + '</div></td>' +
+            '<td><div class="table-cell-box table-cell-text table-cell-service" title="' + escapeHtml(r.service_description || '') + '">' + escapeHtml(r.service_description || '-') + '</div></td>' +
             '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(r.sow_number || 'Not linked') + '">' + escapeHtml(r.sow_number || 'Not linked') + '</span></div></td>' +
             '<td><div class="table-cell-box"><span class="table-date-chip">' + (r.charging_date ? formatDate(r.charging_date) : 'Pending') + '</span></div></td>' +
             '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(r.po_number || 'PO to be added') + '">' + escapeHtml(r.po_number || 'PO to be added') + '</span></div></td>' +

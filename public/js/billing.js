@@ -187,6 +187,7 @@
     return (items || []).map(function (item) {
       return {
         client_name: item.client_name,
+        client_abbreviation: item.client_abbreviation || item.abbreviation || '',
         emp_code: item.emp_code,
         emp_name: item.emp_name,
         reporting_manager: item.reporting_manager,
@@ -230,8 +231,9 @@
     } else {
       itemsBody.innerHTML = items.map(function (i) {
         var billingHours = i.billing_hours !== null && i.billing_hours !== undefined ? i.billing_hours : '-';
+        var clientDisplay = i.client_abbreviation || i.client_name || '';
         return '<tr>' +
-          '<td>' + escapeHtml(i.client_name) + '</td>' +
+          '<td title="' + escapeHtml(i.client_name || clientDisplay) + '">' + escapeHtml(clientDisplay) + '</td>' +
           '<td>' + escapeHtml(i.emp_code) + '</td>' +
           '<td>' + escapeHtml(i.emp_name) + '</td>' +
           '<td>' + escapeHtml(i.reporting_manager || '') + '</td>' +
