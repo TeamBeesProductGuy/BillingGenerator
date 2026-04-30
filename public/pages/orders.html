@@ -18,7 +18,7 @@
       <div class="table-summary-value">0</div>
     </div>
     <div class="table-summary-card">
-      <div class="table-summary-label">Upcoming Bills</div>
+      <div class="table-summary-label">Upcoming Invoices</div>
       <div class="table-summary-value">0</div>
     </div>
   </div>
@@ -46,14 +46,17 @@
             <th class="sortable" data-sort-key="4" data-sort-type="date">Date of Offer</th>
             <th class="sortable" data-sort-key="5" data-sort-type="date">Date of Joining</th>
             <th class="sortable text-right" data-sort-key="6" data-sort-type="currency">CTC Offered</th>
-            <th class="sortable" data-sort-key="7" data-sort-type="date">Generate Invoice On</th>
+            <th class="sortable" data-sort-key="7" data-sort-type="date">Invoice Due On</th>
             <th class="sortable text-right" data-sort-key="8" data-sort-type="currency">Invoice Amount</th>
-            <th class="sortable" data-sort-key="9">Remarks</th>
+            <th class="sortable" data-sort-key="9">Invoice No.</th>
+            <th class="sortable" data-sort-key="10" data-sort-type="date">Invoice Date</th>
+            <th class="sortable" data-sort-key="11">Invoice / Payment</th>
+            <th class="sortable" data-sort-key="12">Remarks</th>
             <th class="text-center">Actions</th>
           </tr>
         </thead>
         <tbody id="ordersBody">
-          <tr><td colspan="11"><div class="loading-spinner"></div></td></tr>
+          <tr><td colspan="14"><div class="loading-spinner"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -129,7 +132,7 @@
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Generate Invoice On (Auto)</label>
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Invoice Due On (Auto)</label>
             <input type="date" id="orderNextBillDate" disabled>
           </div>
           <div>

@@ -21,9 +21,8 @@ async function mapOrdersWithClients(orders) {
   if (orderIds.length > 0) {
     const reminderResult = await supabase
       .from('permanent_reminders')
-      .select('id, order_id, status, due_date, invoice_status, invoice_number, invoice_date')
+      .select('id, order_id, status, due_date, invoice_status, invoice_number, invoice_date, payment_status')
       .in('order_id', orderIds)
-      .eq('status', 'Open')
       .order('id', { ascending: false });
     if (reminderResult.error) throw new Error(reminderResult.error.message);
     reminders = reminderResult.data || [];

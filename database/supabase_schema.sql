@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS permanent_clients (
     abbreviation    TEXT,
     address         TEXT,
     billing_address TEXT,
-    billing_pattern TEXT NOT NULL CHECK(billing_pattern IN ('Weekly', 'Monthly', 'Quarterly')),
+    billing_pattern TEXT NOT NULL CHECK(billing_pattern IN ('Immediate', '7 days', '30 days', '60 days', '90 days')),
     billing_rate    NUMERIC(10,2) NOT NULL CHECK(billing_rate > 0 AND billing_rate <= 100),
     is_active       BOOLEAN NOT NULL DEFAULT TRUE,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),

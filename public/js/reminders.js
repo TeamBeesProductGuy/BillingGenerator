@@ -51,6 +51,10 @@
   }
 
   function getReminderBucket(reminder) {
+    if (String(reminder.payment_status || '').toLowerCase() === 'paid'
+      && String(reminder.invoice_status || '').toLowerCase() === 'sent') {
+      return 'closed';
+    }
     if (String(reminder.status || '').toLowerCase() === 'closed') return 'closed';
     var diffDays = getDueDayDiff(reminder.due_date);
     if (diffDays < -3) return 'past';
@@ -95,6 +99,10 @@
     var order = reminder.order || {};
     var clientName = getClientDisplayName(client) || '-';
     var bucket = getReminderBucket(reminder);
+    var dueBadges = [badgeForBucket(bucket)];
+    if (bucket !== 'closed') {
+      dueBadges.unshift(badgeForDueDate(reminder.due_date));
+    }
 
     reminderActionMap[reminder.id] = {
       id: reminder.id,
@@ -108,7 +116,7 @@
     };
 
     return '<tr class="reminder-row" data-reminder-id="' + reminder.id + '" data-bucket="' + bucket + '">' +
-      '<td><div class="reminder-cell-stack"><div class="reminder-cell-title">' + formatDate(reminder.due_date) + '</div><div class="mt-1 flex flex-wrap gap-2">' + badgeForDueDate(reminder.due_date) + badgeForBucket(bucket) + '</div></div></td>' +
+      '<td><div class="reminder-cell-stack"><div class="reminder-cell-title">' + formatDate(reminder.due_date) + '</div><div class="mt-1 flex flex-wrap gap-2">' + dueBadges.join('') + '</div></div></td>' +
       '<td>' + escapeHtml(clientName) + '</td>' +
       '<td>' + escapeHtml(order.candidate_name || '') + '</td>' +
       '<td>' + escapeHtml(order.position_role || '') + '</td>' +

@@ -10,6 +10,13 @@
 
   var clientsData = [];
 
+  function normalizeInvoiceDueIn(value) {
+    if (value === 'Weekly') return '7 days';
+    if (value === 'Monthly') return '30 days';
+    if (value === 'Quarterly') return '90 days';
+    return value || '';
+  }
+
   function parseStructuredAddress(value) {
     var raw = String(value || '').trim();
     if (!raw) {
@@ -224,7 +231,7 @@
         contact_person: primaryContact ? primaryContact.contact_name : '',
         email: primaryContact ? (primaryContact.email || '') : '',
         phone: primaryContact ? (primaryContact.phone || '') : '',
-        billing_pattern: item.billing_pattern || '',
+        billing_pattern: normalizeInvoiceDueIn(item.billing_pattern || ''),
         billing_rate: item.billing_rate || '',
         industry: '',
         raw: item,
@@ -262,7 +269,7 @@
         '<td>' + renderClientCell(escapeHtml(c.contact_person || ''), 'client-cell-text') + '</td>' +
         '<td>' + renderClientCell(escapeHtml(c.email || ''), 'client-cell-text') + '</td>' +
         '<td>' + renderClientCell(escapeHtml(c.phone || ''), 'client-cell-text client-cell-phone') + '</td>' +
-        '<td>' + renderClientCell(escapeHtml(c.billing_pattern || '-'), 'client-cell-text') + '</td>' +
+        '<td>' + renderClientCell(escapeHtml(normalizeInvoiceDueIn(c.billing_pattern) || '-'), 'client-cell-text') + '</td>' +
         '<td>' + renderClientCell(c.billing_rate ? Number(c.billing_rate).toFixed(2) : '-', 'client-cell-text client-cell-rate') + '</td>' +
         '<td class="text-center">' + renderClientCell(renderClientActions(c), 'client-cell-actions') + '</td>' +
       '</tr>';
@@ -365,7 +372,7 @@
           '<th class="sortable" data-sort-key="3">Contact Person</th>' +
           '<th class="sortable" data-sort-key="4">Email</th>' +
           '<th class="sortable" data-sort-key="5">Phone</th>' +
-          '<th class="sortable" data-sort-key="6">Billing Pattern</th>' +
+          '<th class="sortable" data-sort-key="6">Invoice Due In</th>' +
           '<th class="sortable" data-sort-key="7" data-sort-type="number">Billing Rate %</th>' +
           '<th class="text-center">Actions</th>' +
         '</tr></thead>',
@@ -484,7 +491,7 @@
         setStructuredAddress('permanentClientAddress', p.address || '');
         setStructuredAddress('permanentClientBillingAddress', p.billing_address || '');
         setBillingAddressSameState(addressesMatch(p.address, p.billing_address));
-        document.getElementById('permanentBillingPattern').value = p.billing_pattern || 'Monthly';
+        document.getElementById('permanentBillingPattern').value = normalizeInvoiceDueIn(p.billing_pattern) || '30 days';
         document.getElementById('permanentBillingRate').value = p.billing_rate || '';
         document.getElementById('permanentContactsList').innerHTML = '';
         (p.contacts || []).forEach(function (contact) { addPermanentContactRow(contact); });

@@ -12,7 +12,7 @@ const baseSchema = Joi.object({
   abbreviation: Joi.string().trim().max(50).allow('', null),
   address: Joi.string().trim().max(500).allow('', null),
   billing_address: Joi.string().trim().max(500).allow('', null),
-  billing_pattern: Joi.string().valid('Weekly', 'Monthly', 'Quarterly').required(),
+  billing_pattern: Joi.string().valid('Immediate', '7 days', '30 days', '60 days', '90 days').required(),
   billing_rate: Joi.number().positive().max(100).required(),
   contacts: Joi.array().items(contactSchema).min(1).required(),
 });

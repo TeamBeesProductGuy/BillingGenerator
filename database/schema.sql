@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS permanent_clients (
     abbreviation    TEXT,
     address         TEXT,
     billing_address TEXT,
-    billing_pattern TEXT NOT NULL CHECK(billing_pattern IN ('Weekly', 'Monthly', 'Quarterly')),
+    billing_pattern TEXT NOT NULL CHECK(billing_pattern IN ('Immediate', '7 days', '30 days', '60 days', '90 days')),
     billing_rate    REAL NOT NULL CHECK(billing_rate > 0 AND billing_rate <= 100),
     is_active       INTEGER NOT NULL DEFAULT 1,
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),

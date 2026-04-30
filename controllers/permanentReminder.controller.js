@@ -5,6 +5,7 @@ const { sendPaymentReminderEmail } = require('../services/graphMail.service');
 
 const permanentReminderController = {
   listOpen: catchAsync(async (req, res) => {
+    await PermanentReminderModel.closeCompletedOpenReminders();
     const reminders = await PermanentReminderModel.findAll();
     res.json({ success: true, data: reminders });
   }),

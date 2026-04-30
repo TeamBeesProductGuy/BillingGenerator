@@ -4,6 +4,15 @@ function toISODate(value) {
   return date.toISOString().slice(0, 10);
 }
 
+function getInvoiceDueDays(billingPattern) {
+  if (billingPattern === 'Immediate') return 0;
+  if (billingPattern === '7 days' || billingPattern === 'Weekly') return 7;
+  if (billingPattern === '30 days' || billingPattern === 'Monthly') return 30;
+  if (billingPattern === '60 days') return 60;
+  if (billingPattern === '90 days' || billingPattern === 'Quarterly') return 90;
+  throw new Error('Invalid invoice due setting');
+}
+
 function calculateNextBillDate(dateOfJoining, billingPattern) {
   var base = new Date(dateOfJoining);
   if (Number.isNaN(base.getTime())) {
@@ -11,15 +20,7 @@ function calculateNextBillDate(dateOfJoining, billingPattern) {
   }
 
   var next = new Date(base.getTime());
-  if (billingPattern === 'Weekly') {
-    next.setDate(next.getDate() + 7);
-  } else if (billingPattern === 'Monthly') {
-    next.setMonth(next.getMonth() + 1);
-  } else if (billingPattern === 'Quarterly') {
-    next.setMonth(next.getMonth() + 3);
-  } else {
-    throw new Error('Invalid billing pattern');
-  }
+  next.setDate(next.getDate() + getInvoiceDueDays(billingPattern));
 
   return toISODate(next);
 }
@@ -34,4 +35,5 @@ function calculateBillAmount(ctcOffered, billingRate) {
 module.exports = {
   calculateNextBillDate,
   calculateBillAmount,
+  getInvoiceDueDays,
 };

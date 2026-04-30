@@ -33,6 +33,22 @@ function calculateInitialReminderAt(dueDate) {
   return addDays(new Date(dueDate), -3).toISOString();
 }
 
+function shouldAutoCloseReminder(paymentStatus, invoiceStatus) {
+  return String(paymentStatus || '').toLowerCase() === 'paid'
+    && String(invoiceStatus || '').toLowerCase() === 'sent';
+}
+
+function normalizeReminderState(reminder) {
+  if (!reminder) return reminder;
+  if (shouldAutoCloseReminder(reminder.payment_status, reminder.invoice_status)) {
+    return {
+      ...reminder,
+      status: 'Closed',
+    };
+  }
+  return reminder;
+}
+
 async function withOrderDetails(reminders) {
   if (!reminders || reminders.length === 0) return [];
 
@@ -67,7 +83,7 @@ async function withOrderDetails(reminders) {
   return reminders.map((reminder) => {
     const order = orderMap[reminder.order_id] || null;
     return {
-      ...reminder,
+      ...normalizeReminderState(reminder),
       order,
       client: order ? (clientMap[order.client_id] || null) : null,
     };
@@ -75,6 +91,23 @@ async function withOrderDetails(reminders) {
 }
 
 const PermanentReminderModel = {
+  async closeCompletedOpenReminders() {
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from(TABLE)
+      .update({
+        status: 'Closed',
+        closed_at: now,
+        next_reminder_at: null,
+        updated_at: now,
+      })
+      .eq('status', 'Open')
+      .eq('payment_status', 'paid')
+      .eq('invoice_status', 'sent');
+    if (isMissingReminderMailColumn(error)) return;
+    if (error) throw new Error(error.message);
+  },
+
   async createForOrder(orderId, dueDate) {
     const { error } = await supabase
       .from(TABLE)
@@ -153,16 +186,32 @@ const PermanentReminderModel = {
   },
 
   async updatePaymentStatus(id, paymentStatus) {
+    const { data: existing, error: existingError } = await supabase
+      .from(TABLE)
+      .select('invoice_status')
+      .eq('id', id)
+      .maybeSingle();
+    if (existingError) throw new Error(existingError.message);
+
+    const autoClose = shouldAutoCloseReminder(paymentStatus, existing && existing.invoice_status);
     const updates = {
       payment_status: paymentStatus,
       updated_at: new Date().toISOString(),
     };
 
-    if (paymentStatus === 'paid') {
+    if (autoClose) {
+      updates.status = 'Closed';
+      updates.closed_at = new Date().toISOString();
+      updates.next_reminder_at = null;
+      updates.mail_last_status = 'paid';
+      updates.mail_last_error = null;
+    } else if (paymentStatus === 'paid') {
       updates.next_reminder_at = null;
       updates.mail_last_status = 'paid';
       updates.mail_last_error = null;
     } else {
+      updates.status = 'Open';
+      updates.closed_at = null;
       updates.next_reminder_at = addHours(new Date(), env.reminderFrequencyHours).toISOString();
     }
 
@@ -180,15 +229,28 @@ const PermanentReminderModel = {
   },
 
   async markInvoiceSent(id, invoiceNumber, invoiceDate) {
+    const { data: existing, error: existingError } = await supabase
+      .from(TABLE)
+      .select('payment_status')
+      .eq('id', id)
+      .maybeSingle();
+    if (existingError) throw new Error(existingError.message);
+
+    const autoClose = shouldAutoCloseReminder(existing && existing.payment_status, 'sent');
+    const updates = {
+      invoice_status: 'sent',
+      invoice_number: invoiceNumber,
+      invoice_date: invoiceDate,
+      invoice_sent_at: new Date().toISOString(),
+      status: autoClose ? 'Closed' : 'Open',
+      closed_at: autoClose ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    };
+    if (autoClose) updates.next_reminder_at = null;
+
     const { error } = await supabase
       .from(TABLE)
-      .update({
-        invoice_status: 'sent',
-        invoice_number: invoiceNumber,
-        invoice_date: invoiceDate,
-        invoice_sent_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
+      .update(updates)
       .eq('id', id);
     if (isMissingReminderMailColumn(error)) {
       const migrationError = new Error('Invoice tracking migration is missing. Run database/migrations/011_add_permanent_invoice_fields.sql in Supabase first.');

@@ -3,6 +3,13 @@
   var ordersData = [];
   var orderActionMap = {};
 
+  function normalizeInvoiceDueIn(value) {
+    if (value === 'Weekly') return '7 days';
+    if (value === 'Monthly') return '30 days';
+    if (value === 'Quarterly') return '90 days';
+    return value || '';
+  }
+
   function addDays(date, days) {
     var base = new Date(date);
     base.setDate(base.getDate() + days);
@@ -17,15 +24,12 @@
     if (!doj || !billingPattern) return '';
     var date = new Date(doj);
     if (Number.isNaN(date.getTime())) return '';
-    if (billingPattern === 'Weekly') return toISODate(addDays(date, 7));
-    if (billingPattern === 'Monthly') {
-      date.setMonth(date.getMonth() + 1);
-      return toISODate(date);
-    }
-    if (billingPattern === 'Quarterly') {
-      date.setMonth(date.getMonth() + 3);
-      return toISODate(date);
-    }
+    var normalized = normalizeInvoiceDueIn(billingPattern);
+    if (normalized === 'Immediate') return toISODate(date);
+    if (normalized === '7 days') return toISODate(addDays(date, 7));
+    if (normalized === '30 days') return toISODate(addDays(date, 30));
+    if (normalized === '60 days') return toISODate(addDays(date, 60));
+    if (normalized === '90 days') return toISODate(addDays(date, 90));
     return '';
   }
 
@@ -77,7 +81,7 @@
     var tbody = document.getElementById('ordersBody');
     updateOrdersSummary(data);
     if (!data || data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="11" class="text-center text-on-surface-variant py-8">No orders found. Create one!</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="14" class="text-center text-on-surface-variant py-8">No orders found. Create one!</td></tr>';
       return;
     }
 
@@ -87,9 +91,14 @@
       orderActionMap[order.id] = {
         id: order.id,
         reminderId: order.reminder ? order.reminder.id : null,
+        reminderStatus: order.reminder ? (order.reminder.status || 'Open') : null,
         invoiceNumber: order.reminder ? (order.reminder.invoice_number || '') : '',
         invoiceDate: order.reminder ? (order.reminder.invoice_date || '') : '',
+        invoiceStatus: order.reminder ? (order.reminder.invoice_status || 'pending') : 'pending',
+        paymentStatus: order.reminder ? (order.reminder.payment_status || 'pending') : 'pending',
       };
+      var invoiceStatus = order.reminder ? String(order.reminder.invoice_status || 'pending').toLowerCase() : 'pending';
+      var paymentStatus = order.reminder ? String(order.reminder.payment_status || 'pending').toLowerCase() : 'pending';
       return '<tr>' +
         '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(clientName) + '">' + escapeHtml(clientName) + '</span></div></td>' +
         '<td><div class="table-cell-box table-cell-stack"><span class="table-cell-primary">' + escapeHtml(order.candidate_name || '') + '</span><span class="table-cell-secondary">' + escapeHtml(order.position_role || '') + '</span></div></td>' +
@@ -100,6 +109,9 @@
         '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(order.ctc_offered) + '</span></div></td>' +
         '<td><div class="table-cell-box"><span class="table-date-chip">' + (order.next_bill_date ? formatDate(order.next_bill_date) : 'TBD') + '</span></div></td>' +
         '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(order.bill_amount) + '</span></div></td>' +
+        '<td><div class="table-cell-box table-cell-text">' + escapeHtml(order.reminder && order.reminder.invoice_number ? order.reminder.invoice_number : '---') + '</div></td>' +
+        '<td><div class="table-cell-box"><span class="table-date-chip">' + (order.reminder && order.reminder.invoice_date ? formatDate(order.reminder.invoice_date) : '-') + '</span></div></td>' +
+        '<td><div class="table-cell-box table-cell-stack"><span class="table-cell-primary">' + escapeHtml(invoiceStatus === 'sent' ? 'Sent' : 'Pending') + '</span><span class="table-cell-secondary">' + escapeHtml(paymentStatus === 'paid' ? 'Paid' : 'Pending') + '</span></div></td>' +
         '<td><div class="table-cell-box table-cell-text table-cell-remarks">' + escapeHtml(order.remarks || '---') + '</div></td>' +
         '<td class="text-center"><div class="table-cell-box table-cell-center">' +
           '<button class="btn-secondary btn-sm table-action-trigger inline-flex items-center justify-center" title="Open order actions" aria-label="Open order actions" onclick="openOrderActions(' + order.id + ')"><span class="material-symbols-outlined text-base">more_horiz</span></button>' +
@@ -144,7 +156,9 @@
     title.textContent = 'Order Actions';
     container.innerHTML = '';
     container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runOrderActionEdit(' + id + ')"><span class="material-symbols-outlined">edit</span><span><strong>Edit order</strong><small>Update candidate, role, billing, and dates</small></span></button>';
-    container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runOrderActionInvoice(' + id + ')"><span class="material-symbols-outlined">receipt_long</span><span><strong>Set Invoice Details</strong><small>Save invoice number and invoice date</small></span></button>';
+    if (actionState.reminderId && actionState.reminderStatus === 'Open') {
+      container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runOrderActionInvoice(' + id + ')"><span class="material-symbols-outlined">receipt_long</span><span><strong>Set Invoice Details</strong><small>Save invoice number and invoice date</small></span></button>';
+    }
     container.innerHTML += '<button type="button" class="action-sheet-btn action-sheet-btn-danger" onclick="runOrderActionDelete(' + id + ')"><span class="material-symbols-outlined">delete</span><span><strong>Delete order</strong><small>Remove this order from the active list</small></span></button>';
     openModal('orderActionModal');
   };
