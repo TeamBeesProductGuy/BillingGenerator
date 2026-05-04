@@ -40,6 +40,7 @@ router.get('/documents/download', sowController.downloadLinkedDocument);
 router.delete('/documents', sowController.deleteLinkedDocumentFolder);
 router.post('/documents/upload', sowDocUpload.single('file'), sowController.uploadLinkedDocuments);
 router.post('/documents/link-po', sowDocUpload.single('file'), sowController.uploadLinkedPODocument);
+router.get('/:id/associations', sowController.getAssociations);
 router.get('/:id', sowController.getById);
 router.post('/', validate(createSOW), sowController.create);
 router.post('/:id/amend', validate(updateSOW), sowController.amend);

@@ -8,9 +8,23 @@ const env = require('../config/env');
 const { generateQuoteDocxBuffer } = require('../services/quoteDocx.service');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
+const { logActivity } = require('../services/activityLog.service');
 
 function isEditableStatus(status) {
   return status === 'Draft' || status === 'Amendment Draft' || status === 'Signed';
+}
+
+function isAllowedSowStatusChange(fromStatus, toStatus) {
+  const transitions = {
+    Draft: ['Signed', 'Inactive'],
+    'Amendment Draft': ['Signed', 'Inactive'],
+    Signed: ['Expired', 'Terminated', 'Inactive'],
+    Active: ['Expired', 'Terminated', 'Inactive'],
+    Inactive: ['Signed'],
+    Expired: [],
+    Terminated: [],
+  };
+  return (transitions[fromStatus] || []).includes(toStatus);
 }
 
 function isDuplicateKeyError(error) {
@@ -557,6 +571,14 @@ const sowController = {
     const { sow_number, client_id, quote_id, sow_date, effective_start, effective_end, notes, items } = req.body;
     try {
       const result = await SOWModel.create({ sow_number, client_id, quote_id, sow_date, effective_start, effective_end, notes }, items);
+      await logActivity(req, {
+        module: 'sows',
+        action: 'create',
+        entityType: 'sow',
+        entityId: result.id,
+        entityLabel: result.sow_number,
+        details: { summary: 'Created SOW ' + result.sow_number },
+      });
       res.status(201).json({ success: true, data: result });
     } catch (err) {
       if (isDuplicateKeyError(err)) {
@@ -573,6 +595,14 @@ const sowController = {
     if (!isEditableStatus(existing.status)) throw new AppError(400, 'Only Draft, Amendment Draft, or Signed SOWs can be edited');
     const { client_id, quote_id, sow_date, effective_start, effective_end, notes, items } = req.body;
     const result = await SOWModel.update(id, { client_id, quote_id, sow_date, effective_start, effective_end, notes }, items || []);
+    await logActivity(req, {
+      module: 'sows',
+      action: 'update',
+      entityType: 'sow',
+      entityId: result.id,
+      entityLabel: result.sow_number,
+      details: { summary: 'Updated SOW ' + result.sow_number },
+    });
     res.json({ success: true, data: { id: result.id, sow_number: result.sow_number, replaced_sow_id: id } });
   }),
 
@@ -584,6 +614,14 @@ const sowController = {
 
     const { client_id, quote_id, sow_date, effective_start, effective_end, notes, items } = req.body;
     const result = await SOWModel.createAmendment(id, { client_id, quote_id, sow_date, effective_start, effective_end, notes }, items || []);
+    await logActivity(req, {
+      module: 'sows',
+      action: 'amend',
+      entityType: 'sow',
+      entityId: result.id,
+      entityLabel: result.sow_number,
+      details: { summary: 'Created SOW amendment ' + result.sow_number },
+    });
     res.status(201).json({ success: true, data: { id: result.id, sow_number: result.sow_number, amended_from_sow_id: id, status: 'Amendment Draft' } });
   }),
 
@@ -592,21 +630,28 @@ const sowController = {
     const { status } = req.body;
     const existing = await SOWModel.findById(id);
     if (!existing) throw new AppError(404, 'SOW not found');
-
-    const VALID_TRANSITIONS = {
-      Draft: ['Signed'],
-      'Amendment Draft': ['Signed'],
-      Signed: ['Expired', 'Terminated'],
-      Expired: [],
-      Terminated: [],
-    };
-    const allowed = VALID_TRANSITIONS[existing.status] || [];
-    if (!allowed.includes(status)) {
-      throw new AppError(400, `Cannot change status from "${existing.status}" to "${status}". Allowed: ${allowed.join(', ') || 'none'}`);
+    if (!isAllowedSowStatusChange(existing.status, status)) {
+      throw new AppError(400, `Cannot change status from "${existing.status}" to "${status}".`);
     }
 
     await SOWModel.updateStatus(id, status);
+    await logActivity(req, {
+      module: 'sows',
+      action: 'status_change',
+      entityType: 'sow',
+      entityId: id,
+      entityLabel: existing.sow_number,
+      details: { summary: 'Changed SOW status to ' + status, from: existing.status, to: status },
+    });
     res.json({ success: true, data: { id, status } });
+  }),
+
+  getAssociations: catchAsync(async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    const existing = await SOWModel.findById(id);
+    if (!existing) throw new AppError(404, 'SOW not found');
+    const associations = await SOWModel.getAssociations(id);
+    res.json({ success: true, data: associations });
   }),
 
   remove: catchAsync(async (req, res) => {
@@ -615,6 +660,14 @@ const sowController = {
     if (!existing) throw new AppError(404, 'SOW not found');
     if (!isEditableStatus(existing.status)) throw new AppError(400, 'Only Draft or Amendment Draft SOWs can be deleted');
     await SOWModel.delete(id);
+    await logActivity(req, {
+      module: 'sows',
+      action: 'delete',
+      entityType: 'sow',
+      entityId: id,
+      entityLabel: existing.sow_number,
+      details: { summary: 'Deleted SOW ' + existing.sow_number },
+    });
     res.json({ success: true, data: { message: 'SOW deleted' } });
   }),
 

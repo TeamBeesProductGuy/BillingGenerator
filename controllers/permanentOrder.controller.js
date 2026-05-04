@@ -4,6 +4,7 @@ const PermanentReminderModel = require('../models/permanentReminder.model');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
 const { calculateBillAmount, calculateNextBillDate } = require('../services/permanentBilling.service');
+const { logActivity } = require('../services/activityLog.service');
 
 function buildComputedOrderFields(payload, client) {
   const billAmount = calculateBillAmount(payload.ctc_offered, client.billing_rate);
@@ -38,6 +39,14 @@ const permanentOrderController = {
     await PermanentReminderModel.createForOrder(orderId, payload.next_bill_date);
 
     const order = await PermanentOrderModel.findById(orderId);
+    await logActivity(req, {
+      module: 'permanent_orders',
+      action: 'create',
+      entityType: 'permanent_order',
+      entityId: orderId,
+      entityLabel: (payload.candidate_name || '') + ' - ' + (payload.position_role || ''),
+      details: { summary: 'Created permanent order for ' + payload.candidate_name },
+    });
     res.status(201).json({ success: true, data: order });
   }),
 
@@ -58,6 +67,14 @@ const permanentOrderController = {
     }
 
     const order = await PermanentOrderModel.findById(id);
+    await logActivity(req, {
+      module: 'permanent_orders',
+      action: 'update',
+      entityType: 'permanent_order',
+      entityId: id,
+      entityLabel: (payload.candidate_name || '') + ' - ' + (payload.position_role || ''),
+      details: { summary: 'Updated permanent order for ' + payload.candidate_name },
+    });
     res.json({ success: true, data: order });
   }),
 
@@ -67,6 +84,14 @@ const permanentOrderController = {
     if (!existing) throw new AppError(404, 'Order not found');
 
     await PermanentOrderModel.remove(id);
+    await logActivity(req, {
+      module: 'permanent_orders',
+      action: 'delete',
+      entityType: 'permanent_order',
+      entityId: id,
+      entityLabel: (existing.candidate_name || '') + ' - ' + (existing.position_role || ''),
+      details: { summary: 'Deleted permanent order for ' + existing.candidate_name },
+    });
     res.json({ success: true, data: { message: 'Order deleted' } });
   }),
 };

@@ -3,6 +3,7 @@ const RateCardModel = require('../models/rateCard.model');
 const SOWModel = require('../models/sow.model');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
+const { logActivity } = require('../services/activityLog.service');
 
 function isLinkableSowStatus(status) {
   return status === 'Draft' || status === 'Amendment Draft' || status === 'Signed' || status === 'Active';
@@ -68,6 +69,14 @@ const poController = {
 
     try {
       const result = await POModel.create({ po_number, client_id, po_date, start_date, end_date, po_value, alert_threshold, sow_id, notes });
+      await logActivity(req, {
+        module: 'purchase_orders',
+        action: 'create',
+        entityType: 'purchase_order',
+        entityId: result.id,
+        entityLabel: result.po_number,
+        details: { summary: 'Created purchase order ' + result.po_number },
+      });
       res.status(201).json({ success: true, data: { id: result.id, po_number: result.po_number } });
     } catch (err) {
       if (err.message && (err.message.includes('UNIQUE') || err.message.includes('duplicate key'))) {
@@ -88,6 +97,15 @@ const poController = {
     }
 
     await POModel.update(id, req.body);
+    const updated = await POModel.findById(id);
+    await logActivity(req, {
+      module: 'purchase_orders',
+      action: 'update',
+      entityType: 'purchase_order',
+      entityId: id,
+      entityLabel: updated ? updated.po_number : 'PO #' + id,
+      details: { summary: 'Updated purchase order ' + (updated ? updated.po_number : id) },
+    });
     res.json({ success: true, data: { id } });
   }),
 
@@ -102,6 +120,14 @@ const poController = {
 
     await POModel.addConsumption(id, amount, description, billingRunId);
     const updated = await POModel.findById(id);
+    await logActivity(req, {
+      module: 'purchase_orders',
+      action: 'record_consumption',
+      entityType: 'purchase_order',
+      entityId: id,
+      entityLabel: updated.po_number,
+      details: { summary: 'Recorded PO consumption of ' + amount, amount, description: description || null },
+    });
     res.json({ success: true, data: updated });
   }),
 
@@ -121,7 +147,53 @@ const poController = {
       po_number, client_id: po.client_id, po_date, start_date, end_date,
       po_value, alert_threshold, notes, sow_id: po.sow_id,
     });
+    await logActivity(req, {
+      module: 'purchase_orders',
+      action: 'renew',
+      entityType: 'purchase_order',
+      entityId: newPoId,
+      entityLabel: po_number,
+      details: { summary: 'Renewed purchase order ' + po.po_number + ' as ' + po_number },
+    });
     res.json({ success: true, data: { oldPoId: id, newPoId, po_number } });
+  }),
+
+  updateStatus: catchAsync(async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    const { status } = req.body;
+    const po = await POModel.findById(id);
+    if (!po) throw new AppError(404, 'Purchase order not found');
+
+    const allowed = {
+      Active: ['Inactive', 'Expired', 'Exhausted', 'Renewed', 'Cancelled'],
+      Inactive: ['Active'],
+      Expired: ['Inactive'],
+      Exhausted: ['Inactive'],
+      Renewed: [],
+      Cancelled: [],
+    };
+    if (!(allowed[po.status] || []).includes(status)) {
+      throw new AppError(400, `Cannot change PO status from "${po.status}" to "${status}".`);
+    }
+
+    await POModel.updateStatus(id, status);
+    await logActivity(req, {
+      module: 'purchase_orders',
+      action: 'status_change',
+      entityType: 'purchase_order',
+      entityId: id,
+      entityLabel: po.po_number,
+      details: { summary: 'Changed purchase order status to ' + status, from: po.status, to: status },
+    });
+    res.json({ success: true, data: { id, status } });
+  }),
+
+  getAssociations: catchAsync(async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    const po = await POModel.findById(id);
+    if (!po) throw new AppError(404, 'Purchase order not found');
+    const associations = await POModel.getAssociations(id);
+    res.json({ success: true, data: associations });
   }),
 };
 

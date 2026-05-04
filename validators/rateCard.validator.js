@@ -31,6 +31,11 @@ const createRateCard = Joi.object({
     .max(500)
     .allow('', null),
 
+  sow_item_id: Joi.number()
+    .integer()
+    .positive()
+    .allow(null),
+
   monthly_rate: Joi.number()
     .min(0)
     .required(),
@@ -117,6 +122,11 @@ const updateRateCard = Joi.object({
     .trim()
     .max(500)
     .allow('', null),
+
+  sow_item_id: Joi.number()
+    .integer()
+    .positive()
+    .allow(null),
 
   monthly_rate: Joi.number()
     .min(0),

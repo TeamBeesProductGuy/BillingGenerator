@@ -1,0 +1,61 @@
+<div class="p-5 sm:p-8 space-y-6 fade-in">
+  <div class="orders-hero">
+    <div class="page-hero-copy">
+      <p class="page-hero-eyebrow">Audit Trail</p>
+    </div>
+  </div>
+
+  <div class="grid gap-4 md:grid-cols-3" id="activityLogSummary">
+    <div class="table-summary-card">
+      <div class="table-summary-label">Visible Logs</div>
+      <div class="table-summary-value">0</div>
+    </div>
+    <div class="table-summary-card">
+      <div class="table-summary-label">Modules</div>
+      <div class="table-summary-value">0</div>
+    </div>
+    <div class="table-summary-card">
+      <div class="table-summary-label">Users</div>
+      <div class="table-summary-value">0</div>
+    </div>
+  </div>
+
+  <div class="stat-card !p-4">
+    <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_180px_180px]">
+      <div class="flex items-center gap-3">
+        <span class="material-symbols-outlined text-on-surface-variant">search</span>
+        <input type="text" id="activityLogsSearch" placeholder="Search logs..." class="flex-1">
+      </div>
+      <select id="activityLogsModule">
+        <option value="">All modules</option>
+      </select>
+      <select id="activityLogsAction">
+        <option value="">All actions</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="stat-card !p-0 overflow-hidden table-section-card">
+    <div class="table-section-header">
+      <h3 class="table-section-title">Activity Logs</h3>
+      <div class="table-section-count" id="activityLogsCount">0 rows</div>
+    </div>
+    <div class="overflow-x-auto styled-scrollbar">
+      <table class="stitch-table" id="activityLogsTable">
+        <thead>
+          <tr>
+            <th class="sortable" data-sort-key="0" data-sort-type="date">When</th>
+            <th class="sortable" data-sort-key="1">User</th>
+            <th class="sortable" data-sort-key="2">Module</th>
+            <th class="sortable" data-sort-key="3">Action</th>
+            <th class="sortable" data-sort-key="4">Record</th>
+            <th class="sortable" data-sort-key="5">Details</th>
+          </tr>
+        </thead>
+        <tbody id="activityLogsBody">
+          <tr><td colspan="6"><div class="loading-spinner"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

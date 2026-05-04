@@ -16,6 +16,10 @@ function throwRateCardBillingWindowMigrationError() {
   throw new Error('Rate card pause/disable billing fields require DB migration: run database/migrations/017_client_leaves_and_rate_card_billing_windows.sql in Supabase SQL Editor.');
 }
 
+function throwRateCardSowItemMigrationError() {
+  throw new Error('Rate card SOW item linkage requires DB migration: run database/migrations/018_rate_card_sow_item_link.sql in Supabase SQL Editor.');
+}
+
 const RateCardModel = {
   async findAll(clientId) {
     let query = supabase
@@ -76,6 +80,7 @@ const RateCardModel = {
         doj: data.doj || null,
         reporting_manager: data.reporting_manager || null,
         service_description: data.service_description || null,
+        sow_item_id: data.sow_item_id || null,
         monthly_rate: data.monthly_rate,
         leaves_allowed: data.leaves_allowed || 0,
         charging_date: data.charging_date || null,
@@ -101,6 +106,9 @@ const RateCardModel = {
     if (isMissingColumnError(error, 'pause_billing') || isMissingColumnError(error, 'disable_billing')) {
       throwRateCardBillingWindowMigrationError();
     }
+    if (isMissingColumnError(error, 'sow_item_id')) {
+      throwRateCardSowItemMigrationError();
+    }
     if (error) throw new Error(error.message);
     return row.id;
   },
@@ -113,6 +121,7 @@ const RateCardModel = {
       doj: data.doj || null,
       reporting_manager: data.reporting_manager || null,
       service_description: data.service_description || null,
+      sow_item_id: data.sow_item_id || null,
       monthly_rate: data.monthly_rate,
       leaves_allowed: data.leaves_allowed || 0,
       charging_date: data.charging_date || null,
@@ -142,6 +151,9 @@ const RateCardModel = {
     if (isMissingColumnError(result.error, 'pause_billing') || isMissingColumnError(result.error, 'disable_billing')) {
       throwRateCardBillingWindowMigrationError();
     }
+    if (isMissingColumnError(result.error, 'sow_item_id')) {
+      throwRateCardSowItemMigrationError();
+    }
 
     if (result.error) throw new Error(result.error.message);
     return result.data.map((r) => r.id);
@@ -156,6 +168,7 @@ const RateCardModel = {
         doj: data.doj || null,
         reporting_manager: data.reporting_manager || null,
         service_description: data.service_description || null,
+        sow_item_id: data.sow_item_id !== undefined ? (data.sow_item_id || null) : undefined,
         monthly_rate: data.monthly_rate,
         leaves_allowed: data.leaves_allowed || 0,
         charging_date: data.charging_date || null,
@@ -180,6 +193,9 @@ const RateCardModel = {
     }
     if (isMissingColumnError(error, 'pause_billing') || isMissingColumnError(error, 'disable_billing')) {
       throwRateCardBillingWindowMigrationError();
+    }
+    if (isMissingColumnError(error, 'sow_item_id')) {
+      throwRateCardSowItemMigrationError();
     }
     if (error) throw new Error(error.message);
   },

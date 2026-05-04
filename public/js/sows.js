@@ -3,6 +3,18 @@
   var sowActionMap = {};
   var sowClientMap = {};
   var sowDocumentUploadMode = 'with-quote';
+  var sowFormSubmitting = false;
+  var quoteSideNoteMarker = '\n\n---SIDE_NOTE---\n';
+
+  function setSowFormSubmitting(isSubmitting) {
+    sowFormSubmitting = !!isSubmitting;
+    var form = document.getElementById('sowForm');
+    if (!form) return;
+    var submitButton = form.querySelector('button[type="submit"]');
+    if (!submitButton) return;
+    submitButton.disabled = sowFormSubmitting;
+    submitButton.textContent = sowFormSubmitting ? 'Saving...' : 'Save';
+  }
 
   window.openSowDocumentUploadModal = async function () {
     document.getElementById('sowDocumentUploadForm').reset();
@@ -113,12 +125,20 @@
     return match ? match[1].trim() : '';
   }
 
+  function getMailFormatNotes(notes) {
+    var raw = String(notes || '');
+    var markerIndex = raw.indexOf(quoteSideNoteMarker);
+    return markerIndex === -1 ? raw : raw.slice(0, markerIndex);
+  }
+
   function getQuoteCandidateLabel(quote) {
-    return extractStructuredField(quote && quote.notes, 'Candidate', ['Dear', 'Body', 'Regards', 'Designation']) || '';
+    return extractStructuredField(getMailFormatNotes(quote && quote.notes), 'Candidate', ['Dear', 'Body', 'Regards', 'Designation']) || '';
   }
 
   function getQuoteRoleLabel(quote) {
-    return extractStructuredField(quote && quote.notes, 'Designation', ['Dear', 'Body', 'Regards']) || '';
+    if (quote && quote.primary_description) return String(quote.primary_description).trim();
+    if (quote && quote.item_descriptions && quote.item_descriptions.length) return String(quote.item_descriptions[0] || '').trim();
+    return extractStructuredField(getMailFormatNotes(quote && quote.notes), 'Designation', ['Dear', 'Body', 'Regards']) || '';
   }
 
   function populateSowDocumentClientOptions() {
@@ -256,12 +276,16 @@
     addSowItemRow();
     document.getElementById('sowDate').value = toDateInputValue(new Date());
     document.getElementById('sowEffectiveMonths').value = '';
+    setSowFormSubmitting(false);
     openModal('sowModal');
   };
-  window.closeSOWModal = function () { closeModal('sowModal'); };
+  window.closeSOWModal = function () {
+    setSowFormSubmitting(false);
+    closeModal('sowModal');
+  };
 
   var statusBadge = function (s) {
-    var map = { Draft: 'badge-processing', 'Amendment Draft': 'badge-processing', Signed: 'badge-success', Expired: 'badge-warning', Terminated: 'badge-error' };
+    var map = { Draft: 'badge-processing', 'Amendment Draft': 'badge-processing', Signed: 'badge-success', Inactive: 'badge-warning', Expired: 'badge-warning', Terminated: 'badge-error' };
     return '<span class="' + (map[s] || 'badge-processing') + '">' + s + '</span>';
   };
 
@@ -306,10 +330,10 @@
       res.data.forEach(function (q) {
         var candidate = getQuoteCandidateLabel(q);
         var role = getQuoteRoleLabel(q);
-        var labelParts = [q.quote_number || ''];
-        if (candidate) labelParts.push(candidate);
-        if (role) labelParts.push(role);
-        sel.innerHTML += '<option value="' + q.id + '">' + escapeHtml(labelParts.join('_')) + '</option>';
+        var descriptor = [role, candidate].filter(Boolean).join(' / ');
+        var label = q.quote_number || '';
+        if (descriptor) label += ' | ' + descriptor;
+        sel.innerHTML += '<option value="' + q.id + '">' + escapeHtml(label) + '</option>';
       });
     } catch (err) {
       showToast(err.message, 'danger');
@@ -364,8 +388,7 @@
           var client = sowClientMap[String(s.client_id)] || null;
           var clientDisplay = client ? getClientDisplayName(client) : (s.client_name || '');
           var clientFullName = client ? (client.client_name || clientDisplay) : (s.client_name || clientDisplay);
-          var VALID_TRANSITIONS = { Draft: ['Signed'], 'Amendment Draft': ['Signed'], Signed: ['Expired', 'Terminated'], Expired: [], Terminated: [] };
-          var STATUS_LABELS = { Signed: 'Mark Signed', Expired: 'Mark Expired', Terminated: 'Terminate', Draft: 'Revert to Draft' };
+          var VALID_TRANSITIONS = { Draft: ['Signed', 'Inactive'], 'Amendment Draft': ['Signed', 'Inactive'], Signed: ['Inactive', 'Expired', 'Terminated'], Active: ['Inactive', 'Expired', 'Terminated'], Inactive: ['Signed'], Expired: [], Terminated: [] };
           var allowed = VALID_TRANSITIONS[s.status] || [];
           sowActionMap[s.id] = {
             id: s.id,
@@ -381,7 +404,7 @@
           actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="viewSOW(' + s.id + ')" title="View"><span class="material-symbols-outlined text-base">visibility</span></button>';
 
           // Status menu
-          if (allowed.length > 0 || s.status === 'Draft' || s.status === 'Amendment Draft' || s.status === 'Signed') {
+          if (allowed.length > 0 || s.status === 'Draft' || s.status === 'Amendment Draft' || s.status === 'Signed' || s.status === 'Inactive') {
             actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="openSOWActions(' + s.id + ')" title="More"><span class="material-symbols-outlined text-base">more_vert</span></button>';
           }
           actionsHtml += '</div>';
@@ -407,7 +430,7 @@
     var actionState = sowActionMap[id];
     var container = document.getElementById('sowActionList');
     var title = document.getElementById('sowActionTitle');
-    var STATUS_LABELS = { Signed: 'Mark Signed', Expired: 'Mark Expired', Terminated: 'Terminate', Draft: 'Revert to Draft' };
+    var STATUS_LABELS = { Signed: 'Mark Active', Inactive: 'Mark Inactive', Expired: 'Mark Expired', Terminated: 'Terminate', Draft: 'Revert to Draft' };
 
     if (!actionState || !container || !title) return;
 
@@ -434,10 +457,37 @@
     closeModal('sowActionModal');
   };
 
-  window.runSOWActionStatus = function (id, status) {
+  window.runSOWActionStatus = async function (id, status) {
     closeSOWActions();
+    if (status === 'Inactive') {
+      var ok = await confirmSowInactive(id);
+      if (!ok) return;
+    } else if (status === 'Signed') {
+      var activateOk = await confirmAction('Mark SOW Active', 'This will make the SOW available again for rate cards and billing. Continue?');
+      if (!activateOk) return;
+    }
     changeSOWStatus(id, status);
   };
+
+  async function confirmSowInactive(id) {
+    var detailText = '';
+    try {
+      var res = await apiCall('GET', '/api/sows/' + id + '/associations');
+      var pos = res.data.purchaseOrders || [];
+      var rateCards = res.data.rateCards || [];
+      var poLabel = pos.length === 1 ? '1 purchase order' : pos.length + ' purchase orders';
+      var rcLabel = rateCards.length === 1 ? '1 rate card' : rateCards.length + ' rate cards';
+      if (pos.length || rateCards.length) {
+        var poDetails = pos.map(function (po) {
+          return (po.po_number || 'PO #' + po.id) + ' (ID ' + po.id + ', ' + po.status + ')';
+        }).join(', ');
+        detailText = ' This SOW is currently associated with ' + poLabel + ' and ' + rcLabel + '.';
+        if (poDetails) detailText += ' Linked PO details: ' + poDetails + '.';
+        detailText += ' Linked POs will not be changed automatically.';
+      }
+    } catch (err) { /* ignore association lookup failure */ }
+    return confirmAction('Mark SOW Inactive', 'Marking this SOW inactive will stop billing for rate cards linked to it and prevent new rate cards/POs from using it.' + detailText + ' You can mark it active again later.');
+  }
 
   window.runSOWActionLinkPO = function (sowId, clientId) {
     closeSOWActions();
@@ -579,6 +629,7 @@
 
   document.getElementById('sowForm').addEventListener('submit', async function (e) {
     e.preventDefault();
+    if (sowFormSubmitting) return;
     if (document.getElementById('sowStart').value && document.getElementById('sowEnd').value && document.getElementById('sowStart').value > document.getElementById('sowEnd').value) {
       showToast('Start date must be less than or equal to end date', 'danger');
       return;
@@ -602,6 +653,7 @@
       items: items,
     };
     try {
+      setSowFormSubmitting(true);
       if (window.sowAmend) {
         await apiCall('POST', '/api/sows/' + window.sowAmend + '/amend', data);
         showToast('Amendment draft created', 'success');
@@ -615,6 +667,7 @@
       closeSOWModal();
       loadSOWs();
     } catch (err) { showToast(err.message, 'danger'); }
+    finally { setSowFormSubmitting(false); }
   });
 
   document.getElementById('sowStart').addEventListener('input', function () {

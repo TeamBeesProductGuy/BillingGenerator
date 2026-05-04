@@ -2,6 +2,7 @@ const PermanentReminderModel = require('../models/permanentReminder.model');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
 const { sendPaymentReminderEmail } = require('../services/graphMail.service');
+const { logActivity } = require('../services/activityLog.service');
 
 const permanentReminderController = {
   listOpen: catchAsync(async (req, res) => {
@@ -18,6 +19,14 @@ const permanentReminderController = {
 
     await PermanentReminderModel.updateEmails(id, req.body.email_primary, req.body.email_secondary);
     const updated = await PermanentReminderModel.findById(id);
+    await logActivity(req, {
+      module: 'permanent_reminders',
+      action: 'update_emails',
+      entityType: 'permanent_reminder',
+      entityId: id,
+      entityLabel: updated && updated.order ? updated.order.candidate_name : 'Reminder #' + id,
+      details: { summary: 'Updated reminder emails' },
+    });
     res.json({ success: true, data: updated });
   }),
 
@@ -28,6 +37,14 @@ const permanentReminderController = {
 
     await PermanentReminderModel.updatePaymentStatus(id, req.body.payment_status);
     const updated = await PermanentReminderModel.findById(id);
+    await logActivity(req, {
+      module: 'permanent_reminders',
+      action: 'payment_status',
+      entityType: 'permanent_reminder',
+      entityId: id,
+      entityLabel: updated && updated.order ? updated.order.candidate_name : 'Reminder #' + id,
+      details: { summary: 'Marked payment status as ' + req.body.payment_status },
+    });
     res.json({ success: true, data: updated });
   }),
 
@@ -39,6 +56,14 @@ const permanentReminderController = {
 
     await PermanentReminderModel.markInvoiceSent(id, req.body.invoice_number, req.body.invoice_date);
     const updated = await PermanentReminderModel.findById(id);
+    await logActivity(req, {
+      module: 'permanent_reminders',
+      action: 'invoice_sent',
+      entityType: 'permanent_reminder',
+      entityId: id,
+      entityLabel: updated && updated.order ? updated.order.candidate_name : 'Reminder #' + id,
+      details: { summary: 'Saved invoice details', invoice_number: req.body.invoice_number, invoice_date: req.body.invoice_date },
+    });
     res.json({ success: true, data: updated });
   }),
 
@@ -58,6 +83,14 @@ const permanentReminderController = {
     }
 
     const updated = await PermanentReminderModel.findById(id);
+    await logActivity(req, {
+      module: 'permanent_reminders',
+      action: 'send_mail',
+      entityType: 'permanent_reminder',
+      entityId: id,
+      entityLabel: updated && updated.order ? updated.order.candidate_name : 'Reminder #' + id,
+      details: { summary: 'Sent reminder email' },
+    });
     res.json({
       success: true,
       data: updated,
@@ -75,6 +108,14 @@ const permanentReminderController = {
 
     await PermanentReminderModel.close(id);
     const updated = await PermanentReminderModel.findById(id);
+    await logActivity(req, {
+      module: 'permanent_reminders',
+      action: 'close',
+      entityType: 'permanent_reminder',
+      entityId: id,
+      entityLabel: updated && updated.order ? updated.order.candidate_name : 'Reminder #' + id,
+      details: { summary: 'Closed reminder' },
+    });
     res.json({ success: true, data: updated });
   }),
 
@@ -86,6 +127,14 @@ const permanentReminderController = {
 
     await PermanentReminderModel.extend(id, req.body.due_date);
     const updated = await PermanentReminderModel.findById(id);
+    await logActivity(req, {
+      module: 'permanent_reminders',
+      action: 'extend',
+      entityType: 'permanent_reminder',
+      entityId: id,
+      entityLabel: updated && updated.order ? updated.order.candidate_name : 'Reminder #' + id,
+      details: { summary: 'Extended reminder due date to ' + req.body.due_date },
+    });
     res.json({ success: true, data: updated });
   }),
 };

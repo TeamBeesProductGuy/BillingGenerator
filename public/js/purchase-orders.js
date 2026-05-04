@@ -27,7 +27,7 @@
   window.closeRenewModal = function () { closeModal('renewModal'); };
 
   var statusBadge = function (s) {
-    var map = { Active: 'badge-success', Expired: 'badge-error', Exhausted: 'badge-warning', Renewed: 'badge-processing', Cancelled: 'badge-processing' };
+    var map = { Active: 'badge-success', Inactive: 'badge-warning', Expired: 'badge-error', Exhausted: 'badge-warning', Renewed: 'badge-processing', Cancelled: 'badge-processing' };
     return '<span class="' + (map[s] || 'badge-processing') + '">' + s + '</span>';
   };
 
@@ -61,11 +61,12 @@
 
   function buildSowOptionLabel(sow, ownerClientId, isBorrowed) {
     var ownerClient = poClientMap[String(ownerClientId)] || null;
-    var ownerLabel = ownerClient ? getClientDisplayName(ownerClient) : '';
+    var ownerLabel = ownerClient ? (ownerClient.abbreviation || getClientDisplayName(ownerClient)) : '';
+    var status = sow.status || 'Unknown';
     if (ownerLabel) {
-      return (sow.sow_number || '') + ' | From ' + ownerLabel;
+      return (sow.sow_number || '') + ' : From ' + ownerLabel + ' : ' + status;
     }
-    return sow.sow_number || '';
+    return (sow.sow_number || '') + ' : ' + status;
   }
 
   async function loadSOWsForClient(clientId, sourceClientId) {
@@ -89,7 +90,7 @@
       responses.forEach(function (res, index) {
         var requestedClientId = index === 0 ? clientId : sourceClientId;
         (res.data || []).forEach(function (s) {
-          if (s.status === 'Expired' || s.status === 'Terminated' || seen[String(s.id)]) return;
+          if (s.status === 'Expired' || s.status === 'Terminated' || s.status === 'Inactive' || seen[String(s.id)]) return;
           seen[String(s.id)] = true;
           var ownerId = s.client_id || requestedClientId;
           var isBorrowed = String(ownerId) !== String(clientId);
@@ -337,6 +338,10 @@
     container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runPOActionEdit(' + id + ')"><span class="material-symbols-outlined">edit</span><span><strong>Edit purchase order</strong><small>Update dates, value, linked SOW, and notes</small></span></button>';
     if (actionState.status === 'Active') {
       container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runPOActionConsume(' + id + ')"><span class="material-symbols-outlined">remove_circle</span><span><strong>Record consumption</strong><small>Log an amount consumed from this PO</small></span></button>';
+      container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runPOActionStatus(' + id + ', \'Inactive\')"><span class="material-symbols-outlined">pause_circle</span><span><strong>Mark inactive</strong><small>Stop billing consumption for this purchase order</small></span></button>';
+    }
+    if (actionState.status === 'Inactive') {
+      container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runPOActionStatus(' + id + ', \'Active\')"><span class="material-symbols-outlined">play_circle</span><span><strong>Mark active</strong><small>Make this purchase order available again</small></span></button>';
     }
     if (['Active', 'Expired', 'Exhausted'].indexOf(actionState.status) !== -1) {
       container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runPOActionRenew(' + id + ')"><span class="material-symbols-outlined">autorenew</span><span><strong>Renew purchase order</strong><small>Create a new renewed PO for this engagement</small></span></button>';
@@ -367,6 +372,43 @@
     closePOActions();
     renewPO(id);
   };
+
+  window.runPOActionStatus = async function (id, status) {
+    closePOActions();
+    if (status === 'Inactive') {
+      var ok = await confirmPoInactive(id);
+      if (!ok) return;
+    } else if (status === 'Active') {
+      var activateOk = await confirmAction('Mark PO Active', 'This will make the purchase order available again for rate card linking and billing consumption. Continue?');
+      if (!activateOk) return;
+    }
+    try {
+      await apiCall('PATCH', '/api/purchase-orders/' + id + '/status', { status: status });
+      showToast('PO status updated to ' + status, 'success');
+      loadPOs();
+      loadAlerts();
+    } catch (err) { showToast(err.message, 'danger'); }
+  };
+
+  async function confirmPoInactive(id) {
+    var detailText = '';
+    try {
+      var res = await apiCall('GET', '/api/purchase-orders/' + id + '/associations');
+      var sows = res.data.sows || [];
+      var rateCards = res.data.rateCards || [];
+      var sowLabel = sows.length === 1 ? '1 SOW' : sows.length + ' SOWs';
+      var rcLabel = rateCards.length === 1 ? '1 rate card' : rateCards.length + ' rate cards';
+      if (sows.length || rateCards.length) {
+        var sowDetails = sows.map(function (sow) {
+          return (sow.sow_number || 'SOW #' + sow.id) + ' (ID ' + sow.id + ')';
+        }).join(', ');
+        detailText = ' This PO is currently associated with ' + sowLabel + ' and ' + rcLabel + '.';
+        if (sowDetails) detailText += ' Linked SOW details: ' + sowDetails + '.';
+        detailText += ' Linked SOWs will not be changed automatically.';
+      }
+    } catch (err) { /* ignore association lookup failure */ }
+    return confirmAction('Mark PO Inactive', 'Marking this PO inactive will stop billing consumption against it and prevent new rate cards from using it.' + detailText + ' You can mark it active again later.');
+  }
 
   window.viewPO = async function (id) {
     try {

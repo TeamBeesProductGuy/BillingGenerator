@@ -62,6 +62,31 @@ function buildLegacyInsertPayload(quoteNumber, quote, totalAmount) {
   };
 }
 
+async function attachQuoteItemSummaries(quotes) {
+  if (!quotes || quotes.length === 0) return quotes || [];
+  const quoteIds = Array.from(new Set(quotes.map((quote) => quote.id).filter(Boolean)));
+  if (quoteIds.length === 0) return quotes;
+
+  const { data: items, error } = await supabase
+    .from('quote_items')
+    .select('quote_id, description')
+    .in('quote_id', quoteIds)
+    .order('id');
+  if (error) throw new Error(error.message);
+
+  const summaryMap = {};
+  (items || []).forEach((item) => {
+    if (!summaryMap[item.quote_id]) summaryMap[item.quote_id] = [];
+    if (item.description) summaryMap[item.quote_id].push(item.description);
+  });
+
+  return quotes.map((quote) => ({
+    ...quote,
+    item_descriptions: summaryMap[quote.id] || [],
+    primary_description: (summaryMap[quote.id] && summaryMap[quote.id][0]) || '',
+  }));
+}
+
 const QuoteModel = {
   async findAll(clientId, status) {
     let query = supabase.from('quotes_view').select('*').eq('is_latest', true);
@@ -81,7 +106,7 @@ const QuoteModel = {
     }
 
     if (error) throw new Error(error.message);
-    return data;
+    return attachQuoteItemSummaries(data || []);
   },
 
   async findRegister(clientId, status) {
@@ -96,7 +121,7 @@ const QuoteModel = {
     }
 
     if (error) throw new Error(error.message);
-    return data || [];
+    return attachQuoteItemSummaries(data || []);
   },
 
   async findAmendments(clientId, status) {
@@ -109,7 +134,7 @@ const QuoteModel = {
       return [];
     }
     if (error) throw new Error(error.message);
-    return data || [];
+    return attachQuoteItemSummaries(data || []);
   },
 
   async findById(id) {
