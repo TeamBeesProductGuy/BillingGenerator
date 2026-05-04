@@ -304,7 +304,7 @@ function resolveSowCapacityTarget(sow, serviceDescription, selectedSowItem) {
       serviceKey: normalizeComparableText(selectedSowItem.role_position || serviceDescription),
       allowedEmployees: Number(selectedSowItem.quantity) || 0,
       allowedAmount: Number(selectedSowItem.amount) || 0,
-      label: `${selectedSowItem.role_position || serviceDescription} (${Number(selectedSowItem.amount) || 0})`,
+      label: `${selectedSowItem.role_position || serviceDescription} : ${Number(selectedSowItem.amount) || 0} : ${selectedSowItem.valid_from || 'open'} to ${selectedSowItem.valid_to || 'open'}`,
       scoped: true,
     };
   }

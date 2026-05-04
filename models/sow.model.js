@@ -182,6 +182,8 @@ const SOWModel = {
         role_position: item.role_position,
         quantity: item.quantity,
         amount: item.amount,
+        valid_from: item.valid_from || sow.effective_start,
+        valid_to: item.valid_to || sow.effective_end,
       }));
       const { error: iErr } = await supabase.from('sow_items').insert(itemRows);
       if (iErr) throw new Error(iErr.message);
@@ -222,6 +224,8 @@ const SOWModel = {
           role_position: item.role_position,
           quantity: item.quantity,
           amount: item.amount,
+          valid_from: item.valid_from || sow.effective_start,
+          valid_to: item.valid_to || sow.effective_end,
         }));
         const { error: iErr } = await supabase.from('sow_items').insert(itemRows);
         if (iErr) throw new Error(iErr.message);

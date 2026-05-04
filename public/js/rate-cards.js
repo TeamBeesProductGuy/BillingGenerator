@@ -4,6 +4,7 @@
   var rateCardRowMap = {};
   var currentSowDetail = null;
   var rcDojEditedByUser = false;
+  var pendingRateCardSave = null;
 
   function normalizeClientKey(value) {
     return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -123,9 +124,11 @@
     document.getElementById('rcSowPreview').classList.add('hidden');
     document.getElementById('rcSowPreviewContent').innerHTML = '';
     resetSowServiceOptions();
+    document.getElementById('rcServiceDuration').value = '';
     document.getElementById('rcSowRoleCapacity').classList.add('hidden');
     document.getElementById('rcSowRoleCapacity').innerHTML = '';
     resetBillingWindowFields();
+    hideRCSavePreview();
     setBillingControlsVisibility(false);
     rcDojEditedByUser = false;
     document.getElementById('rcRateMode').value = 'monthly';
@@ -148,9 +151,11 @@
     document.getElementById('rcSowPreview').classList.add('hidden');
     document.getElementById('rcSowPreviewContent').innerHTML = '';
     resetSowServiceOptions();
+    document.getElementById('rcServiceDuration').value = '';
     document.getElementById('rcSowRoleCapacity').classList.add('hidden');
     document.getElementById('rcSowRoleCapacity').innerHTML = '';
     resetBillingWindowFields();
+    hideRCSavePreview();
     setBillingControlsVisibility(false);
     rcDojEditedByUser = false;
     document.getElementById('rcRateMode').value = 'monthly';
@@ -239,7 +244,7 @@
         sow.items.forEach(function (item) {
           html += '<div class="rounded-lg bg-surface-container-high p-3">' +
             '<div><strong>' + escapeHtml(item.role_position) + '</strong></div>' +
-            '<div class="text-xs text-on-surface-variant">Qty: ' + item.quantity + ' | Amount: ' + formatCurrency(item.amount) + '</div>' +
+            '<div class="text-xs text-on-surface-variant">Qty: ' + item.quantity + ' | Amount: ' + formatCurrency(item.amount) + ' | Duration: ' + escapeHtml(formatSowItemDuration(item)) + '</div>' +
           '</div>';
         });
         html += '</div>';
@@ -293,10 +298,17 @@
   function resetSowServiceOptions() {
     var sel = document.getElementById('rcServiceDescription');
     if (sel) sel.innerHTML = '<option value="">Select service from SOW</option>';
+    var durationInput = document.getElementById('rcServiceDuration');
+    if (durationInput) durationInput.value = '';
+  }
+
+  function formatSowItemDuration(item) {
+    if (!item || (!item.valid_from && !item.valid_to)) return 'Full SOW duration';
+    return formatDate(item.valid_from) + ' to ' + formatDate(item.valid_to);
   }
 
   function formatSowServiceOptionLabel(item) {
-    return String(item.role_position || '').toUpperCase() + ' (' + (parseFloat(item.amount) || 0) + ')';
+    return String(item.role_position || '').toUpperCase() + ' : ' + (parseFloat(item.amount) || 0) + ' : ' + formatSowItemDuration(item);
   }
 
   function getSelectedSowServiceOption() {
@@ -319,6 +331,7 @@
       option.setAttribute('data-sow-item-id', item.id);
       option.setAttribute('data-amount', parseFloat(item.amount) || 0);
       option.setAttribute('data-quantity', parseInt(item.quantity, 10) || 0);
+      option.setAttribute('data-duration', formatSowItemDuration(item));
       sel.appendChild(option);
     });
 
@@ -336,11 +349,17 @@
         return normalizeComparableText(option.value) === normalizeComparableText(selectedService);
       });
     }
-    if (match) match.selected = true;
+    if (match) {
+      match.selected = true;
+      var durationInput = document.getElementById('rcServiceDuration');
+      if (durationInput) durationInput.value = match.getAttribute('data-duration') || '';
+    }
   }
 
   function applySelectedSowService() {
     var selectedOption = getSelectedSowServiceOption();
+    var durationInput = document.getElementById('rcServiceDuration');
+    if (durationInput) durationInput.value = selectedOption ? (selectedOption.getAttribute('data-duration') || '') : '';
     if (selectedOption && document.getElementById('rcRateMode').value === 'monthly') {
       var amount = parseFloat(selectedOption.getAttribute('data-amount')) || 0;
       document.getElementById('rcRate').value = amount;
@@ -451,6 +470,93 @@
     return true;
   }
 
+  function getSelectedOptionText(id) {
+    var el = document.getElementById(id);
+    if (!el || el.selectedIndex < 0) return '';
+    return el.options[el.selectedIndex] ? el.options[el.selectedIndex].textContent : '';
+  }
+
+  function previewField(label, value) {
+    return '<div class="rounded-lg bg-surface-container-high border border-outline-variant/10 p-3">' +
+      '<div class="text-[11px] font-semibold uppercase tracking-[0.12em] text-on-surface-variant">' + escapeHtml(label) + '</div>' +
+      '<div class="mt-1 font-semibold text-on-surface break-words">' + escapeHtml(value || '-') + '</div>' +
+    '</div>';
+  }
+
+  function hideRCSavePreview() {
+    pendingRateCardSave = null;
+    var box = document.getElementById('rcSavePreview');
+    var content = document.getElementById('rcSavePreviewContent');
+    var footer = document.getElementById('rcModalFooter');
+    if (box) box.classList.add('hidden');
+    if (content) content.innerHTML = '';
+    if (footer) footer.classList.remove('hidden');
+  }
+
+  function showRCSavePreview(data) {
+    pendingRateCardSave = data;
+    var box = document.getElementById('rcSavePreview');
+    var content = document.getElementById('rcSavePreviewContent');
+    if (!box || !content) return;
+    var billingStatus = data.disable_billing
+      ? 'Disable billing from ' + (data.disable_from_date || '-')
+      : (data.pause_billing ? 'Pause billing from ' + (data.pause_start_date || '-') + ' to ' + (data.pause_end_date || '-') : 'Invoice enabled');
+    content.innerHTML = [
+      previewField('Emp Code', data.emp_code),
+      previewField('Emp Name', data.emp_name),
+      previewField('DOJ', data.doj ? formatDate(data.doj) : '-'),
+      previewField('Reporting Client', getSelectedOptionText('rcClient')),
+      previewField('SOW', getSelectedOptionText('rcSOW')),
+      previewField('Service Description', getSelectedOptionText('rcServiceDescription')),
+      previewField('Duration', document.getElementById('rcServiceDuration').value || '-'),
+      previewField('Monthly Rate', formatCurrency(data.monthly_rate)),
+      previewField('Leaves Allowed', String(data.leaves_allowed || 0)),
+      previewField('Date of Reporting', data.charging_date ? formatDate(data.charging_date) : '-'),
+      previewField('Purchase Order', getSelectedOptionText('rcPO') || '-'),
+      previewField('Billing Status', billingStatus),
+      previewField('Reporting Manager', data.reporting_manager || '-'),
+    ].join('');
+    box.classList.remove('hidden');
+    var footer = document.getElementById('rcModalFooter');
+    if (footer) footer.classList.add('hidden');
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  async function saveRateCardData(data) {
+    try {
+      if (window.rcEdit) {
+        await apiCall('PUT', '/api/rate-cards/' + window.rcEdit, data);
+        showToast('Rate card updated', 'success');
+      } else {
+        await apiCall('POST', '/api/rate-cards', data);
+        showToast('Rate card created', 'success');
+      }
+      closeRCModal();
+      loadRateCards();
+    } catch (err) { showToast(err.message, 'danger'); }
+  }
+
+  window.editRCPreview = function () {
+    pendingRateCardSave = null;
+    var box = document.getElementById('rcSavePreview');
+    if (box) box.classList.add('hidden');
+  };
+
+  window.confirmRCSave = function () {
+    if (!pendingRateCardSave) {
+      showToast('Review the rate card details before saving', 'danger');
+      return;
+    }
+    saveRateCardData(pendingRateCardSave);
+  };
+
+  ['input', 'change'].forEach(function (eventName) {
+    document.getElementById('rcForm').addEventListener(eventName, function (event) {
+      if (event.target && event.target.closest && event.target.closest('#rcSavePreview')) return;
+      if (pendingRateCardSave) hideRCSavePreview();
+    });
+  });
+
   function updateRateCardSummary(rows) {
     var summary = document.getElementById('rcSummary');
     var count = document.getElementById('rcTableCount');
@@ -489,7 +595,7 @@
       var res = await apiCall('GET', url);
       updateRateCardSummary(res.data || []);
       if (res.data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="13" class="text-center text-on-surface-variant py-8">No rate cards found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="14" class="text-center text-on-surface-variant py-8">No rate cards found</td></tr>';
       } else {
         rateCardRowMap = {};
         tbody.innerHTML = res.data.map(function (r) {
@@ -500,6 +606,9 @@
           var billingDisabled = r.no_invoice || r.billing_active === false || r.disable_billing;
           var billingLabel = billingDisabled ? 'Disabled' : (billingPaused ? 'Paused' : 'Invoice');
           var billingClass = billingDisabled ? 'badge-warning' : (billingPaused ? 'badge-warning' : 'badge-success');
+          var serviceDuration = (r.sow_item_valid_from || r.sow_item_valid_to)
+            ? (formatDate(r.sow_item_valid_from) + ' to ' + formatDate(r.sow_item_valid_to))
+            : 'Full SOW duration';
           return '<tr>' +
             '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(clientDisplay) + '">' + escapeHtml(clientDisplay) + '</span></div></td>' +
             '<td><div class="table-cell-box"><span class="entity-pill entity-pill-strong" title="' + escapeHtml(r.emp_code || '') + '">' + escapeHtml(r.emp_code || '') + '</span></div></td>' +
@@ -510,6 +619,7 @@
             '<td class="text-center"><div class="table-cell-box table-cell-center"><span class="table-count-badge">' + r.leaves_allowed + '</span></div></td>' +
             '<td><div class="table-cell-box table-cell-text table-cell-service" title="' + escapeHtml(r.service_description || '') + '">' + escapeHtml(r.service_description || '-') + '</div></td>' +
             '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(r.sow_number || 'Not linked') + '">' + escapeHtml(r.sow_number || 'Not linked') + '</span></div></td>' +
+            '<td><div class="table-cell-box"><span class="table-date-chip" title="' + escapeHtml(serviceDuration) + '">' + escapeHtml(serviceDuration) + '</span></div></td>' +
             '<td><div class="table-cell-box"><span class="table-date-chip">' + (r.charging_date ? formatDate(r.charging_date) : 'Pending') + '</span></div></td>' +
             '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(r.po_number || 'PO to be added') + '">' + escapeHtml(r.po_number || 'PO to be added') + '</span></div></td>' +
             '<td class="text-center"><div class="table-cell-box table-cell-center"><span class="' + billingClass + '">' + billingLabel + '</span></div></td>' +
@@ -530,6 +640,7 @@
     try {
       var res = await apiCall('GET', '/api/rate-cards/' + id);
       var r = res.data;
+      hideRCSavePreview();
       document.getElementById('rcId').value = r.id;
       document.getElementById('rcClient').value = r.client_id;
       await loadSOWsForClient(r.client_id);
@@ -568,6 +679,9 @@
       window.rcEdit = r.id;
       await renderSowPreview(r.sow_id || '');
       renderSowServiceOptions(r.sow_item_id || '', r.service_description || '', r.monthly_rate || 0);
+      if (!document.getElementById('rcServiceDuration').value && (r.sow_item_valid_from || r.sow_item_valid_to)) {
+        document.getElementById('rcServiceDuration').value = formatDate(r.sow_item_valid_from) + ' to ' + formatDate(r.sow_item_valid_to);
+      }
       renderSowRoleCapacityPreview();
       openModal('rcModal');
     } catch (err) { showToast(err.message, 'danger'); }
@@ -663,17 +777,7 @@
       disable_billing: disableBilling,
       disable_from_date: disableFromDate,
     };
-    try {
-      if (window.rcEdit) {
-        await apiCall('PUT', '/api/rate-cards/' + window.rcEdit, data);
-        showToast('Rate card updated', 'success');
-      } else {
-        await apiCall('POST', '/api/rate-cards', data);
-        showToast('Rate card created', 'success');
-      }
-      closeRCModal();
-      loadRateCards();
-    } catch (err) { showToast(err.message, 'danger'); }
+    showRCSavePreview(data);
   });
 
   document.getElementById('rcLinkPOForm').addEventListener('submit', async function (e) {

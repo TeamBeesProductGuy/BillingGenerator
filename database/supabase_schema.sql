@@ -286,6 +286,8 @@ CREATE TABLE IF NOT EXISTS sow_items (
     role_position   TEXT NOT NULL,
     quantity        INTEGER NOT NULL DEFAULT 1,
     amount          NUMERIC(15,2) NOT NULL,
+    valid_from      TEXT,
+    valid_to        TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -368,8 +370,9 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(user_action);
 -- ============================================================
 
 CREATE OR REPLACE VIEW rate_cards_view AS
-SELECT rc.*, c.client_name, c.abbreviation AS client_abbreviation, c.leaves_allowed AS client_leaves_allowed, po.po_number, po.po_date, po.status AS po_status, sw.sow_number, sw.status AS sow_status,
-  si.role_position AS sow_item_role_position, si.amount AS sow_item_amount, si.quantity AS sow_item_quantity
+SELECT rc.*, c.client_name, c.abbreviation AS client_abbreviation, c.leaves_allowed AS client_leaves_allowed, po.po_number, po.po_date, sw.sow_number,
+  si.role_position AS sow_item_role_position, si.amount AS sow_item_amount, si.quantity AS sow_item_quantity,
+  po.status AS po_status, sw.status AS sow_status, si.valid_from AS sow_item_valid_from, si.valid_to AS sow_item_valid_to
 FROM rate_cards rc
 JOIN clients c ON rc.client_id = c.id
 LEFT JOIN purchase_orders po ON rc.po_id = po.id
@@ -415,6 +418,15 @@ ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS pause_start_date TEXT;
 ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS pause_end_date TEXT;
 ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS disable_billing BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS disable_from_date TEXT;
+ALTER TABLE sow_items ADD COLUMN IF NOT EXISTS valid_from TEXT;
+ALTER TABLE sow_items ADD COLUMN IF NOT EXISTS valid_to TEXT;
+UPDATE sow_items si
+SET
+  valid_from = COALESCE(si.valid_from, s.effective_start),
+  valid_to = COALESCE(si.valid_to, s.effective_end)
+FROM sows s
+WHERE si.sow_id = s.id
+  AND (si.valid_from IS NULL OR si.valid_to IS NULL);
 ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
 ALTER TABLE attendance ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
 ALTER TABLE billing_runs ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
@@ -466,8 +478,9 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_owner_user ON audit_log(owner_user_id);
 
 CREATE OR REPLACE VIEW rate_cards_view
 WITH (security_invoker = true) AS
-SELECT rc.*, c.client_name, c.abbreviation AS client_abbreviation, c.leaves_allowed AS client_leaves_allowed, po.po_number, po.po_date, po.status AS po_status, sw.sow_number, sw.status AS sow_status,
-  si.role_position AS sow_item_role_position, si.amount AS sow_item_amount, si.quantity AS sow_item_quantity
+SELECT rc.*, c.client_name, c.abbreviation AS client_abbreviation, c.leaves_allowed AS client_leaves_allowed, po.po_number, po.po_date, sw.sow_number,
+  si.role_position AS sow_item_role_position, si.amount AS sow_item_amount, si.quantity AS sow_item_quantity,
+  po.status AS po_status, sw.status AS sow_status, si.valid_from AS sow_item_valid_from, si.valid_to AS sow_item_valid_to
 FROM rate_cards rc
 JOIN clients c ON rc.client_id = c.id
 LEFT JOIN purchase_orders po ON rc.po_id = po.id

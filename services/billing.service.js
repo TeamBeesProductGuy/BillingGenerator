@@ -42,6 +42,16 @@ function getActiveBillingDays(rc, billingYear, billingMon, daysInMonth, effectiv
     const dateKey = toDateKey(billingYear, billingMon, day);
     let isActive = true;
 
+    if (rc.sow_item_valid_from && dateKey < rc.sow_item_valid_from) {
+      isActive = false;
+      status = 'Outside SOW Role Duration';
+    }
+
+    if (rc.sow_item_valid_to && dateKey > rc.sow_item_valid_to) {
+      isActive = false;
+      status = 'Outside SOW Role Duration';
+    }
+
     if (rc.pause_billing && rc.pause_start_date && rc.pause_end_date && dateKey >= rc.pause_start_date && dateKey <= rc.pause_end_date) {
       isActive = false;
       status = 'Paused';
@@ -60,6 +70,9 @@ function getActiveBillingDays(rc, billingYear, billingMon, daysInMonth, effectiv
   }
   if (rc.disable_billing && rc.disable_from_date) {
     notes.push(`Disabled from ${rc.disable_from_date}`);
+  }
+  if (rc.sow_item_valid_from || rc.sow_item_valid_to) {
+    notes.push(`SOW role duration ${rc.sow_item_valid_from || 'open'} to ${rc.sow_item_valid_to || 'open'}`);
   }
 
   return { activeDays, status, notes };
@@ -151,6 +164,13 @@ function calculateBilling(rateCards, attendanceRecords, billingMonth) {
 
     const activeWindow = getActiveBillingDays(rc, billingYear, billingMon, daysInMonth, effectiveStartDay);
     effectiveDays = activeWindow.activeDays.length;
+    if (effectiveDays === 0) {
+      errors.push({
+        emp_code: rc.emp_code,
+        error_message: `WARNING: ${rc.emp_code} (${rc.emp_name}) skipped because SOW role duration is not active for billing month ${billingMonth}.`,
+      });
+      continue;
+    }
     const leavesTaken = sumLeaveUnitsForDays(attendance, activeWindow.activeDays, attendance.leaves_taken);
     const presentDays = getAttendancePresentDays(attendance, activeWindow.activeDays, effectiveDays, leavesTaken);
     let chargeableDays = effectiveDays - leavesTaken + rc.leaves_allowed;

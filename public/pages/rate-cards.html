@@ -68,6 +68,7 @@
           <col class="rc-leaves-col">
           <col class="rc-service-col">
           <col class="rc-sow-col">
+          <col class="rc-duration-col">
           <col class="rc-reporting-col">
           <col class="rc-po-col">
           <col class="rc-billing-col">
@@ -84,14 +85,15 @@
             <th class="sortable text-center" data-sort-key="6" data-sort-type="number">Leaves</th>
             <th class="sortable" data-sort-key="7">Service</th>
             <th class="sortable" data-sort-key="8">SOW#</th>
-            <th class="sortable" data-sort-key="9" data-sort-type="date">Date of Reporting</th>
-            <th class="sortable" data-sort-key="10">PO#</th>
-            <th class="sortable text-center" data-sort-key="11">Billing</th>
+            <th class="sortable" data-sort-key="9">Duration</th>
+            <th class="sortable" data-sort-key="10" data-sort-type="date">Date of Reporting</th>
+            <th class="sortable" data-sort-key="11">PO#</th>
+            <th class="sortable text-center" data-sort-key="12">Billing</th>
             <th class="text-center">Actions</th>
           </tr>
         </thead>
         <tbody id="rcBody">
-          <tr><td colspan="13"><div class="loading-spinner"></div></td></tr>
+          <tr><td colspan="14"><div class="loading-spinner"></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -188,6 +190,11 @@
         </div>
 
         <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Duration</label>
+          <input type="text" id="rcServiceDuration" readonly placeholder="Select service description">
+        </div>
+
+        <div>
           <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Date of Reporting</label>
           <input type="date" id="rcChargingDate">
           <p class="mt-1 text-xs text-on-surface-variant">Check Date of Reporting at the Client Side</p>
@@ -240,8 +247,20 @@
           <h6 class="section-label mb-3">SOW Preview</h6>
           <div id="rcSowPreviewContent" class="text-sm text-on-surface-variant"></div>
         </div>
+
+        <div id="rcSavePreview" class="hidden rounded-xl border border-outline-variant/20 bg-surface-container p-4 space-y-3">
+          <div>
+            <h6 class="section-label">Review Before Saving</h6>
+            <p class="mt-1 text-xs text-on-surface-variant">Please check these details carefully before saving this rate card.</p>
+          </div>
+          <div id="rcSavePreviewContent" class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm"></div>
+          <div class="flex justify-end gap-3 pt-2">
+            <button type="button" class="btn-secondary" onclick="editRCPreview()">Edit Details</button>
+            <button type="button" class="btn-primary" onclick="confirmRCSave()">Confirm Save</button>
+          </div>
+        </div>
       </div>
-      <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
+      <div id="rcModalFooter" class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
         <button type="submit" class="btn-primary">Save</button>
         <button type="button" class="btn-secondary" onclick="closeRCModal()">Cancel</button>
       </div>

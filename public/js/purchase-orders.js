@@ -303,12 +303,11 @@
 
           var clientDisplay = po.client_abbreviation || po.client_name || '-';
           var roleDisplay = po.role_summary || '-';
-          var candidateDisplay = po.candidate_name || '-';
 
           return '<tr>' +
             '<td><div class="table-cell-box"><span class="entity-pill entity-pill-strong">' + escapeHtml(po.po_number) + '</span></div></td>' +
             '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(clientDisplay) + '">' + escapeHtml(clientDisplay) + '</span></div></td>' +
-            '<td><div class="table-cell-box table-cell-stack"><span class="table-cell-primary" title="' + escapeHtml(candidateDisplay) + '">' + escapeHtml(candidateDisplay) + '</span><span class="table-cell-secondary" title="' + escapeHtml(roleDisplay) + '">' + escapeHtml(roleDisplay) + '</span></div></td>' +
+            '<td><div class="table-cell-box"><span class="table-cell-primary" title="' + escapeHtml(roleDisplay) + '">' + escapeHtml(roleDisplay) + '</span></div></td>' +
             '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(po.sow_number || 'Not linked') + '">' + escapeHtml(po.sow_number || 'Not linked') + '</span></div></td>' +
             '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(po.start_date) + '</span></div></td>' +
             '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(po.end_date) + '</span></div></td>' +
