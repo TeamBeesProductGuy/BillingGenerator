@@ -99,8 +99,11 @@
     var order = reminder.order || {};
     var clientName = getClientDisplayName(client) || '-';
     var bucket = getReminderBucket(reminder);
+    var invoiceSent = String(reminder.invoice_status || '').toLowerCase() === 'sent';
     var dueBadges = [badgeForBucket(bucket)];
-    if (bucket !== 'closed') {
+    if (bucket === 'past' && invoiceSent) {
+      dueBadges = [badgeForInvoiceStatus(reminder.invoice_status)];
+    } else if (bucket !== 'closed') {
       dueBadges.unshift(badgeForDueDate(reminder.due_date));
     }
 
@@ -167,7 +170,7 @@
             '<table class="stitch-table reminder-section-table" id="' + tableId + '">' +
               '<thead>' +
                 '<tr>' +
-                  '<th class="sortable" data-sort-key="0">Due Date</th>' +
+                  '<th class="sortable" data-sort-key="0">Remarks</th>' +
                   '<th class="sortable" data-sort-key="1">Client</th>' +
                   '<th class="sortable" data-sort-key="2">Candidate</th>' +
                   '<th class="sortable" data-sort-key="3">Role</th>' +

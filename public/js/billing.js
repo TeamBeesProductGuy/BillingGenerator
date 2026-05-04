@@ -245,6 +245,7 @@
       var accepted = rows.filter(function (item) { return item.approval_status === 'Accepted'; }).length;
       var rejected = rows.filter(function (item) { return item.approval_status === 'Rejected'; }).length;
       var disabled = pending === 0 ? ' disabled' : '';
+      var buttonText = pending === 0 && accepted > 0 ? 'Approved' : 'Approve This Manager';
       var statusText = accepted + ' accepted';
       if (pending) statusText += ', ' + pending + ' pending';
       if (rejected) statusText += ', ' + rejected + ' rejected';
@@ -254,7 +255,7 @@
           '<div class="text-right"><div class="text-xs text-on-surface-variant">Amount</div><div class="font-semibold">' + formatCurrency(total) + '</div></div>' +
         '</div>' +
         '<div class="text-xs text-on-surface-variant">' + rows.length + ' candidate(s) | ' + escapeHtml(statusText) + '</div>' +
-        '<button type="button" class="btn-primary btn-sm w-full manager-approve-btn" data-manager="' + escapeHtml(name) + '"' + disabled + '>Approve This Manager</button>' +
+        '<button type="button" class="btn-primary btn-sm w-full manager-approve-btn" data-manager="' + escapeHtml(name) + '"' + disabled + '>' + buttonText + '</button>' +
       '</div>';
     }).join('');
     section.classList.remove('hidden');
@@ -423,6 +424,14 @@
 
   async function decideCurrentRun(decision, approvedManagers) {
     if (!currentRunId) return;
+    if (decision === 'Accepted') {
+      var managerList = (approvedManagers || []).filter(Boolean);
+      var message = managerList.length > 0
+        ? 'Please confirm you are approving the service request items for the correct reporting manager: ' + managerList.join(', ') + '. PO consumption will be applied only for this manager group.'
+        : 'Please confirm you have checked all reporting manager approvals. This will approve all pending service request items and apply PO consumption for them.';
+      var confirmed = await confirmAction('Confirm Manager Approval', message);
+      if (!confirmed) return;
+    }
     setDecisionButtonsEnabled(false);
     try {
       var poAssignments = [];

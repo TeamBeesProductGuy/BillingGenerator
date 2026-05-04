@@ -598,7 +598,10 @@ CREATE POLICY permanent_reminders_owner_delete ON permanent_reminders FOR DELETE
 
 DROP POLICY IF EXISTS activity_logs_owner_select ON activity_logs;
 DROP POLICY IF EXISTS activity_logs_owner_insert ON activity_logs;
-CREATE POLICY activity_logs_owner_select ON activity_logs FOR SELECT TO authenticated USING (is_owner(owner_user_id));
+CREATE POLICY activity_logs_owner_select ON activity_logs FOR SELECT TO authenticated USING (
+  is_owner(owner_user_id)
+  OR lower(coalesce(auth.jwt() ->> 'email', '')) = 'jatinder@teambeescorp.com'
+);
 CREATE POLICY activity_logs_owner_insert ON activity_logs FOR INSERT TO authenticated WITH CHECK (is_owner(owner_user_id));
 
 DROP POLICY IF EXISTS sow_document_index_owner_select ON sow_document_index;

@@ -99,6 +99,9 @@
       };
       var invoiceStatus = order.reminder ? String(order.reminder.invoice_status || 'pending').toLowerCase() : 'pending';
       var paymentStatus = order.reminder ? String(order.reminder.payment_status || 'pending').toLowerCase() : 'pending';
+      var invoiceDueDisplay = paymentStatus === 'paid'
+        ? '<span class="badge-success">Paid</span>'
+        : '<span class="table-date-chip">' + (order.next_bill_date ? formatDate(order.next_bill_date) : 'TBD') + '</span>';
       return '<tr>' +
         '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(clientName) + '">' + escapeHtml(clientName) + '</span></div></td>' +
         '<td><div class="table-cell-box table-cell-stack"><span class="table-cell-primary">' + escapeHtml(order.candidate_name || '') + '</span><span class="table-cell-secondary">' + escapeHtml(order.position_role || '') + '</span></div></td>' +
@@ -107,7 +110,7 @@
         '<td><div class="table-cell-box"><span class="table-date-chip">' + (order.date_of_offer ? formatDate(order.date_of_offer) : '-') + '</span></div></td>' +
         '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(order.date_of_joining) + '</span></div></td>' +
         '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(order.ctc_offered) + '</span></div></td>' +
-        '<td><div class="table-cell-box"><span class="table-date-chip">' + (order.next_bill_date ? formatDate(order.next_bill_date) : 'TBD') + '</span></div></td>' +
+        '<td><div class="table-cell-box">' + invoiceDueDisplay + '</div></td>' +
         '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(order.bill_amount) + '</span></div></td>' +
         '<td><div class="table-cell-box table-cell-text">' + escapeHtml(order.reminder && order.reminder.invoice_number ? order.reminder.invoice_number : '---') + '</div></td>' +
         '<td><div class="table-cell-box"><span class="table-date-chip">' + (order.reminder && order.reminder.invoice_date ? formatDate(order.reminder.invoice_date) : '-') + '</span></div></td>' +
