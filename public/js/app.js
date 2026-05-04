@@ -43,7 +43,7 @@
     // -----------------------------------------------------------
     //  Routes & State
     // -----------------------------------------------------------
-    var ROUTES = ["dashboard", "billing", "rate-cards", "attendance", "quotes", "sows", "purchase-orders", "clients", "orders", "reminders"];
+    var ROUTES = ["dashboard", "billing", "rate-cards", "attendance", "quotes", "sows", "purchase-orders", "clients", "orders", "reminders", "activity-logs"];
     var DEFAULT_ROUTE = "dashboard";
     var SIGNIN_PATH = "/signin";
     var currentPage = null;
@@ -59,7 +59,8 @@
         "sows": "Statements of Work",
         "purchase-orders": "Purchase Orders",
         "orders": "Orders",
-        "reminders": "Reminders"
+        "reminders": "Reminders",
+        "activity-logs": "Activity Logs"
     };
 
     // -----------------------------------------------------------
@@ -262,10 +263,10 @@
     };
 
     // -----------------------------------------------------------
-    //  Modal Helpers (centralized open/close with scroll lock + escape + backdrop)
+    //  Modal Helpers (centralized open/close with scroll lock)
     // -----------------------------------------------------------
     function openModalCount() {
-        return document.querySelectorAll(".fixed.z-\\[200\\].flex:not(.hidden)").length;
+        return document.querySelectorAll("[id$='Modal'].fixed.flex:not(.hidden)").length;
     }
 
     window.openModal = function (id) {
@@ -274,10 +275,12 @@
             el.classList.remove("hidden");
             el.classList.add("flex");
             document.body.classList.add("modal-open");
-            setTimeout(function () {
-                var primary = el.querySelector("button[type='submit'], .btn-primary");
-                if (primary && typeof primary.focus === "function") primary.focus();
-            }, 0);
+            requestAnimationFrame(function () {
+                el.scrollTop = 0;
+                el.querySelectorAll(".overflow-y-auto, .styled-scrollbar").forEach(function (scrollEl) {
+                    scrollEl.scrollTop = 0;
+                });
+            });
         }
     };
 
@@ -292,39 +295,6 @@
             }
         }
     };
-
-    // Close topmost modal on Escape key
-    document.addEventListener("keydown", function (e) {
-        if (e.key !== "Escape") return;
-        // Find all visible modals (z-[200])
-        var modals = document.querySelectorAll(".fixed.z-\\[200\\].flex:not(.hidden)");
-        if (modals.length === 0) return;
-        var topModal = modals[modals.length - 1];
-        // Try to find a close button within the modal
-        var closeBtn = topModal.querySelector("[onclick*='close']");
-        if (closeBtn) {
-            closeBtn.click();
-        } else {
-            closeModal(topModal.id);
-        }
-    });
-
-    // Close modal on backdrop (overlay) click
-    document.addEventListener("click", function (e) {
-        var target = e.target;
-        // Only if clicking directly on the overlay element (not its children)
-        if (target.classList.contains("fixed") &&
-            target.classList.contains("z-[200]") &&
-            target.classList.contains("flex") &&
-            !target.classList.contains("hidden")) {
-            var closeBtn = target.querySelector("[onclick*='close']");
-            if (closeBtn) {
-                closeBtn.click();
-            } else {
-                closeModal(target.id);
-            }
-        }
-    });
 
     // -----------------------------------------------------------
     //  API Call (with auth token)

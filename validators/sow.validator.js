@@ -60,7 +60,7 @@ const updateSOW = createSOW;
 
 const updateSOWStatus = Joi.object({
   status: Joi.string()
-    .valid('Draft', 'Active', 'Signed', 'Expired', 'Terminated', 'Amendment Draft')
+    .valid('Draft', 'Active', 'Signed', 'Expired', 'Terminated', 'Inactive', 'Amendment Draft')
     .required()
 });
 

@@ -1,6 +1,7 @@
 const ClientModel = require('../models/client.model');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
+const { logActivity } = require('../services/activityLog.service');
 
 const clientController = {
   list: catchAsync(async (req, res) => {
@@ -22,6 +23,14 @@ const clientController = {
     }
     try {
       const id = await ClientModel.create({ client_name, abbreviation, contact_person, email, phone, address, industry, leaves_allowed });
+      await logActivity(req, {
+        module: 'clients',
+        action: 'create',
+        entityType: 'client',
+        entityId: id,
+        entityLabel: client_name,
+        details: { summary: 'Created client ' + client_name },
+      });
       res.status(201).json({ success: true, data: { id, client_name, abbreviation } });
     } catch (err) {
       if (err.message && (err.message.includes('UNIQUE') || err.message.includes('duplicate key'))) {
@@ -41,6 +50,14 @@ const clientController = {
       throw new AppError(409, 'Client with the same name and location already exists');
     }
     await ClientModel.update(id, { client_name, abbreviation, contact_person, email, phone, address, industry, leaves_allowed });
+    await logActivity(req, {
+      module: 'clients',
+      action: 'update',
+      entityType: 'client',
+      entityId: id,
+      entityLabel: client_name,
+      details: { summary: 'Updated client ' + client_name },
+    });
     res.json({ success: true, data: { id, client_name, abbreviation } });
   }),
 
@@ -49,6 +66,14 @@ const clientController = {
     const existing = await ClientModel.findById(id);
     if (!existing) throw new AppError(404, 'Client not found');
     await ClientModel.softDelete(id);
+    await logActivity(req, {
+      module: 'clients',
+      action: 'delete',
+      entityType: 'client',
+      entityId: id,
+      entityLabel: existing.client_name,
+      details: { summary: 'Deleted client ' + existing.client_name },
+    });
     res.json({ success: true, data: { message: 'Client deleted' } });
   }),
 };

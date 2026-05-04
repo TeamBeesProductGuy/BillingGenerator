@@ -57,6 +57,12 @@
     document.getElementById('rcDisableBillingDates').classList.toggle('hidden', !disableChecked);
   }
 
+  function setBillingControlsVisibility(isEditing) {
+    var box = document.getElementById('rcBillingControls');
+    if (box) box.classList.toggle('hidden', !isEditing);
+    if (!isEditing) resetBillingWindowFields();
+  }
+
   function resetBillingWindowFields() {
     document.getElementById('rcPauseBilling').checked = false;
     document.getElementById('rcPauseStartDate').value = '';
@@ -116,11 +122,11 @@
     document.getElementById('rcPO').innerHTML = '<option value="">Select PO</option>';
     document.getElementById('rcSowPreview').classList.add('hidden');
     document.getElementById('rcSowPreviewContent').innerHTML = '';
-    document.getElementById('rcServiceDescription').value = '';
-    document.getElementById('rcServiceDescriptionOptions').innerHTML = '';
+    resetSowServiceOptions();
     document.getElementById('rcSowRoleCapacity').classList.add('hidden');
     document.getElementById('rcSowRoleCapacity').innerHTML = '';
     resetBillingWindowFields();
+    setBillingControlsVisibility(false);
     rcDojEditedByUser = false;
     document.getElementById('rcRateMode').value = 'monthly';
     document.getElementById('rcHourlyRate').value = '';
@@ -141,11 +147,11 @@
     document.getElementById('rcPO').innerHTML = '<option value="">Select PO</option>';
     document.getElementById('rcSowPreview').classList.add('hidden');
     document.getElementById('rcSowPreviewContent').innerHTML = '';
-    document.getElementById('rcServiceDescription').value = '';
-    document.getElementById('rcServiceDescriptionOptions').innerHTML = '';
+    resetSowServiceOptions();
     document.getElementById('rcSowRoleCapacity').classList.add('hidden');
     document.getElementById('rcSowRoleCapacity').innerHTML = '';
     resetBillingWindowFields();
+    setBillingControlsVisibility(false);
     rcDojEditedByUser = false;
     document.getElementById('rcRateMode').value = 'monthly';
     document.getElementById('rcHourlyRate').value = '';
@@ -202,7 +208,7 @@
     try {
       var res = await apiCall('GET', '/api/sows?clientId=' + clientId);
       res.data.forEach(function (sow) {
-        if (sow.status === 'Expired' || sow.status === 'Terminated') return;
+        if (sow.status === 'Expired' || sow.status === 'Terminated' || sow.status === 'Inactive') return;
         sel.innerHTML += '<option value="' + sow.id + '">' + escapeHtml(sow.sow_number) + ' (' + escapeHtml(sow.status) + ')</option>';
       });
     } catch (e) { /* ignore */ }
@@ -237,12 +243,14 @@
           '</div>';
         });
         html += '</div>';
-        if (!document.getElementById('rcServiceDescription').value.trim()) {
-          document.getElementById('rcServiceDescription').value = String(sow.items[0].role_position || '').toUpperCase();
-        }
       }
       content.innerHTML = html;
       preview.classList.remove('hidden');
+      renderSowServiceOptions();
+      if (!document.getElementById('rcServiceDescription').value && !window.rcEdit && sow.items && sow.items.length > 0) {
+        document.getElementById('rcServiceDescription').selectedIndex = 1;
+        applySelectedSowService();
+      }
       renderSowRoleCapacityPreview();
     } catch (e) {
       currentSowDetail = null;
@@ -282,18 +290,82 @@
     return String(value || '').trim().toUpperCase();
   }
 
+  function resetSowServiceOptions() {
+    var sel = document.getElementById('rcServiceDescription');
+    if (sel) sel.innerHTML = '<option value="">Select service from SOW</option>';
+  }
+
+  function formatSowServiceOptionLabel(item) {
+    return String(item.role_position || '').toUpperCase() + ' (' + (parseFloat(item.amount) || 0) + ')';
+  }
+
+  function getSelectedSowServiceOption() {
+    var sel = document.getElementById('rcServiceDescription');
+    if (!sel || sel.selectedIndex < 0) return null;
+    var option = sel.options[sel.selectedIndex];
+    if (!option || !option.value) return null;
+    return option;
+  }
+
+  function renderSowServiceOptions(selectedSowItemId, selectedService, selectedRate) {
+    var sel = document.getElementById('rcServiceDescription');
+    if (!sel) return;
+    resetSowServiceOptions();
+    if (!currentSowDetail || !currentSowDetail.items) return;
+    currentSowDetail.items.forEach(function (item) {
+      var option = document.createElement('option');
+      option.value = String(item.role_position || '').toUpperCase();
+      option.textContent = formatSowServiceOptionLabel(item);
+      option.setAttribute('data-sow-item-id', item.id);
+      option.setAttribute('data-amount', parseFloat(item.amount) || 0);
+      option.setAttribute('data-quantity', parseInt(item.quantity, 10) || 0);
+      sel.appendChild(option);
+    });
+
+    var match = null;
+    if (selectedSowItemId) {
+      match = Array.from(sel.options).find(function (option) {
+        return option.getAttribute('data-sow-item-id') && String(option.getAttribute('data-sow-item-id')) === String(selectedSowItemId);
+      });
+    }
+    if (!match && selectedService) {
+      match = Array.from(sel.options).find(function (option) {
+        return normalizeComparableText(option.value) === normalizeComparableText(selectedService)
+          && Number(option.getAttribute('data-amount') || 0) === Number(selectedRate || 0);
+      }) || Array.from(sel.options).find(function (option) {
+        return normalizeComparableText(option.value) === normalizeComparableText(selectedService);
+      });
+    }
+    if (match) match.selected = true;
+  }
+
+  function applySelectedSowService() {
+    var selectedOption = getSelectedSowServiceOption();
+    if (selectedOption && document.getElementById('rcRateMode').value === 'monthly') {
+      var amount = parseFloat(selectedOption.getAttribute('data-amount')) || 0;
+      document.getElementById('rcRate').value = amount;
+      document.getElementById('rcComputedMonthlyRate').textContent = formatCurrency(amount);
+    }
+    renderSowRoleCapacityPreview();
+  }
+
   function resolveSowCapacityTarget() {
+    var selectedOption = getSelectedSowServiceOption();
+    var selectedSowItemId = selectedOption ? selectedOption.getAttribute('data-sow-item-id') : '';
     var serviceKey = normalizeComparableText(document.getElementById('rcServiceDescription').value);
     var items = currentSowDetail.items || [];
-    var matchedItem = serviceKey ? items.find(function (item) {
+    var matchedItem = selectedSowItemId ? items.find(function (item) {
+      return String(item.id) === String(selectedSowItemId);
+    }) : (serviceKey ? items.find(function (item) {
       return normalizeComparableText(item.role_position) === serviceKey;
-    }) : null;
+    }) : null);
     if (matchedItem) {
       return {
+        sowItemId: matchedItem.id,
         serviceKey: serviceKey,
         allowedEmployees: parseInt(matchedItem.quantity, 10) || 0,
         allowedAmount: parseFloat(matchedItem.amount) || 0,
-        label: matchedItem.role_position || document.getElementById('rcServiceDescription').value,
+        label: formatSowServiceOptionLabel(matchedItem),
         scoped: true,
       };
     }
@@ -306,11 +378,16 @@
     };
   }
 
-  function getSowRoleUsage(sowId, serviceKey, editingId) {
+  function getSowRoleUsage(sowId, serviceKey, editingId, sowItemId, amount) {
     return Object.keys(rateCardRowMap).map(function (id) { return rateCardRowMap[id]; }).filter(function (row) {
       if (String(row.sow_id || '') !== String(sowId || '')) return false;
       if (String(row.id) === String(editingId || '')) return false;
       if (isBillingDisabledForCapacity(row)) return false;
+      if (sowItemId && row.sow_item_id) return String(row.sow_item_id) === String(sowItemId);
+      if (sowItemId && !row.sow_item_id) {
+        return normalizeComparableText(row.service_description) === serviceKey
+          && Number(row.monthly_rate || 0) === Number(amount || 0);
+      }
       if (serviceKey && normalizeComparableText(row.service_description) !== serviceKey) return false;
       return true;
     }).length;
@@ -318,32 +395,26 @@
 
   function renderSowRoleCapacityPreview() {
     var box = document.getElementById('rcSowRoleCapacity');
-    var options = document.getElementById('rcServiceDescriptionOptions');
     if (!box || !currentSowDetail || !currentSowDetail.items || currentSowDetail.items.length === 0) {
       if (box) {
         box.classList.add('hidden');
         box.innerHTML = '';
       }
-      if (options) options.innerHTML = '';
       return;
     }
 
-    if (options) {
-      options.innerHTML = currentSowDetail.items.map(function (item) {
-        return '<option value="' + escapeHtml(String(item.role_position || '').toUpperCase()) + '"></option>';
-      }).join('');
-    }
-
     var selectedKey = normalizeComparableText(document.getElementById('rcServiceDescription').value);
+    var selectedOption = getSelectedSowServiceOption();
+    var selectedSowItemId = selectedOption ? selectedOption.getAttribute('data-sow-item-id') : '';
     var rows = currentSowDetail.items.map(function (item) {
       var role = String(item.role_position || '').toUpperCase();
       var roleKey = normalizeComparableText(role);
       var allowed = parseInt(item.quantity, 10) || 0;
-      var used = getSowRoleUsage(currentSowDetail.id, roleKey, window.rcEdit);
+      var used = getSowRoleUsage(currentSowDetail.id, roleKey, window.rcEdit, item.id, parseFloat(item.amount) || 0);
       var remaining = Math.max(allowed - used, 0);
-      var active = selectedKey && selectedKey === roleKey;
+      var active = selectedSowItemId ? String(selectedSowItemId) === String(item.id) : (selectedKey && selectedKey === roleKey);
       return '<div class="flex items-center justify-between gap-3 ' + (active ? 'font-semibold text-on-surface' : '') + '">' +
-        '<span>' + escapeHtml(role) + '</span>' +
+        '<span>' + escapeHtml(formatSowServiceOptionLabel(item)) + '</span>' +
         '<span>' + remaining + ' left of ' + allowed + '</span>' +
       '</div>';
     });
@@ -360,21 +431,21 @@
       if (String(row.sow_id || '') !== sowId) return false;
       if (String(row.id) === String(editingId || '')) return false;
       if (isBillingDisabledForCapacity(row)) return false;
-      if (target.scoped && normalizeComparableText(row.service_description) !== target.serviceKey) return false;
+      if (target.scoped) {
+        if (target.sowItemId && row.sow_item_id) return String(row.sow_item_id) === String(target.sowItemId);
+        if (target.sowItemId && !row.sow_item_id) {
+          return normalizeComparableText(row.service_description) === target.serviceKey
+            && Number(row.monthly_rate || 0) === Number(target.allowedAmount || 0);
+        }
+        if (normalizeComparableText(row.service_description) !== target.serviceKey) return false;
+      }
       return true;
     });
     var allowedEmployees = target.allowedEmployees;
-    var allowedAmount = target.allowedAmount;
     var billingDisabled = document.getElementById('rcDisableBilling').checked;
     var newCount = activeRows.length + (billingDisabled ? 0 : 1);
-    var newAmount = activeRows.reduce(function (sum, row) { return sum + (parseFloat(row.monthly_rate) || 0); }, 0);
-    if (!billingDisabled) newAmount += monthlyRate;
     if (allowedEmployees > 0 && newCount > allowedEmployees) {
       showToast('Rate card employee count exceeds SOW quantity for ' + target.label, 'danger');
-      return false;
-    }
-    if (allowedAmount > 0 && newAmount > allowedAmount) {
-      showToast('Rate card amount exceeds SOW amount for ' + target.label, 'danger');
       return false;
     }
     return true;
@@ -470,12 +541,18 @@
       document.getElementById('rcDoj').value = r.doj || '';
       rcDojEditedByUser = Boolean(r.doj);
       document.getElementById('rcManager').value = r.reporting_manager || '';
-      document.getElementById('rcServiceDescription').value = r.service_description || '';
+      resetSowServiceOptions();
       document.getElementById('rcPauseBilling').checked = Boolean(r.pause_billing);
       document.getElementById('rcPauseStartDate').value = r.pause_start_date || '';
       document.getElementById('rcPauseEndDate').value = r.pause_end_date || '';
       document.getElementById('rcDisableBilling').checked = Boolean(r.disable_billing || r.no_invoice || r.billing_active === false);
       document.getElementById('rcDisableFromDate').value = r.disable_from_date || '';
+      if (document.getElementById('rcPauseBilling').checked && document.getElementById('rcDisableBilling').checked) {
+        document.getElementById('rcPauseBilling').checked = false;
+        document.getElementById('rcPauseStartDate').value = '';
+        document.getElementById('rcPauseEndDate').value = '';
+      }
+      setBillingControlsVisibility(true);
       setBillingWindowVisibility();
       document.getElementById('rcRate').value = r.monthly_rate;
       document.getElementById('rcRateMode').value = 'monthly';
@@ -490,6 +567,7 @@
       document.getElementById('rcModalTitle').textContent = 'Edit Rate Card';
       window.rcEdit = r.id;
       await renderSowPreview(r.sow_id || '');
+      renderSowServiceOptions(r.sow_item_id || '', r.service_description || '', r.monthly_rate || 0);
       renderSowRoleCapacityPreview();
       openModal('rcModal');
     } catch (err) { showToast(err.message, 'danger'); }
@@ -534,6 +612,7 @@
   document.getElementById('rcForm').addEventListener('submit', async function (e) {
     e.preventDefault();
     var poVal = document.getElementById('rcPO').value;
+    var selectedServiceOption = getSelectedSowServiceOption();
     var rateMode = document.getElementById('rcRateMode').value;
     var monthlyRate = rateMode === 'hourly'
       ? recalcHourlyMonthlyRate()
@@ -570,6 +649,7 @@
       doj: document.getElementById('rcDoj').value || null,
       reporting_manager: document.getElementById('rcManager').value.trim(),
       service_description: document.getElementById('rcServiceDescription').value.trim(),
+      sow_item_id: selectedServiceOption ? parseInt(selectedServiceOption.getAttribute('data-sow-item-id'), 10) : null,
       monthly_rate: monthlyRate,
       leaves_allowed: parseInt(document.getElementById('rcLeaves').value, 10) || 0,
       charging_date: document.getElementById('rcChargingDate').value || null,
@@ -610,6 +690,7 @@
         doj: row.doj || null,
         reporting_manager: row.reporting_manager || '',
         service_description: row.service_description || '',
+        sow_item_id: row.sow_item_id || null,
         monthly_rate: parseFloat(row.monthly_rate),
         leaves_allowed: parseInt(row.leaves_allowed, 10) || 0,
         charging_date: row.charging_date || null,
@@ -660,14 +741,26 @@
 
   document.getElementById('rcSOW').addEventListener('change', function () {
     currentSowDetail = null;
-    document.getElementById('rcServiceDescription').value = '';
+    resetSowServiceOptions();
     renderSowRoleCapacityPreview();
     renderSowPreview(this.value);
   });
 
-  document.getElementById('rcServiceDescription').addEventListener('input', renderSowRoleCapacityPreview);
-  document.getElementById('rcPauseBilling').addEventListener('change', setBillingWindowVisibility);
+  document.getElementById('rcServiceDescription').addEventListener('change', applySelectedSowService);
+  document.getElementById('rcPauseBilling').addEventListener('change', function () {
+    if (this.checked) {
+      document.getElementById('rcDisableBilling').checked = false;
+      document.getElementById('rcDisableFromDate').value = '';
+    }
+    setBillingWindowVisibility();
+    renderSowRoleCapacityPreview();
+  });
   document.getElementById('rcDisableBilling').addEventListener('change', function () {
+    if (this.checked) {
+      document.getElementById('rcPauseBilling').checked = false;
+      document.getElementById('rcPauseStartDate').value = '';
+      document.getElementById('rcPauseEndDate').value = '';
+    }
     setBillingWindowVisibility();
     renderSowRoleCapacityPreview();
   });

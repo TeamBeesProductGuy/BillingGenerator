@@ -1,6 +1,7 @@
 const PermanentClientModel = require('../models/permanentClient.model');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
+const { logActivity } = require('../services/activityLog.service');
 
 const permanentClientController = {
   list: catchAsync(async (req, res) => {
@@ -22,6 +23,14 @@ const permanentClientController = {
     }
 
     const id = await PermanentClientModel.create(req.body);
+    await logActivity(req, {
+      module: 'permanent_clients',
+      action: 'create',
+      entityType: 'permanent_client',
+      entityId: id,
+      entityLabel: req.body.client_name,
+      details: { summary: 'Created permanent client ' + req.body.client_name },
+    });
     res.status(201).json({ success: true, data: { id } });
   }),
 
@@ -36,6 +45,14 @@ const permanentClientController = {
     }
 
     await PermanentClientModel.update(id, req.body);
+    await logActivity(req, {
+      module: 'permanent_clients',
+      action: 'update',
+      entityType: 'permanent_client',
+      entityId: id,
+      entityLabel: req.body.client_name,
+      details: { summary: 'Updated permanent client ' + req.body.client_name },
+    });
     res.json({ success: true, data: { id } });
   }),
 
@@ -44,6 +61,14 @@ const permanentClientController = {
     const existing = await PermanentClientModel.findById(id);
     if (!existing) throw new AppError(404, 'Permanent client not found');
     await PermanentClientModel.softDelete(id);
+    await logActivity(req, {
+      module: 'permanent_clients',
+      action: 'delete',
+      entityType: 'permanent_client',
+      entityId: id,
+      entityLabel: existing.client_name,
+      details: { summary: 'Deleted permanent client ' + existing.client_name },
+    });
     res.json({ success: true, data: { message: 'Permanent client deleted' } });
   }),
 };

@@ -34,6 +34,7 @@ const rateCardController = {
       doj,
       reporting_manager,
       service_description,
+      sow_item_id,
       monthly_rate,
       leaves_allowed,
       charging_date,
@@ -56,8 +57,8 @@ const rateCardController = {
     }
     validateRateCardDates(doj, charging_date);
     validateBillingWindowDates(payload);
-    validateSowServiceDescription(sow, service_description);
-    await validateSowCapacity(sow, service_description, monthly_rate, no_invoice || disable_billing, null);
+    const sowItem = validateSowServiceDescription(sow, service_description, sow_item_id);
+    await validateSowCapacity(sow, service_description, monthly_rate, no_invoice || disable_billing, null, sowItem);
 
     if (po_id) {
       const po = await POModel.findById(po_id);
@@ -74,6 +75,7 @@ const rateCardController = {
         doj,
         reporting_manager,
         service_description,
+        sow_item_id: sowItem ? sowItem.id : null,
         monthly_rate,
         leaves_allowed,
         charging_date,
@@ -112,14 +114,18 @@ const rateCardController = {
     }
     validateRateCardDates(payload.doj, payload.charging_date);
     validateBillingWindowDates(payload);
-    validateSowServiceDescription(sow, payload.service_description || existing.service_description);
+    const serviceDescription = payload.service_description || existing.service_description;
+    const sowItemId = payload.sow_item_id !== undefined ? payload.sow_item_id : existing.sow_item_id;
+    const sowItem = validateSowServiceDescription(sow, serviceDescription, sowItemId);
     await validateSowCapacity(
       sow,
-      payload.service_description || existing.service_description,
-      payload.monthly_rate || existing.monthly_rate,
+      serviceDescription,
+      payload.monthly_rate !== undefined ? payload.monthly_rate : existing.monthly_rate,
       payload.no_invoice || payload.disable_billing,
-      id
+      id,
+      sowItem
     );
+    payload.sow_item_id = sowItem ? sowItem.id : null;
 
     // Validate PO if provided
     if (payload.po_id) {
@@ -184,8 +190,9 @@ const rateCardController = {
         try {
           validateRateCardDates(r.doj, r.charging_date);
           validateBillingWindowDates(r);
-          validateSowServiceDescription(sow, r.service_description);
-          await validateSowCapacity(sow, r.service_description, r.monthly_rate, r.no_invoice || r.disable_billing, null);
+          const sowItem = validateSowServiceDescription(sow, r.service_description, r.sow_item_id);
+          r.sow_item_id = sowItem ? sowItem.id : null;
+          await validateSowCapacity(sow, r.service_description, r.monthly_rate, r.no_invoice || r.disable_billing, null, sowItem);
         } catch (err) {
           errors.push({ emp_code: r.emp_code, error_message: err.message || 'Rate card validation failed' });
           continue;
@@ -290,7 +297,17 @@ function normalizeComparableText(value) {
   return String(value || '').trim().toUpperCase();
 }
 
-function resolveSowCapacityTarget(sow, serviceDescription) {
+function resolveSowCapacityTarget(sow, serviceDescription, selectedSowItem) {
+  if (selectedSowItem) {
+    return {
+      sowItemId: Number(selectedSowItem.id),
+      serviceKey: normalizeComparableText(selectedSowItem.role_position || serviceDescription),
+      allowedEmployees: Number(selectedSowItem.quantity) || 0,
+      allowedAmount: Number(selectedSowItem.amount) || 0,
+      label: `${selectedSowItem.role_position || serviceDescription} (${Number(selectedSowItem.amount) || 0})`,
+      scoped: true,
+    };
+  }
   const serviceKey = normalizeComparableText(serviceDescription);
   const items = sow.items || [];
   const matchedItem = serviceKey
@@ -298,6 +315,7 @@ function resolveSowCapacityTarget(sow, serviceDescription) {
     : null;
   if (matchedItem) {
     return {
+      sowItemId: Number(matchedItem.id),
       serviceKey,
       allowedEmployees: Number(matchedItem.quantity) || 0,
       allowedAmount: Number(matchedItem.amount) || 0,
@@ -314,40 +332,48 @@ function resolveSowCapacityTarget(sow, serviceDescription) {
   };
 }
 
-function validateSowServiceDescription(sow, serviceDescription) {
+function validateSowServiceDescription(sow, serviceDescription, sowItemId) {
   const items = sow.items || [];
-  if (items.length === 0) return;
+  if (items.length === 0) return null;
   const serviceKey = normalizeComparableText(serviceDescription);
   if (!serviceKey) {
     throw new AppError(400, 'Select a SOW role/position as the service description');
   }
-  const matchedItem = items.find((item) => normalizeComparableText(item.role_position) === serviceKey);
+  const matchedItem = sowItemId
+    ? items.find((item) => Number(item.id) === Number(sowItemId))
+    : items.find((item) => normalizeComparableText(item.role_position) === serviceKey);
   if (!matchedItem) {
     throw new AppError(400, `Service description must match a role/position in SOW ${sow.sow_number}`);
   }
+  if (normalizeComparableText(matchedItem.role_position) !== serviceKey) {
+    throw new AppError(400, `Selected SOW role does not match service description for SOW ${sow.sow_number}`);
+  }
+  return matchedItem;
 }
 
-async function validateSowCapacity(sow, serviceDescription, monthlyRate, noInvoice, excludeRateCardId) {
+async function validateSowCapacity(sow, serviceDescription, monthlyRate, noInvoice, excludeRateCardId, selectedSowItem) {
   if (noInvoice) return;
-  const target = resolveSowCapacityTarget(sow, serviceDescription);
+  const target = resolveSowCapacityTarget(sow, serviceDescription, selectedSowItem);
   const allowedEmployees = target.allowedEmployees;
-  const allowedAmount = target.allowedAmount;
-  if (!allowedEmployees && !allowedAmount) return;
+  if (!allowedEmployees) return;
 
   const rows = await RateCardModel.findAll(sow.client_id);
   const linkedRows = (rows || []).filter((row) => {
     if (Number(row.sow_id) !== Number(sow.id)) return false;
     if (excludeRateCardId && Number(row.id) === Number(excludeRateCardId)) return false;
     if (row.no_invoice || row.billing_active === false || row.disable_billing) return false;
-    if (target.scoped && normalizeComparableText(row.service_description) !== target.serviceKey) return false;
+    if (target.scoped) {
+      if (target.sowItemId && row.sow_item_id) return Number(row.sow_item_id) === target.sowItemId;
+      if (target.sowItemId && !row.sow_item_id) {
+        return normalizeComparableText(row.service_description) === target.serviceKey
+          && Number(row.monthly_rate || 0) === Number(target.allowedAmount || 0);
+      }
+      if (normalizeComparableText(row.service_description) !== target.serviceKey) return false;
+    }
     return true;
   });
   if (allowedEmployees > 0 && linkedRows.length + 1 > allowedEmployees) {
     throw new AppError(400, `Rate card employee count exceeds SOW quantity for ${target.label}`);
-  }
-  const usedAmount = linkedRows.reduce((sum, row) => sum + (Number(row.monthly_rate) || 0), 0);
-  if (allowedAmount > 0 && usedAmount + Number(monthlyRate || 0) > allowedAmount) {
-    throw new AppError(400, `Rate card amount exceeds SOW amount for ${target.label}`);
   }
 }
 

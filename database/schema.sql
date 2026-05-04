@@ -97,6 +97,21 @@ ON permanent_reminders(order_id)
 WHERE status = 'Open';
 CREATE INDEX IF NOT EXISTS idx_permanent_reminders_due_date ON permanent_reminders(due_date);
 
+CREATE TABLE IF NOT EXISTS activity_logs (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_email    TEXT,
+    module        TEXT NOT NULL,
+    action        TEXT NOT NULL,
+    entity_type   TEXT,
+    entity_id     TEXT,
+    entity_label  TEXT,
+    details       TEXT,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_activity_logs_created_at ON activity_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_activity_logs_module_action ON activity_logs(module, action);
+
 CREATE TABLE IF NOT EXISTS sow_document_index (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     folder_name         TEXT NOT NULL UNIQUE,
@@ -121,6 +136,7 @@ CREATE TABLE IF NOT EXISTS rate_cards (
     doj               TEXT,
     reporting_manager TEXT,
     service_description TEXT,
+    sow_item_id       INTEGER,
     monthly_rate      REAL NOT NULL CHECK(monthly_rate >= 0),
     leaves_allowed    INTEGER NOT NULL DEFAULT 0 CHECK(leaves_allowed >= 0),
     charging_date     TEXT,
@@ -247,7 +263,7 @@ CREATE TABLE IF NOT EXISTS purchase_orders (
     end_date        TEXT NOT NULL,
     po_value        REAL NOT NULL CHECK(po_value > 0),
     consumed_value  REAL NOT NULL DEFAULT 0,
-    status          TEXT NOT NULL DEFAULT 'Active' CHECK(status IN ('Active', 'Expired', 'Exhausted', 'Renewed', 'Cancelled')),
+    status          TEXT NOT NULL DEFAULT 'Active' CHECK(status IN ('Active', 'Inactive', 'Expired', 'Exhausted', 'Renewed', 'Cancelled')),
     alert_threshold REAL NOT NULL DEFAULT 80,
     notes           TEXT,
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),

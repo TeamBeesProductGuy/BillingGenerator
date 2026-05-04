@@ -139,4 +139,10 @@ const renewPO = Joi.object({
     .allow('', null)
 }).custom(dateRangeValidator);
 
-module.exports = { createPO, updatePO, recordConsumption, renewPO };
+const updatePOStatus = Joi.object({
+  status: Joi.string()
+    .valid('Active', 'Inactive', 'Expired', 'Exhausted', 'Renewed', 'Cancelled')
+    .required(),
+});
+
+module.exports = { createPO, updatePO, recordConsumption, renewPO, updatePOStatus };

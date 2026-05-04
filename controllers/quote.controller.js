@@ -8,6 +8,7 @@ const env = require('../config/env');
 const { generateQuoteDocxBuffer } = require('../services/quoteDocx.service');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
+const { logActivity } = require('../services/activityLog.service');
 
 const logoPath = path.join(__dirname, '..', 'public', 'images', 'TeamBeesLOgo.png');
 const robotoRegularPath = path.join(__dirname, '..', 'public', 'fonts', 'Roboto-Regular.ttf');
@@ -367,6 +368,14 @@ const quoteController = {
   create: catchAsync(async (req, res) => {
     const { client_id, quote_date, valid_until, notes, items } = req.body;
     const result = await QuoteModel.create({ client_id, quote_date, valid_until, notes }, items);
+    await logActivity(req, {
+      module: 'quotes',
+      action: 'create',
+      entityType: 'quote',
+      entityId: result.id,
+      entityLabel: result.quote_number,
+      details: { summary: 'Created quote ' + result.quote_number },
+    });
     res.status(201).json({ success: true, data: result });
   }),
 
@@ -377,6 +386,14 @@ const quoteController = {
     if (existing.status !== 'Draft') throw new AppError(400, 'Only draft quotes can be edited');
     const { client_id, quote_date, valid_until, notes, items } = req.body;
     const result = await QuoteModel.update(id, { client_id, quote_date, valid_until, notes }, items || []);
+    await logActivity(req, {
+      module: 'quotes',
+      action: 'update',
+      entityType: 'quote',
+      entityId: result.id,
+      entityLabel: result.quote_number,
+      details: { summary: 'Updated quote ' + result.quote_number },
+    });
     res.json({ success: true, data: { id: result.id, quote_number: result.quote_number, replaced_quote_id: id } });
   }),
 
@@ -387,6 +404,14 @@ const quoteController = {
     if (existing.status !== 'Sent') throw new AppError(400, 'Only sent quotes can be amended');
     const { client_id, quote_date, valid_until, notes, items } = req.body;
     const result = await QuoteModel.createAmendment(id, { client_id, quote_date, valid_until, notes }, items || []);
+    await logActivity(req, {
+      module: 'quotes',
+      action: 'amend',
+      entityType: 'quote',
+      entityId: result.id,
+      entityLabel: result.quote_number,
+      details: { summary: 'Created quote amendment ' + result.quote_number },
+    });
     res.status(201).json({ success: true, data: { id: result.id, quote_number: result.quote_number, amended_from_quote_id: id } });
   }),
 
@@ -417,6 +442,14 @@ const quoteController = {
     }
 
     await QuoteModel.updateStatus(id, status);
+    await logActivity(req, {
+      module: 'quotes',
+      action: 'status_change',
+      entityType: 'quote',
+      entityId: id,
+      entityLabel: existing.quote_number,
+      details: { summary: 'Changed quote status to ' + status, from: existing.status, to: status },
+    });
     res.json({ success: true, data: { id, status } });
   }),
 
@@ -426,6 +459,14 @@ const quoteController = {
     if (!existing) throw new AppError(404, 'Quote not found');
     if (existing.status !== 'Draft') throw new AppError(400, 'Only draft quotes can be deleted');
     await QuoteModel.delete(id);
+    await logActivity(req, {
+      module: 'quotes',
+      action: 'delete',
+      entityType: 'quote',
+      entityId: id,
+      entityLabel: existing.quote_number,
+      details: { summary: 'Deleted quote ' + existing.quote_number },
+    });
     res.json({ success: true, data: { message: 'Quote deleted' } });
   }),
 
@@ -470,6 +511,14 @@ const quoteController = {
         throw new AppError(400, 'Selected SOW belongs to a different client');
       }
       await SOWModel.linkQuote(sow_id, quoteId);
+      await logActivity(req, {
+        module: 'quotes',
+        action: 'link_sow',
+        entityType: 'quote',
+        entityId: quoteId,
+        entityLabel: quote.quote_number,
+        details: { summary: 'Linked quote ' + quote.quote_number + ' to SOW ' + existingSow.sow_number },
+      });
       return res.json({ success: true, data: { id: sow_id, sow_number: existingSow.sow_number, linked: true } });
     }
 
@@ -487,6 +536,15 @@ const quoteController = {
       { sow_number, client_id: quote.client_id, quote_id: quoteId, sow_date, effective_start, effective_end, notes },
       sowItems
     );
+
+    await logActivity(req, {
+      module: 'quotes',
+      action: 'convert_to_sow',
+      entityType: 'quote',
+      entityId: quoteId,
+      entityLabel: quote.quote_number,
+      details: { summary: 'Converted quote ' + quote.quote_number + ' to SOW ' + result.sow_number },
+    });
 
     res.status(201).json({ success: true, data: result });
   }),

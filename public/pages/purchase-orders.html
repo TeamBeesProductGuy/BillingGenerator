@@ -52,7 +52,7 @@
       <div class="flex items-center gap-2">
         <label class="text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Status:</label>
         <select id="poFilterStatus" class="w-auto">
-          <option value="">All</option><option>Active</option><option>Expired</option><option>Exhausted</option><option>Renewed</option><option>Cancelled</option>
+          <option value="">All</option><option>Active</option><option>Inactive</option><option>Expired</option><option>Exhausted</option><option>Renewed</option><option>Cancelled</option>
         </select>
       </div>
       <div class="flex items-center gap-3 sm:ml-auto w-full sm:w-auto max-w-sm">
@@ -134,11 +134,11 @@
       <div class="p-6 space-y-4">
         <input type="hidden" id="poId">
         <div>
-          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Client *</label>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Reporting Client</label>
           <select id="poClient" required><option value="">Select</option></select>
         </div>
         <div>
-          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Candidate Branch / Source SOW Client</label>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">SOW Branch</label>
           <select id="poSowSourceClient">
             <option value="">Same as selected client</option>
           </select>

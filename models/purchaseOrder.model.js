@@ -278,6 +278,51 @@ const POModel = {
     if (error) throw new Error(error.message);
     return data;
   },
+
+  async updateStatus(id, status) {
+    const { error } = await supabase
+      .from('purchase_orders')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+
+  async getAssociations(id) {
+    const [poResult, rateCardResult] = await Promise.all([
+      supabase
+        .from('purchase_orders_view')
+        .select('id, sow_id, sow_number')
+        .eq('id', id)
+        .maybeSingle(),
+      supabase
+        .from('rate_cards_view')
+        .select('id, emp_code, emp_name, sow_id, sow_number')
+        .eq('po_id', id)
+        .eq('is_active', true),
+    ]);
+    if (poResult.error) throw new Error(poResult.error.message);
+    if (rateCardResult.error) throw new Error(rateCardResult.error.message);
+
+    const sowMap = new Map();
+    if (poResult.data && poResult.data.sow_id) {
+      sowMap.set(String(poResult.data.sow_id), {
+        id: poResult.data.sow_id,
+        sow_number: poResult.data.sow_number,
+      });
+    }
+    (rateCardResult.data || []).forEach((row) => {
+      if (!row.sow_id) return;
+      sowMap.set(String(row.sow_id), {
+        id: row.sow_id,
+        sow_number: row.sow_number,
+      });
+    });
+
+    return {
+      sows: Array.from(sowMap.values()),
+      rateCards: rateCardResult.data || [],
+    };
+  },
 };
 
 module.exports = POModel;

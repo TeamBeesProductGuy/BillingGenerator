@@ -105,6 +105,23 @@ ON permanent_reminders(order_id)
 WHERE status = 'Open';
 CREATE INDEX IF NOT EXISTS idx_permanent_reminders_due_date ON permanent_reminders(due_date);
 
+CREATE TABLE IF NOT EXISTS activity_logs (
+    id            SERIAL PRIMARY KEY,
+    owner_user_id UUID NOT NULL DEFAULT auth.uid(),
+    user_email    TEXT,
+    module        TEXT NOT NULL,
+    action        TEXT NOT NULL,
+    entity_type   TEXT,
+    entity_id     TEXT,
+    entity_label  TEXT,
+    details       JSONB,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_activity_logs_owner_user ON activity_logs(owner_user_id);
+CREATE INDEX IF NOT EXISTS idx_activity_logs_created_at ON activity_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_activity_logs_module_action ON activity_logs(module, action);
+
 CREATE TABLE IF NOT EXISTS sow_document_index (
     id                  SERIAL PRIMARY KEY,
     folder_name         TEXT NOT NULL UNIQUE,
@@ -129,6 +146,7 @@ CREATE TABLE IF NOT EXISTS rate_cards (
     doj               TEXT,
     reporting_manager TEXT,
     service_description TEXT,
+    sow_item_id       INTEGER,
     monthly_rate      NUMERIC(15,2) NOT NULL CHECK(monthly_rate >= 0),
     leaves_allowed    INTEGER NOT NULL DEFAULT 0 CHECK(leaves_allowed >= 0),
     charging_date     TEXT,
@@ -252,7 +270,7 @@ CREATE TABLE IF NOT EXISTS sows (
     effective_start TEXT NOT NULL,
     effective_end   TEXT NOT NULL,
     total_value     NUMERIC(15,2) NOT NULL DEFAULT 0,
-    status          TEXT NOT NULL DEFAULT 'Draft' CHECK(status IN ('Draft', 'Active', 'Expired', 'Terminated', 'Amendment Draft')),
+    status          TEXT NOT NULL DEFAULT 'Draft' CHECK(status IN ('Draft', 'Active', 'Signed', 'Inactive', 'Expired', 'Terminated', 'Amendment Draft')),
     notes           TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -294,7 +312,7 @@ CREATE TABLE IF NOT EXISTS purchase_orders (
     end_date        TEXT NOT NULL,
     po_value        NUMERIC(15,2) NOT NULL CHECK(po_value > 0),
     consumed_value  NUMERIC(15,2) NOT NULL DEFAULT 0,
-    status          TEXT NOT NULL DEFAULT 'Active' CHECK(status IN ('Active', 'Expired', 'Exhausted', 'Renewed', 'Cancelled')),
+    status          TEXT NOT NULL DEFAULT 'Active' CHECK(status IN ('Active', 'Inactive', 'Expired', 'Exhausted', 'Renewed', 'Cancelled')),
     alert_threshold NUMERIC(5,2) NOT NULL DEFAULT 80,
     notes           TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -346,11 +364,13 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(user_action);
 -- ============================================================
 
 CREATE OR REPLACE VIEW rate_cards_view AS
-SELECT rc.*, c.client_name, c.abbreviation AS client_abbreviation, c.leaves_allowed AS client_leaves_allowed, po.po_number, po.po_date, sw.sow_number
+SELECT rc.*, c.client_name, c.abbreviation AS client_abbreviation, c.leaves_allowed AS client_leaves_allowed, po.po_number, po.po_date, po.status AS po_status, sw.sow_number, sw.status AS sow_status,
+  si.role_position AS sow_item_role_position, si.amount AS sow_item_amount, si.quantity AS sow_item_quantity
 FROM rate_cards rc
 JOIN clients c ON rc.client_id = c.id
 LEFT JOIN purchase_orders po ON rc.po_id = po.id
-LEFT JOIN sows sw ON rc.sow_id = sw.id;
+LEFT JOIN sows sw ON rc.sow_id = sw.id
+LEFT JOIN sow_items si ON rc.sow_item_id = si.id;
 
 CREATE OR REPLACE VIEW quotes_view AS
 SELECT q.*, c.client_name
@@ -383,6 +403,7 @@ ALTER TABLE permanent_orders ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NUL
 ALTER TABLE permanent_reminders ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
 ALTER TABLE sow_document_index ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
 ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS service_description TEXT;
+ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS sow_item_id INTEGER;
 ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS billing_active BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS no_invoice BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS pause_billing BOOLEAN NOT NULL DEFAULT FALSE;
@@ -434,11 +455,13 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_owner_user ON audit_log(owner_user_id);
 
 CREATE OR REPLACE VIEW rate_cards_view
 WITH (security_invoker = true) AS
-SELECT rc.*, c.client_name, c.abbreviation AS client_abbreviation, c.leaves_allowed AS client_leaves_allowed, po.po_number, po.po_date, sw.sow_number
+SELECT rc.*, c.client_name, c.abbreviation AS client_abbreviation, c.leaves_allowed AS client_leaves_allowed, po.po_number, po.po_date, po.status AS po_status, sw.sow_number, sw.status AS sow_status,
+  si.role_position AS sow_item_role_position, si.amount AS sow_item_amount, si.quantity AS sow_item_quantity
 FROM rate_cards rc
 JOIN clients c ON rc.client_id = c.id
 LEFT JOIN purchase_orders po ON rc.po_id = po.id
-LEFT JOIN sows sw ON rc.sow_id = sw.id;
+LEFT JOIN sows sw ON rc.sow_id = sw.id
+LEFT JOIN sow_items si ON rc.sow_item_id = si.id;
 
 CREATE OR REPLACE VIEW quotes_view
 WITH (security_invoker = true) AS
@@ -480,6 +503,7 @@ ALTER TABLE permanent_clients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE permanent_client_contacts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE permanent_orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE permanent_reminders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sow_document_index ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rate_cards ENABLE ROW LEVEL SECURITY;
 ALTER TABLE attendance ENABLE ROW LEVEL SECURITY;
@@ -500,6 +524,7 @@ ALTER TABLE permanent_clients FORCE ROW LEVEL SECURITY;
 ALTER TABLE permanent_client_contacts FORCE ROW LEVEL SECURITY;
 ALTER TABLE permanent_orders FORCE ROW LEVEL SECURITY;
 ALTER TABLE permanent_reminders FORCE ROW LEVEL SECURITY;
+ALTER TABLE activity_logs FORCE ROW LEVEL SECURITY;
 ALTER TABLE sow_document_index FORCE ROW LEVEL SECURITY;
 ALTER TABLE rate_cards FORCE ROW LEVEL SECURITY;
 ALTER TABLE attendance FORCE ROW LEVEL SECURITY;
@@ -559,6 +584,11 @@ CREATE POLICY permanent_reminders_owner_select ON permanent_reminders FOR SELECT
 CREATE POLICY permanent_reminders_owner_insert ON permanent_reminders FOR INSERT TO authenticated WITH CHECK (is_owner(owner_user_id));
 CREATE POLICY permanent_reminders_owner_update ON permanent_reminders FOR UPDATE TO authenticated USING (is_owner(owner_user_id)) WITH CHECK (is_owner(owner_user_id));
 CREATE POLICY permanent_reminders_owner_delete ON permanent_reminders FOR DELETE TO authenticated USING (is_owner(owner_user_id));
+
+DROP POLICY IF EXISTS activity_logs_owner_select ON activity_logs;
+DROP POLICY IF EXISTS activity_logs_owner_insert ON activity_logs;
+CREATE POLICY activity_logs_owner_select ON activity_logs FOR SELECT TO authenticated USING (is_owner(owner_user_id));
+CREATE POLICY activity_logs_owner_insert ON activity_logs FOR INSERT TO authenticated WITH CHECK (is_owner(owner_user_id));
 
 DROP POLICY IF EXISTS sow_document_index_owner_select ON sow_document_index;
 DROP POLICY IF EXISTS sow_document_index_owner_insert ON sow_document_index;

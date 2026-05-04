@@ -299,6 +299,28 @@ const SOWModel = {
     if (error) throw new Error(error.message);
   },
 
+  async getAssociations(id) {
+    const [poResult, rateCardResult] = await Promise.all([
+      supabase
+        .from('purchase_orders')
+        .select('id, po_number, status')
+        .eq('sow_id', id)
+        .neq('status', 'Inactive')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('rate_cards')
+        .select('id, emp_code, emp_name, po_id')
+        .eq('sow_id', id)
+        .eq('is_active', true),
+    ]);
+    if (poResult.error) throw new Error(poResult.error.message);
+    if (rateCardResult.error) throw new Error(rateCardResult.error.message);
+    return {
+      purchaseOrders: poResult.data || [],
+      rateCards: rateCardResult.data || [],
+    };
+  },
+
   async delete(id) {
     const { error } = await supabase.from('sows').delete().eq('id', id);
     if (error) throw new Error(error.message);

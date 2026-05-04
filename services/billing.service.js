@@ -112,6 +112,10 @@ function calculateBilling(rateCards, attendanceRecords, billingMonth) {
   const errors = [];
 
   for (const rc of rateCards) {
+    if (rc.sow_status === 'Inactive' || rc.po_status === 'Inactive') {
+      continue;
+    }
+
     if (rc.no_invoice || rc.billing_active === false) {
       continue;
     }

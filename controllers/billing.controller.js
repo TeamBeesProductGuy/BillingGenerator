@@ -16,6 +16,10 @@ function isWarningError(errorItem) {
   return Boolean(errorItem && typeof errorItem.error_message === 'string' && errorItem.error_message.startsWith('WARNING:'));
 }
 
+function isRateCardBillableByLinkedStatus(rc) {
+  return rc.sow_status !== 'Inactive' && rc.po_status !== 'Inactive';
+}
+
 /**
  * Resolve po_number strings (from Excel upload) to po_id integers
  * by looking up active POs in the database.
@@ -26,18 +30,19 @@ async function resolvePoNumbers(records) {
 
   const { data: pos, error } = await supabase
     .from('purchase_orders')
-    .select('id, po_number')
+    .select('id, po_number, status')
     .in('po_number', poNumbers)
     .eq('status', 'Active');
   if (error || !pos) return;
 
   const poMap = {};
   for (const po of pos) {
-    poMap[po.po_number] = po.id;
+    poMap[po.po_number] = po;
   }
   for (const rc of records) {
     if (rc.po_number && !rc.po_id && poMap[rc.po_number]) {
-      rc.po_id = poMap[rc.po_number];
+      rc.po_id = poMap[rc.po_number].id;
+      rc.po_status = poMap[rc.po_number].status;
     }
   }
 }
@@ -60,6 +65,7 @@ async function resolveSowNumbers(records) {
   for (const record of records) {
     if (!record.sow_id && record.sow_number && sowMap[record.sow_number]) {
       record.sow_id = sowMap[record.sow_number].id;
+      record.sow_status = sowMap[record.sow_number].status;
       record.client_id = record.client_id || sowMap[record.sow_number].client_id;
     }
   }
@@ -109,6 +115,7 @@ async function resolvePoFromSow(records) {
       record.po_id = po.id;
       record.po_number = record.po_number || po.po_number;
       record.po_date = record.po_date || po.po_date;
+      record.po_status = po.status;
       record.client_id = record.client_id || po.client_id;
     }
   }
@@ -397,7 +404,7 @@ const billingController = {
 
     await resolvePoFromSow(rateCards);
 
-    const billableRateCards = rateCards.filter((rc) => !(rc.no_invoice || rc.billing_active === false));
+    const billableRateCards = rateCards.filter((rc) => isRateCardBillableByLinkedStatus(rc) && !(rc.no_invoice || rc.billing_active === false));
     const allowedEmpCodes = new Set(billableRateCards.map((rc) => String(rc.emp_code || '').trim()));
     const attendanceSummary = await AttendanceModel.getDetailedByMonth(billingMonth, Array.from(allowedEmpCodes));
 
