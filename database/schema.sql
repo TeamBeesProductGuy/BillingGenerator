@@ -208,6 +208,10 @@ CREATE TABLE IF NOT EXISTS billing_items (
     chargeable_days   REAL NOT NULL,
     billing_status    TEXT,
     billing_note      TEXT,
+    approval_status   TEXT NOT NULL DEFAULT 'Pending' CHECK (approval_status IN ('Pending', 'Accepted', 'Rejected')),
+    approved_at       TEXT,
+    approved_by_manager TEXT,
+    po_consumed_at    TEXT,
     invoice_amount    REAL NOT NULL,
     created_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );

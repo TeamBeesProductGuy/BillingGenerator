@@ -63,6 +63,7 @@ const BillingModel = {
       chargeable_days: item.chargeable_days,
       billing_status: item.billing_status || 'Active',
       billing_note: item.billing_note || null,
+      approval_status: item.approval_status || 'Pending',
       invoice_amount: item.invoice_amount,
       po_id: item.po_id || null,
     }));
@@ -81,6 +82,7 @@ const BillingModel = {
       || isMissingColumnError(error, 'billing_method')
       || isMissingColumnError(error, 'billing_status')
       || isMissingColumnError(error, 'billing_note')
+      || isMissingColumnError(error, 'approval_status')
       || isMissingColumnError(error, 'po_id')) {
       const fallbackRows = items.map((item) => ({
         billing_run_id: runId,
@@ -183,6 +185,15 @@ const BillingModel = {
     if (error) throw new Error(error.message);
   },
 
+  async updateRunStatusOnly(id, requestStatus) {
+    let { error } = await supabase
+      .from('billing_runs')
+      .update({ request_status: requestStatus, decision_at: new Date().toISOString() })
+      .eq('id', id);
+    if (isMissingColumnError(error, 'request_status') || isMissingColumnError(error, 'decision_at')) return;
+    if (error) throw new Error(error.message);
+  },
+
   async hasConsumptionForRun(runId) {
     const { count, error } = await supabase
       .from('po_consumption_log')
@@ -204,6 +215,43 @@ const BillingModel = {
       }
       if (error) throw new Error(error.message);
     }
+  },
+
+  async markItemsApproved(runId, itemIds, managerName) {
+    if (!itemIds || itemIds.length === 0) return;
+    let { error } = await supabase
+      .from('billing_items')
+      .update({
+        approval_status: 'Accepted',
+        approved_at: new Date().toISOString(),
+        approved_by_manager: managerName || null,
+      })
+      .eq('billing_run_id', runId)
+      .in('id', itemIds);
+    if (isMissingColumnError(error, 'approval_status') || isMissingColumnError(error, 'approved_at') || isMissingColumnError(error, 'approved_by_manager')) return;
+    if (error) throw new Error(error.message);
+  },
+
+  async markItemsRejected(runId, itemIds) {
+    if (!itemIds || itemIds.length === 0) return;
+    let { error } = await supabase
+      .from('billing_items')
+      .update({ approval_status: 'Rejected' })
+      .eq('billing_run_id', runId)
+      .in('id', itemIds);
+    if (isMissingColumnError(error, 'approval_status')) return;
+    if (error) throw new Error(error.message);
+  },
+
+  async markItemsPoConsumed(runId, itemIds) {
+    if (!itemIds || itemIds.length === 0) return;
+    let { error } = await supabase
+      .from('billing_items')
+      .update({ po_consumed_at: new Date().toISOString() })
+      .eq('billing_run_id', runId)
+      .in('id', itemIds);
+    if (isMissingColumnError(error, 'po_consumed_at')) return;
+    if (error) throw new Error(error.message);
   },
 };
 

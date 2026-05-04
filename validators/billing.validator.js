@@ -25,6 +25,10 @@ const decideRun = Joi.object({
       po_number: Joi.string().trim().min(1),
     }).or('po_id', 'po_number'))
     .default([]),
+
+  approvedManagers: Joi.array()
+    .items(Joi.string().trim().allow(''))
+    .default([]),
 });
 
 module.exports = { generateFromDb, previewBilling, decideRun };

@@ -173,13 +173,17 @@
         </div>
         <div id="decisionActions" class="inline-flex items-center gap-2">
           <button id="rejectRequestBtn" type="button" class="btn-secondary">Reject</button>
-          <button id="acceptRequestBtn" type="button" class="btn-primary">Accept</button>
+          <button id="acceptRequestBtn" type="button" class="btn-primary">Accept All Pending</button>
         </div>
         <div id="decisionStatusMessage" class="hidden text-sm font-semibold"></div>
       </div>
       <div id="missingPoSection" class="hidden space-y-3">
         <h6 class="text-sm font-semibold text-on-surface">Missing PO Numbers</h6>
         <div id="missingPoBody" class="space-y-3"></div>
+      </div>
+      <div id="managerApprovalSection" class="hidden space-y-3">
+        <h6 class="text-sm font-semibold text-on-surface">Manager Approvals</h6>
+        <div id="managerApprovalBody" class="grid grid-cols-1 lg:grid-cols-2 gap-3"></div>
       </div>
     </div>
 
@@ -196,7 +200,7 @@
               <th>Client</th><th>Emp Code</th><th>Emp Name</th><th>Manager</th>
               <th class="text-right">Monthly Rate</th><th class="text-center">Allowed</th>
               <th class="text-center">Taken</th><th class="text-center">Present</th>
-              <th class="text-center">Hours</th><th class="text-center">Status</th><th class="text-center">Chargeable</th>
+              <th class="text-center">Hours</th><th class="text-center">Billing</th><th class="text-center">Approval</th><th class="text-center">Chargeable</th>
               <th class="text-right">Invoice Amount</th>
             </tr>
           </thead>

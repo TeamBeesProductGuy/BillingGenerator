@@ -237,6 +237,44 @@ async function autoConsumePOs(billingItems, billingMonth, runId) {
   return poConsumption;
 }
 
+function normalizeManagerKey(value) {
+  return String(value || '').trim().toUpperCase();
+}
+
+function deriveRunStatusFromItems(items) {
+  const rows = items || [];
+  if (rows.length === 0) return 'Pending';
+  const accepted = rows.filter((item) => item.approval_status === 'Accepted').length;
+  const rejected = rows.filter((item) => item.approval_status === 'Rejected').length;
+  const pending = rows.filter((item) => !item.approval_status || item.approval_status === 'Pending').length;
+  if (accepted > 0 && pending === 0 && rejected === 0) return 'Accepted';
+  if (rejected > 0 && pending === 0 && accepted === 0) return 'Rejected';
+  if (accepted > 0 || rejected > 0) return 'Partially Accepted';
+  return 'Pending';
+}
+
+async function autoConsumeApprovedItems(items, billingMonth, runId) {
+  const consumptionByPo = {};
+  const itemIdsByPo = {};
+  for (const item of items) {
+    if (!item.po_id || item.po_consumed_at) continue;
+    if (!consumptionByPo[item.po_id]) {
+      consumptionByPo[item.po_id] = 0;
+      itemIdsByPo[item.po_id] = [];
+    }
+    consumptionByPo[item.po_id] += Number(item.invoice_amount || 0);
+    itemIdsByPo[item.po_id].push(item.id);
+  }
+
+  const poConsumption = [];
+  for (const [poId, totalAmount] of Object.entries(consumptionByPo)) {
+    await POModel.addConsumption(parseInt(poId, 10), totalAmount, `Billing ${billingMonth} run #${runId}`, runId);
+    await BillingModel.markItemsPoConsumed(runId, itemIdsByPo[poId]);
+    poConsumption.push({ po_id: parseInt(poId, 10), amount: totalAmount, status: 'ok' });
+  }
+  return poConsumption;
+}
+
 async function createStoredRun({
   clientId = null,
   billingMonth,
@@ -277,6 +315,12 @@ async function createStoredRun({
 
 async function inferRunStatus(run) {
   if (!run) return run;
+  if (Array.isArray(run.items) && run.items.length > 0) {
+    return {
+      ...run,
+      request_status: deriveRunStatusFromItems(run.items),
+    };
+  }
   const hasConsumption = await BillingModel.hasConsumptionForRun(run.id);
   if (hasConsumption && (!run.request_status || run.request_status === 'Pending')) {
     return {
@@ -523,21 +567,38 @@ const billingController = {
 
   decideRun: catchAsync(async (req, res) => {
     const runId = parseInt(req.params.id, 10);
-    const { decision, poAssignments = [] } = req.body;
+    const { decision, poAssignments = [], approvedManagers = [] } = req.body;
     const baseRun = await BillingModel.findRunById(runId);
     const run = await inferRunStatus(baseRun);
     if (!run) throw new AppError(404, 'Billing run not found');
     await hydrateRunItemsForDecision(run);
-    if (run.request_status && run.request_status !== 'Pending') {
+    if (run.request_status && !['Pending', 'Partially Accepted'].includes(run.request_status)) {
       throw new AppError(400, `This service request is already ${run.request_status.toLowerCase()}`);
     }
 
     if (decision === 'Rejected') {
-      await BillingModel.updateRunStatus(runId, 'Rejected');
-      return res.json({ success: true, data: { billingRunId: runId, requestStatus: 'Rejected', poConsumption: [] } });
+      const pendingItemIds = (run.items || [])
+        .filter((item) => !item.approval_status || item.approval_status === 'Pending')
+        .map((item) => item.id)
+        .filter(Boolean);
+      await BillingModel.markItemsRejected(runId, pendingItemIds);
+      const refreshedRun = await BillingModel.findRunById(runId);
+      const requestStatus = deriveRunStatusFromItems(refreshedRun ? refreshedRun.items : run.items);
+      await BillingModel.updateRunStatusOnly(runId, requestStatus);
+      return res.json({ success: true, data: { billingRunId: runId, requestStatus, poConsumption: [] } });
     }
 
-    const missingItems = run.items.filter((item) => !item.po_id);
+    const managerKeys = new Set((approvedManagers || []).map(normalizeManagerKey).filter((value) => value || value === ''));
+    const pendingItems = (run.items || []).filter((item) => !item.approval_status || item.approval_status === 'Pending');
+    const itemsToApprove = managerKeys.size > 0
+      ? pendingItems.filter((item) => managerKeys.has(normalizeManagerKey(item.reporting_manager || 'Unassigned')))
+      : pendingItems;
+
+    if (itemsToApprove.length === 0) {
+      throw new AppError(400, 'No pending service request items matched this approval.');
+    }
+
+    const missingItems = itemsToApprove.filter((item) => !item.po_id);
     if (missingItems.length > 0) {
       const assignmentMap = new Map(poAssignments.map((entry) => [entry.emp_code, entry]));
       const resolvedAssignments = [];
@@ -571,14 +632,23 @@ const billingController = {
       }
     }
 
-    const poConsumption = await autoConsumePOs(run.items, run.billing_month, runId);
-    await BillingModel.updateRunStatus(runId, 'Accepted');
+    const approvedManagerNames = Array.from(new Set(itemsToApprove.map((item) => item.reporting_manager || 'Unassigned')));
+    await BillingModel.markItemsApproved(runId, itemsToApprove.map((item) => item.id).filter(Boolean), approvedManagerNames.join(', '));
+    itemsToApprove.forEach((item) => {
+      item.approval_status = 'Accepted';
+      item.approved_by_manager = approvedManagerNames.join(', ');
+    });
+
+    const poConsumption = await autoConsumeApprovedItems(itemsToApprove, run.billing_month, runId);
+    const refreshedRun = await BillingModel.findRunById(runId);
+    const requestStatus = deriveRunStatusFromItems(refreshedRun ? refreshedRun.items : run.items);
+    await BillingModel.updateRunStatusOnly(runId, requestStatus);
 
     res.json({
       success: true,
       data: {
         billingRunId: runId,
-        requestStatus: 'Accepted',
+        requestStatus,
         poConsumption,
       },
     });

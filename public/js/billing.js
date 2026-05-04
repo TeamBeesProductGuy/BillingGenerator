@@ -51,6 +51,7 @@
   function statusBadge(status) {
     var map = {
       Pending: 'badge-processing',
+      'Partially Accepted': 'badge-warning',
       Accepted: 'badge-success',
       Rejected: 'badge-error'
     };
@@ -88,7 +89,9 @@
     actions.classList.remove('hidden');
     message.classList.add('hidden');
     message.textContent = '';
-    helpText.textContent = 'Accept to store PO consumption. Reject to keep the request downloadable without consuming the PO.';
+    helpText.textContent = status === 'Partially Accepted'
+      ? 'Some manager approvals have been accepted. Approve remaining manager groups as confirmations arrive.'
+      : 'Accept all to store PO consumption for every pending item, or approve by reporting manager below.';
   }
 
   function setDownloadLinks(runId, downloadUrl) {
@@ -149,7 +152,7 @@
   }
 
   function renderMissingPoInputs(items, poCandidatesByEmp) {
-    var missing = items.filter(function (item) { return !item.po_id; });
+    var missing = items.filter(function (item) { return !item.po_id && (item.approval_status || 'Pending') === 'Pending'; });
     var section = document.getElementById('missingPoSection');
     var body = document.getElementById('missingPoBody');
     if (missing.length === 0) {
@@ -204,9 +207,57 @@
         po_id: item.po_id || null,
         client_id: item.client_id || null,
         sow_id: item.sow_id || null,
-        sow_number: item.sow_number || null
+        sow_number: item.sow_number || null,
+        id: item.id || null,
+        approval_status: item.approval_status || 'Pending',
+        approved_at: item.approved_at || null,
+        approved_by_manager: item.approved_by_manager || null,
+        po_consumed_at: item.po_consumed_at || null
       };
     });
+  }
+
+  function managerKey(value) {
+    return String(value || 'Unassigned').trim() || 'Unassigned';
+  }
+
+  function renderManagerApprovals(items) {
+    var section = document.getElementById('managerApprovalSection');
+    var body = document.getElementById('managerApprovalBody');
+    var groups = {};
+    (items || []).forEach(function (item) {
+      var key = managerKey(item.reporting_manager);
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(item);
+    });
+
+    var names = Object.keys(groups).sort();
+    if (names.length === 0) {
+      section.classList.add('hidden');
+      body.innerHTML = '';
+      return;
+    }
+
+    body.innerHTML = names.map(function (name) {
+      var rows = groups[name];
+      var total = rows.reduce(function (sum, item) { return sum + (parseFloat(item.invoice_amount) || 0); }, 0);
+      var pending = rows.filter(function (item) { return item.approval_status === 'Pending'; }).length;
+      var accepted = rows.filter(function (item) { return item.approval_status === 'Accepted'; }).length;
+      var rejected = rows.filter(function (item) { return item.approval_status === 'Rejected'; }).length;
+      var disabled = pending === 0 ? ' disabled' : '';
+      var statusText = accepted + ' accepted';
+      if (pending) statusText += ', ' + pending + ' pending';
+      if (rejected) statusText += ', ' + rejected + ' rejected';
+      return '<div class="rounded-xl border border-outline-variant/15 bg-surface-container p-4 space-y-3">' +
+        '<div class="flex items-start justify-between gap-3">' +
+          '<div><div class="text-xs text-on-surface-variant">Reporting Manager</div><div class="font-semibold text-on-surface">' + escapeHtml(name) + '</div></div>' +
+          '<div class="text-right"><div class="text-xs text-on-surface-variant">Amount</div><div class="font-semibold">' + formatCurrency(total) + '</div></div>' +
+        '</div>' +
+        '<div class="text-xs text-on-surface-variant">' + rows.length + ' candidate(s) | ' + escapeHtml(statusText) + '</div>' +
+        '<button type="button" class="btn-primary btn-sm w-full manager-approve-btn" data-manager="' + escapeHtml(name) + '"' + disabled + '>Approve This Manager</button>' +
+      '</div>';
+    }).join('');
+    section.classList.remove('hidden');
   }
 
   function showResults(data) {
@@ -227,7 +278,7 @@
     var items = normalizeItems(data.billingItems || data.items || []);
     var itemsBody = document.getElementById('billingItemsBody');
     if (items.length === 0) {
-      itemsBody.innerHTML = '<tr><td colspan="12" class="text-center text-on-surface-variant py-6">No service request items</td></tr>';
+      itemsBody.innerHTML = '<tr><td colspan="13" class="text-center text-on-surface-variant py-6">No service request items</td></tr>';
     } else {
       itemsBody.innerHTML = items.map(function (i) {
         var billingHours = i.billing_hours !== null && i.billing_hours !== undefined ? i.billing_hours : '-';
@@ -243,6 +294,7 @@
           '<td class="text-center">' + (i.days_present !== undefined && i.days_present !== null ? i.days_present : '-') + '</td>' +
           '<td class="text-center">' + billingHours + '</td>' +
           '<td class="text-center">' + escapeHtml(i.billing_status || 'Active') + '</td>' +
+          '<td class="text-center">' + statusBadge(i.approval_status || 'Pending') + '</td>' +
           '<td class="text-center">' + i.chargeable_days + '</td>' +
           '<td class="text-right font-bold">' + formatCurrency(i.invoice_amount) + '</td>' +
           '</tr>';
@@ -273,17 +325,21 @@
       document.getElementById('decisionHelpText').textContent = 'No service request was generated because the validation step found errors.';
       document.getElementById('missingPoSection').classList.add('hidden');
       document.getElementById('missingPoBody').innerHTML = '';
-    } else if (currentRequestStatus === 'Pending') {
+      document.getElementById('managerApprovalSection').classList.add('hidden');
+      document.getElementById('managerApprovalBody').innerHTML = '';
+    } else if (currentRequestStatus === 'Pending' || currentRequestStatus === 'Partially Accepted') {
       decisionCard.classList.remove('hidden');
       updateDecisionPresentation(currentRequestStatus);
       setDecisionButtonsEnabled(true);
       renderMissingPoInputs(items, currentPoCandidatesByEmp);
+      renderManagerApprovals(items);
     } else {
       decisionCard.classList.remove('hidden');
       updateDecisionPresentation(currentRequestStatus);
       setDecisionButtonsEnabled(false);
       document.getElementById('missingPoSection').classList.add('hidden');
       document.getElementById('missingPoBody').innerHTML = '';
+      renderManagerApprovals(items);
     }
   }
 
@@ -365,7 +421,7 @@
     return res;
   }
 
-  async function decideCurrentRun(decision) {
+  async function decideCurrentRun(decision, approvedManagers) {
     if (!currentRunId) return;
     setDecisionButtonsEnabled(false);
     try {
@@ -395,7 +451,8 @@
 
       var res = await apiCall('POST', '/api/billing/runs/' + currentRunId + '/decision', {
         decision: decision,
-        poAssignments: poAssignments
+        poAssignments: poAssignments,
+        approvedManagers: approvedManagers || []
       });
       currentRequestStatus = res.data.requestStatus;
       showToast('Service request ' + currentRequestStatus.toLowerCase(), currentRequestStatus === 'Accepted' ? 'success' : 'warning');
@@ -407,6 +464,17 @@
       setDecisionButtonsEnabled(true);
     }
   }
+
+  window.approveManagerGroup = function (managerName) {
+    decideCurrentRun('Accepted', [managerName]);
+  };
+
+  document.getElementById('managerApprovalBody').addEventListener('click', function (e) {
+    var btn = e.target.closest('.manager-approve-btn');
+    if (!btn || btn.disabled) return;
+    var managerName = btn.getAttribute('data-manager') || '';
+    window.approveManagerGroup(managerName);
+  });
 
   setupFileZone('rateCardZone', 'rateCardFile', 'rateCardFileName');
   setupFileZone('attendanceZone', 'attendanceFile', 'attendanceFileName');

@@ -218,6 +218,10 @@ CREATE TABLE IF NOT EXISTS billing_items (
     chargeable_days   NUMERIC(10,2) NOT NULL,
     billing_status    TEXT,
     billing_note      TEXT,
+    approval_status   TEXT NOT NULL DEFAULT 'Pending' CHECK (approval_status IN ('Pending', 'Accepted', 'Rejected')),
+    approved_at       TIMESTAMPTZ,
+    approved_by_manager TEXT,
+    po_consumed_at    TIMESTAMPTZ,
     invoice_amount    NUMERIC(15,2) NOT NULL,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -414,6 +418,9 @@ ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS disable_from_date TEXT;
 ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
 ALTER TABLE attendance ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
 ALTER TABLE billing_runs ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
+ALTER TABLE billing_runs ADD COLUMN IF NOT EXISTS request_status TEXT NOT NULL DEFAULT 'Pending';
+ALTER TABLE billing_runs ADD COLUMN IF NOT EXISTS decision_at TIMESTAMPTZ;
+ALTER TABLE billing_runs ADD COLUMN IF NOT EXISTS consumption_applied_at TIMESTAMPTZ;
 ALTER TABLE billing_items ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
 ALTER TABLE billing_items ADD COLUMN IF NOT EXISTS service_description TEXT;
 ALTER TABLE billing_items ADD COLUMN IF NOT EXISTS po_number TEXT;
@@ -423,6 +430,10 @@ ALTER TABLE billing_items ADD COLUMN IF NOT EXISTS billing_hours NUMERIC(10,2);
 ALTER TABLE billing_items ADD COLUMN IF NOT EXISTS billing_method TEXT;
 ALTER TABLE billing_items ADD COLUMN IF NOT EXISTS billing_status TEXT;
 ALTER TABLE billing_items ADD COLUMN IF NOT EXISTS billing_note TEXT;
+ALTER TABLE billing_items ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'Pending';
+ALTER TABLE billing_items ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+ALTER TABLE billing_items ADD COLUMN IF NOT EXISTS approved_by_manager TEXT;
+ALTER TABLE billing_items ADD COLUMN IF NOT EXISTS po_consumed_at TIMESTAMPTZ;
 ALTER TABLE billing_errors ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
 ALTER TABLE quotes ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
 ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
