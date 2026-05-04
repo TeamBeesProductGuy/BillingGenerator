@@ -537,9 +537,7 @@
   }
 
   window.editRCPreview = function () {
-    pendingRateCardSave = null;
-    var box = document.getElementById('rcSavePreview');
-    if (box) box.classList.add('hidden');
+    hideRCSavePreview();
   };
 
   window.confirmRCSave = function () {
