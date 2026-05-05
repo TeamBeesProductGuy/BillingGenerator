@@ -205,12 +205,15 @@
         billing_method: item.billing_method,
         billing_status: item.billing_status,
         billing_note: item.billing_note,
+        service_description: item.service_description || item.role_position || '',
+        role_position: item.role_position || item.service_description || '',
         chargeable_days: item.chargeable_days,
         invoice_amount: item.invoice_amount,
         po_id: item.po_id || null,
         client_id: item.client_id || null,
         sow_id: item.sow_id || null,
         sow_number: item.sow_number || null,
+        billing_month: item.billing_month || currentBillingMonth || '',
         id: item.id || null,
         approval_status: item.approval_status || 'Pending',
         approved_at: item.approved_at || null,
@@ -234,11 +237,21 @@
     return raw || '-';
   }
 
+  function serviceDescriptionHtml(item) {
+    return escapeHtml(buildServiceDescription(item)).replace(/\n/g, '<br>');
+  }
+
+  function sowNumberLabel(value) {
+    var raw = String(value || '').trim();
+    if (!raw) return 'Not linked';
+    return raw.replace(/^sow\s*(no\.?|#)?\s*/i, '').trim() || raw;
+  }
+
   function buildServiceDescription(item) {
-    var service = item.service_description || 'Service';
-    var sow = item.sow_number ? (' for SOW no. ' + item.sow_number) : '';
-    var candidate = item.emp_name ? (' (' + item.emp_name + ')') : '';
-    return service + sow + candidate;
+    var role = String(item.service_description || item.role_position || 'Service').trim();
+    var roleLine = /\bservices$/i.test(role) ? role : role + ' services';
+    var candidate = item.emp_name || 'Candidate';
+    return roleLine + ' for\nSow no. ' + sowNumberLabel(item.sow_number) + ' (' + candidate + ')';
   }
 
   function managerApproved(rows) {
@@ -309,7 +322,7 @@
         : Math.round(Number(item.chargeable_days || 0) * 8.5 * 100) / 100;
       return '<tr>' +
         '<td class="text-center">' + (index + 1) + '</td>' +
-        '<td>' + escapeHtml(buildServiceDescription(item)) + '</td>' +
+        '<td>' + serviceDescriptionHtml(item) + '</td>' +
         '<td class="text-center">' + escapeHtml(managerName) + '</td>' +
         '<td class="text-center">' + escapeHtml(String(hours)) + '</td>' +
         '<td class="text-center">' + escapeHtml(monthLabel(currentBillingMonth || item.billing_month || '')) + '</td>' +
@@ -327,7 +340,7 @@
     document.getElementById('managerEditHours').value = item.billing_hours !== null && item.billing_hours !== undefined ? item.billing_hours : '';
     document.getElementById('managerEditMeta').innerHTML =
       '<div><strong>' + escapeHtml(item.emp_code || '') + ' - ' + escapeHtml(item.emp_name || '') + '</strong></div>' +
-      '<div class="mt-1">' + escapeHtml(buildServiceDescription(item)) + '</div>' +
+      '<div class="mt-1">' + serviceDescriptionHtml(item) + '</div>' +
       '<div class="mt-1">Current amount: ' + formatCurrency(item.invoice_amount || 0) + '</div>';
   }
 
