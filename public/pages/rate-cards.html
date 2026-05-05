@@ -88,7 +88,7 @@
             <th class="sortable" data-sort-key="9">Duration</th>
             <th class="sortable" data-sort-key="10" data-sort-type="date">Date of Reporting</th>
             <th class="sortable" data-sort-key="11">PO#</th>
-            <th class="sortable text-center" data-sort-key="12">Billing</th>
+            <th class="sortable text-center" data-sort-key="12">Active</th>
             <th class="text-center">Actions</th>
           </tr>
         </thead>
@@ -102,7 +102,7 @@
 
 <!-- Add/Edit Rate Card Modal -->
 <div id="rcModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
-  <div class="bg-surface-container-high rounded-2xl w-full max-w-lg mx-4 border border-outline-variant/15 shadow-2xl max-h-[90vh] overflow-y-auto styled-scrollbar">
+  <div id="rcModalPanel" class="bg-surface-container-high rounded-2xl w-full max-w-lg mx-4 border border-outline-variant/15 shadow-2xl max-h-[90vh] overflow-y-auto styled-scrollbar">
     <form id="rcForm">
       <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8">
         <h5 class="font-headline font-bold text-lg text-on-surface" id="rcModalTitle">Add Rate Card</h5>
@@ -114,7 +114,7 @@
         <input type="hidden" id="rcId">
         <div class="rounded-xl border border-outline-variant/15 bg-surface-container p-4 space-y-4">
           <h6 class="section-label">Employee Details</h6>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Emp Code *</label>
               <input type="text" id="rcEmpCode" required>
@@ -123,7 +123,7 @@
               <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Emp Name</label>
               <input type="text" id="rcEmpName" required>
             </div>
-            <div>
+            <div class="sm:col-span-2 max-w-[220px]">
               <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">DOJ</label>
               <input type="date" id="rcDoj">
             </div>
@@ -149,6 +149,11 @@
             <option value="">Select service from SOW</option>
           </select>
           <div id="rcSowRoleCapacity" class="mt-2 hidden rounded-xl border border-outline-variant/15 bg-surface-container p-3 text-xs text-on-surface-variant"></div>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Duration</label>
+          <input type="text" id="rcServiceDuration" readonly aria-readonly="true" placeholder="Select service description">
         </div>
 
         <div class="grid grid-cols-2 gap-4">
@@ -187,11 +192,6 @@
         <div>
           <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Leaves Allowed</label>
           <input type="number" id="rcLeaves" value="0" min="0">
-        </div>
-
-        <div>
-          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Duration</label>
-          <input type="text" id="rcServiceDuration" readonly placeholder="Select service description">
         </div>
 
         <div>
@@ -239,8 +239,8 @@
         </div>
 
         <div>
-          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Reporting Manager</label>
-          <input type="text" id="rcManager">
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Reporting Manager *</label>
+          <input type="text" id="rcManager" pattern="[A-Za-z ]+" title="Only letters and spaces are allowed" required>
         </div>
 
         <div id="rcSowPreview" class="hidden rounded-xl border border-outline-variant/15 bg-surface-container p-4">
@@ -250,18 +250,18 @@
 
         <div id="rcSavePreview" class="hidden rounded-xl border border-outline-variant/20 bg-surface-container p-4 space-y-3">
           <div>
-            <h6 class="section-label">Review Before Saving</h6>
-            <p class="mt-1 text-xs text-on-surface-variant">Please check these details carefully before saving this rate card.</p>
+            <h6 class="section-label">Confirm Rate Card Details</h6>
+            <p class="mt-1 text-xs text-on-surface-variant">Review the employee, SOW, rate, PO, and active status before final save.</p>
           </div>
           <div id="rcSavePreviewContent" class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm"></div>
           <div class="flex justify-end gap-3 pt-2">
-            <button type="button" class="btn-secondary" onclick="editRCPreview()">Edit Details</button>
+            <button type="button" class="btn-secondary" onclick="editRCPreview()">Change details</button>
             <button type="button" class="btn-primary" onclick="confirmRCSave()">Confirm Save</button>
           </div>
         </div>
       </div>
       <div id="rcModalFooter" class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
-        <button type="submit" class="btn-primary">Save</button>
+        <button type="submit" class="btn-primary">Review & Save</button>
         <button type="button" class="btn-secondary" onclick="closeRCModal()">Cancel</button>
       </div>
     </form>

@@ -158,7 +158,9 @@
 
     title.textContent = 'Order Actions';
     container.innerHTML = '';
-    container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runOrderActionEdit(' + id + ')"><span class="material-symbols-outlined">edit</span><span><strong>Edit order</strong><small>Update candidate, role, billing, and dates</small></span></button>';
+    if (String(actionState.paymentStatus || '').toLowerCase() !== 'paid') {
+      container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runOrderActionEdit(' + id + ')"><span class="material-symbols-outlined">edit</span><span><strong>Edit order</strong><small>Update candidate, role, billing, and dates</small></span></button>';
+    }
     if (actionState.reminderId && actionState.reminderStatus === 'Open') {
       container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runOrderActionInvoice(' + id + ')"><span class="material-symbols-outlined">receipt_long</span><span><strong>Set Invoice Details</strong><small>Save invoice number and invoice date</small></span></button>';
     }
@@ -258,9 +260,14 @@
 
   document.getElementById('orderForm').addEventListener('submit', async function (e) {
     e.preventDefault();
+    var candidateName = document.getElementById('orderCandidateName').value.trim();
+    if (!/^[A-Za-z ]+$/.test(candidateName)) {
+      showToast('Candidate name can contain only letters and spaces', 'danger');
+      return;
+    }
     var payload = {
       client_id: parseInt(document.getElementById('orderClient').value, 10),
-      candidate_name: document.getElementById('orderCandidateName').value.trim(),
+      candidate_name: candidateName,
       requisition_description: document.getElementById('orderRequisitionDescription').value.trim(),
       position_role: document.getElementById('orderPositionRole').value.trim(),
       date_of_offer: document.getElementById('orderDateOfOffer').value,

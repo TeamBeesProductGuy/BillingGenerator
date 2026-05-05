@@ -31,4 +31,10 @@ const decideRun = Joi.object({
     .default([]),
 });
 
-module.exports = { generateFromDb, previewBilling, decideRun };
+const updateRunItem = Joi.object({
+  leaves_taken: Joi.number().min(0).required(),
+  days_present: Joi.number().min(0).required(),
+  billing_hours: Joi.number().min(0).allow(null),
+});
+
+module.exports = { generateFromDb, previewBilling, decideRun, updateRunItem };

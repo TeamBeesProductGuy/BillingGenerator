@@ -12,6 +12,10 @@ function isSelectableSowStatus(status) {
   return ['Draft', 'Amendment Draft', 'Signed', 'Active'].includes(status);
 }
 
+function isCleanPersonName(value) {
+  return /^[A-Za-z ]+$/.test(String(value || '').trim());
+}
+
 const rateCardController = {
   list: catchAsync(async (req, res) => {
     const clientId = req.query.clientId ? parseInt(req.query.clientId, 10) : null;
@@ -188,6 +192,9 @@ const rateCardController = {
         r.sow_id = sowId;
         const sow = sowById.get(sowId);
         try {
+          if (r.reporting_manager && !isCleanPersonName(r.reporting_manager)) {
+            throw new AppError(400, 'Reporting Manager can contain only letters and spaces');
+          }
           validateRateCardDates(r.doj, r.charging_date);
           validateBillingWindowDates(r);
           const sowItem = validateSowServiceDescription(sow, r.service_description, r.sow_item_id);

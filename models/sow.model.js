@@ -13,6 +13,45 @@ function normalizeSowStatus(row) {
   };
 }
 
+function uniqueStrings(values) {
+  const seen = new Set();
+  return (values || []).filter((value) => {
+    const text = String(value || '').trim();
+    const key = text.toLowerCase();
+    if (!text || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+async function enrichSowRoles(rows) {
+  const items = Array.isArray(rows) ? rows : [];
+  const sowIds = uniqueStrings(items.map((row) => row.id)).filter(Boolean);
+  if (sowIds.length === 0) return items;
+
+  const { data, error } = await supabase
+    .from('sow_items')
+    .select('sow_id, role_position')
+    .in('sow_id', sowIds);
+  if (error) throw new Error(error.message);
+
+  const roleMap = {};
+  (data || []).forEach((item) => {
+    const key = String(item.sow_id);
+    if (!roleMap[key]) roleMap[key] = [];
+    roleMap[key].push(item.role_position);
+  });
+
+  return items.map((row) => {
+    const roles = uniqueStrings(roleMap[String(row.id)] || []);
+    return {
+      ...row,
+      roles,
+      role_summary: roles.join(', '),
+    };
+  });
+}
+
 function toDatabaseSowStatus(status) {
   return status;
 }
@@ -114,7 +153,7 @@ const SOWModel = {
       }
     }
 
-    return normalizeSowStatus(rows);
+    return enrichSowRoles(normalizeSowStatus(rows));
   },
 
   async findById(id) {
@@ -134,6 +173,25 @@ const SOWModel = {
     if (iErr) throw new Error(iErr.message);
 
     return normalizeSowStatus({ ...sow, items });
+  },
+
+  async existsForClient(sowNumber, clientId, excludeBaseSowNumber) {
+    const normalizedNumber = String(sowNumber || '').trim().toLowerCase();
+    if (!normalizedNumber || !clientId) return false;
+
+    const { data, error } = await supabase
+      .from('sows')
+      .select('id, sow_number, base_sow_number')
+      .eq('client_id', clientId);
+    if (error) throw new Error(error.message);
+
+    const excludedBase = String(excludeBaseSowNumber || '').trim().toLowerCase();
+    return (data || []).some((row) => {
+      const rowNumber = String(row.sow_number || '').trim().toLowerCase();
+      const rowBase = String(row.base_sow_number || '').trim().toLowerCase();
+      if (excludedBase && (rowNumber === excludedBase || rowBase === excludedBase)) return false;
+      return rowNumber === normalizedNumber || rowBase === normalizedNumber;
+    });
   },
 
   async create(sow, items) {

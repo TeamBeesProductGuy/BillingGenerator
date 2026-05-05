@@ -275,6 +275,10 @@
     };
   }
 
+  function isCleanPersonName(value) {
+    return /^[A-Za-z ]+$/.test(String(value || '').trim());
+  }
+
   function splitStoredQuoteNotes(notes) {
     var raw = String(notes || '');
     var markerIndex = raw.indexOf(quoteSideNoteMarker);
@@ -740,6 +744,11 @@
     e.preventDefault();
     if (document.getElementById('quoteDate').value && document.getElementById('quoteValidUntil').value && document.getElementById('quoteDate').value > document.getElementById('quoteValidUntil').value) {
       showToast('Quote date must be less than or equal to valid until date', 'danger');
+      return;
+    }
+    var quoteCandidateName = document.getElementById('quoteCandidateName').value.trim();
+    if (quoteCandidateName && !isCleanPersonName(quoteCandidateName)) {
+      showToast('Candidate name can contain only letters and spaces', 'danger');
       return;
     }
     var items = [];

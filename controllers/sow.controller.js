@@ -68,6 +68,15 @@ function sanitizeSegment(value) {
     .substring(0, 80);
 }
 
+function isCleanPersonName(value) {
+  return /^[A-Za-z ]+$/.test(String(value || '').trim());
+}
+
+function normalizeCandidateName(value) {
+  const text = String(value || '').trim();
+  return text === '[Write candidate name here]' ? '' : text;
+}
+
 function formatFolderDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -100,6 +109,30 @@ function buildQuoteDocumentBaseCore(quote, client) {
   if (parts.length <= 1) return fullName;
   const last = parts[parts.length - 1];
   return /^\d{6}$/.test(last) ? parts.slice(0, -1).join('_') : fullName;
+}
+
+function buildSowDocumentBaseName(client, sowNumber, role, candidateName, dateValue) {
+  return [
+    sanitizeSegment((client && client.abbreviation) || 'client'),
+    'SOW',
+    sowNumber ? sanitizeSegment(sowNumber) : '',
+    role ? sanitizeSegment(role) : '',
+    sanitizeSegment(candidateName || 'no_candidate'),
+    formatFolderDate(dateValue),
+  ].filter(Boolean).join('_');
+}
+
+function buildPoDocumentBaseName(client, sowNumber, poNumber, role, candidateName, dateValue) {
+  return [
+    sanitizeSegment((client && client.abbreviation) || 'client'),
+    'SOW',
+    sowNumber ? sanitizeSegment(sowNumber) : '',
+    'PO',
+    sanitizeSegment(poNumber || 'po'),
+    role ? sanitizeSegment(role) : '',
+    sanitizeSegment(candidateName || 'no_candidate'),
+    formatFolderDate(dateValue),
+  ].filter(Boolean).join('_');
 }
 
 async function findLatestSowForQuote(quoteId) {
@@ -570,6 +603,9 @@ const sowController = {
   create: catchAsync(async (req, res) => {
     const { sow_number, client_id, quote_id, sow_date, effective_start, effective_end, notes, items } = req.body;
     try {
+      if (await SOWModel.existsForClient(sow_number, client_id)) {
+        throw new AppError(409, 'SOW already exists for this client. Add the new role in that SOW instead.');
+      }
       const result = await SOWModel.create({ sow_number, client_id, quote_id, sow_date, effective_start, effective_end, notes }, items);
       await logActivity(req, {
         module: 'sows',
@@ -787,6 +823,7 @@ const sowController = {
 
         if (!clientId) throw new AppError(400, 'client_id is required');
         if (!candidateName) throw new AppError(400, 'candidate_name is required');
+        if (!isCleanPersonName(candidateName)) throw new AppError(400, 'Candidate name can contain only letters and spaces');
         if (!referenceDate) throw new AppError(400, 'reference_date is required');
 
         const client = await ClientModel.findById(clientId);
@@ -801,13 +838,7 @@ const sowController = {
         targetDir = path.join(getLinkedDocumentsBaseDir(), folderName);
         fs.mkdirSync(targetDir, { recursive: true });
 
-        const manualBaseName = [
-          sanitizeSegment(client.abbreviation || 'client'),
-          role ? sanitizeSegment(role) : '',
-          sowNumber ? sanitizeSegment(sowNumber) : '',
-          sanitizeSegment(candidateName || 'no_candidate'),
-          formatFolderDate(referenceDate),
-        ].filter(Boolean).join('_');
+        const manualBaseName = buildSowDocumentBaseName(client, sowNumber, role, candidateName, referenceDate);
         sowDocPath = buildStoredDocumentPath(targetDir, `${manualBaseName}${path.extname(req.file.originalname || req.file.filename || '')}`, manualBaseName || 'sow_document');
         fs.copyFileSync(req.file.path, sowDocPath);
 
@@ -824,7 +855,8 @@ const sowController = {
         const client = await ClientModel.findById(quote.client_id);
         if (!client) throw new AppError(404, 'Client not found for quote');
 
-        const candidateName = extractStructuredField(getMailFormatNotes(quote.notes), 'Candidate', ['Dear', 'Body', 'Regards', 'Designation']);
+        const candidateName = normalizeCandidateName(extractStructuredField(getMailFormatNotes(quote.notes), 'Candidate', ['Dear', 'Body', 'Regards', 'Designation']));
+        if (candidateName && !isCleanPersonName(candidateName)) throw new AppError(400, 'Candidate name can contain only letters and spaces');
         folderName = [
           sanitizeSegment(client.abbreviation || 'client'),
           sanitizeSegment(candidateName || 'no_candidate'),
@@ -840,11 +872,8 @@ const sowController = {
 
         const latestSow = await findLatestSowForQuote(quoteId);
         const latestSowNumber = latestSow && latestSow.sow_number ? latestSow.sow_number : '';
-        const sowBaseName = [
-          buildQuoteDocumentBaseCore(quote, client),
-          latestSowNumber ? sanitizeSegment(latestSowNumber) : '',
-          formatFolderDate(quote.quote_date),
-        ].filter(Boolean).join('_');
+        const sowRole = (((quote && quote.items) || []).find((item) => String(item && item.description || '').trim()) || {}).description || '';
+        const sowBaseName = buildSowDocumentBaseName(client, latestSowNumber, sowRole, candidateName, quote.quote_date);
         sowDocPath = buildStoredDocumentPath(targetDir, `${sowBaseName}${path.extname(req.file.originalname || req.file.filename || '')}`, sowBaseName || 'sow_document');
         fs.copyFileSync(req.file.path, sowDocPath);
 
@@ -891,14 +920,16 @@ const sowController = {
       const quote = resolved.quote;
       const client = resolved.client;
       const metadata = resolved.metadata || {};
-      const sowNumber = Array.isArray(metadata.sow_numbers) && metadata.sow_numbers.length > 0 ? metadata.sow_numbers[0] : '';
       const dateToken = quote ? formatFolderDate(quote.quote_date) : formatFolderDate(new Date());
-      const poBaseName = [
-        quote && client ? buildQuoteDocumentBaseCore(quote, client) : sanitizeSegment(folderName),
-        sowNumber ? sanitizeSegment(sowNumber) : '',
-        sanitizeSegment(poNumber),
-        dateToken,
-      ].filter(Boolean).join('_');
+      const role = Array.isArray(metadata.roles) && metadata.roles.length > 0
+        ? metadata.roles[0]
+        : (quote && quote.items && quote.items[0] ? quote.items[0].description : '');
+      const sowNumber = Array.isArray(metadata.sow_numbers) && metadata.sow_numbers.length > 0 ? metadata.sow_numbers[0] : '';
+      const candidateName = normalizeCandidateName(metadata.candidate_name || (quote ? extractStructuredField(getMailFormatNotes(quote.notes), 'Candidate', ['Dear', 'Body', 'Regards', 'Designation']) : ''));
+      if (candidateName && !isCleanPersonName(candidateName)) throw new AppError(400, 'Candidate name can contain only letters and spaces');
+      const poBaseName = quote && client
+        ? buildPoDocumentBaseName(client, sowNumber, poNumber, role, candidateName, dateToken)
+        : ['PO', sanitizeSegment(poNumber), sanitizeSegment(folderName), dateToken].filter(Boolean).join('_');
       const poDocPath = buildStoredDocumentPath(targetDir, `${poBaseName}${path.extname(req.file.originalname || req.file.filename || '')}`, poBaseName || 'po_document');
       fs.copyFileSync(req.file.path, poDocPath);
 

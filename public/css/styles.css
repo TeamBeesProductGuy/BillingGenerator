@@ -242,18 +242,21 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
     border-left: 1px solid rgba(0, 0, 0, 0.8);
     border-right: 1px solid rgba(0, 0, 0, 0.8);
 }
-.stitch-table thead tr {
-    background: rgba(var(--color-surface-strong-rgb), 0.88);
-}
 .stitch-table th {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    text-align: center !important;
     padding: 0.875rem 1.25rem;
     font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.2em;
-    color: var(--color-text-muted);
-    border-bottom: 1px solid rgba(0, 0, 0, 0.85);
-    border-right: 1px solid rgba(0, 0, 0, 0.85);
+    color: var(--color-secondary) !important;
+    background: var(--color-primary) !important;
+    border-bottom: 2px solid var(--color-secondary);
+    border-right: 1px solid rgba(var(--color-secondary-rgb), 0.35);
+    box-shadow: 0 2px 0 rgba(var(--color-secondary-rgb), 0.14);
 }
 .stitch-table td {
     padding: 1rem 1.25rem;
@@ -633,7 +636,13 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
 .orders-table-scroll,
 .quotes-table-scroll,
 .sows-table-scroll,
-.purchaseorders-table-scroll {
+.purchaseorders-table-scroll,
+.client-table-scroll,
+.reminder-table-scroll,
+.table-section-card > .overflow-x-auto,
+.table-section-card > .overflow-auto {
+    max-height: calc(100vh - 22rem);
+    overflow: auto;
     padding-bottom: 0.35rem;
 }
 

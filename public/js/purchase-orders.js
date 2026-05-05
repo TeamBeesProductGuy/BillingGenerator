@@ -59,14 +59,11 @@
     } catch (e) { /* ignore */ }
   }
 
-  function buildSowOptionLabel(sow, ownerClientId, isBorrowed) {
+  function buildSowOptionLabel(sow, ownerClientId) {
     var ownerClient = poClientMap[String(ownerClientId)] || null;
     var ownerLabel = ownerClient ? (ownerClient.abbreviation || getClientDisplayName(ownerClient)) : '';
     var status = sow.status || 'Unknown';
-    if (ownerLabel) {
-      return (sow.sow_number || '') + ' : From ' + ownerLabel + ' : ' + status;
-    }
-    return (sow.sow_number || '') + ' : ' + status;
+    return [sow.sow_number || '', ownerLabel || 'Client', status].join(' : ');
   }
 
   async function loadSOWsForClient(clientId, sourceClientId) {
@@ -76,19 +73,14 @@
     sel.innerHTML = '<option value="">Select SOW</option>';
     if (!clientId) return;
     try {
-      var hasBorrowedClient = sourceClientId && String(sourceClientId) !== String(clientId);
-      var requests = [apiCall('GET', '/api/sows?clientId=' + clientId)];
-      if (hasBorrowedClient) {
-        requests.push(apiCall('GET', '/api/sows?clientId=' + sourceClientId));
-      }
-
-      var responses = await Promise.all(requests);
+      var selectedSowClientId = sourceClientId || clientId;
+      var responses = [await apiCall('GET', '/api/sows?clientId=' + selectedSowClientId)];
       if (loadToken !== latestSowLoadToken) return;
 
       var seen = {};
       var optionMarkup = ['<option value="">Select SOW</option>'];
       responses.forEach(function (res, index) {
-        var requestedClientId = index === 0 ? clientId : sourceClientId;
+        var requestedClientId = selectedSowClientId;
         (res.data || []).forEach(function (s) {
           if (s.status === 'Expired' || s.status === 'Terminated' || s.status === 'Inactive' || seen[String(s.id)]) return;
           seen[String(s.id)] = true;
@@ -98,7 +90,7 @@
             owner_client_id: ownerId,
             borrowed_for_client_id: isBorrowed ? clientId : null,
           });
-          optionMarkup.push('<option value="' + s.id + '">' + escapeHtml(buildSowOptionLabel(s, ownerId, isBorrowed)) + '</option>');
+          optionMarkup.push('<option value="' + s.id + '">' + escapeHtml(buildSowOptionLabel(s, ownerId)) + '</option>');
         });
       });
       sel.innerHTML = optionMarkup.join('');
@@ -399,14 +391,14 @@
       var rcLabel = rateCards.length === 1 ? '1 rate card' : rateCards.length + ' rate cards';
       if (sows.length || rateCards.length) {
         var sowDetails = sows.map(function (sow) {
-          return (sow.sow_number || 'SOW #' + sow.id) + ' (ID ' + sow.id + ')';
-        }).join(', ');
-        detailText = ' This PO is currently associated with ' + sowLabel + ' and ' + rcLabel + '.';
-        if (sowDetails) detailText += ' Linked SOW details: ' + sowDetails + '.';
-        detailText += ' Linked SOWs will not be changed automatically.';
+          return '- SOW ' + (sow.sow_number || 'number not added');
+        }).join('\n');
+        detailText = '\n\nLinked information:\n- ' + sowLabel + ' connected\n- ' + rcLabel + ' connected';
+        if (sowDetails) detailText += '\n' + sowDetails;
+        detailText += '\n- Existing linked SOWs will stay as they are';
       }
     } catch (err) { /* ignore association lookup failure */ }
-    return confirmAction('Mark PO Inactive', 'Marking this PO inactive will stop billing consumption against it and prevent new rate cards from using it.' + detailText + ' You can mark it active again later.');
+    return confirmAction('Mark PO Inactive', 'This will inactivate the purchase order.\n\nWhat changes:\n- Stops billing consumption against this PO\n- Prevents new rate cards from using this PO\n- You can mark it active again later' + detailText);
   }
 
   window.viewPO = async function (id) {

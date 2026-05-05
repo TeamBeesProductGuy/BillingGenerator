@@ -289,6 +289,16 @@
     return '<span class="' + (map[s] || 'badge-processing') + '">' + s + '</span>';
   };
 
+  function formatRoleSummary(sow) {
+    var roles = Array.isArray(sow.roles) ? sow.roles : [];
+    var text = roles.filter(Boolean).join(', ') || sow.role_summary || '---';
+    return '<div class="table-cell-box table-cell-text" title="' + escapeHtml(text) + '">' + escapeHtml(text) + '</div>';
+  }
+
+  function isCleanPersonName(value) {
+    return /^[A-Za-z ]+$/.test(String(value || '').trim());
+  }
+
   async function loadClients() {
     try {
       var res = await apiCall('GET', '/api/clients');
@@ -316,7 +326,8 @@
     try {
       var res = await apiCall('GET', '/api/quotes?clientId=' + clientId + '&status=Accepted');
       res.data.forEach(function (q) {
-        sel.innerHTML += '<option value="' + q.id + '">' + escapeHtml(q.quote_number) + ' (' + formatCurrency(q.total_amount) + ')</option>';
+        var role = getQuoteRoleLabel(q) || 'Role not set';
+        sel.innerHTML += '<option value="' + q.id + '">' + escapeHtml(q.quote_number) + ' (' + escapeHtml(role) + ')</option>';
       });
     } catch (e) { /* ignore */ }
   }
@@ -381,7 +392,7 @@
       var res = await apiCall('GET', url);
       updateSowsSummary(res.data || []);
       if (res.data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-on-surface-variant py-8">No SOWs found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-on-surface-variant py-8">No SOWs found</td></tr>';
       } else {
         sowActionMap = {};
         tbody.innerHTML = res.data.map(function (s) {
@@ -410,8 +421,9 @@
           actionsHtml += '</div>';
 
           return '<tr>' +
-            '<td><div class="table-cell-box table-cell-stack"><span class="entity-pill entity-pill-strong">' + escapeHtml(s.sow_number) + '</span><span class="table-cell-secondary">Row #' + s.id + '</span></div></td>' +
+            '<td><div class="table-cell-box table-cell-stack"><span class="entity-pill entity-pill-strong">' + escapeHtml(s.sow_number) + '</span></div></td>' +
             '<td><div class="table-cell-box table-cell-stack"><span class="entity-pill" title="' + escapeHtml(clientFullName) + '">' + escapeHtml(clientDisplay) + '</span><span class="table-cell-secondary" title="' + escapeHtml(clientFullName) + '">' + escapeHtml(clientFullName) + '</span></div></td>' +
+            '<td>' + formatRoleSummary(s) + '</td>' +
             '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(s.sow_date) + '</span></div></td>' +
             '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(s.effective_start) + '</span></div></td>' +
             '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(s.effective_end) + '</span></div></td>' +
@@ -420,9 +432,28 @@
             '<td class="text-center"><div class="table-cell-box table-cell-center">' + actionsHtml + '</div></td>' +
             '</tr>';
         }).join('');
+        Array.from(tbody.querySelectorAll('tr')).forEach(function (row, index) {
+          var s = res.data[index];
+          if (!s) return;
+          var client = sowClientMap[String(s.client_id)] || null;
+          var clientDisplay = client ? getClientDisplayName(client) : (s.client_name || '');
+          var roles = Array.isArray(s.roles) ? s.roles.join(' ') : (s.role_summary || '');
+          row.setAttribute('data-sow-search', [
+            s.sow_number || '',
+            s.base_sow_number || '',
+            clientDisplay || '',
+            s.client_name || '',
+            roles || '',
+            s.status || '',
+          ].join(' ').toLowerCase());
+        });
       }
       initTableSort('sowsTable');
-      updateSowsVisibleCount();
+      if (document.getElementById('sowsSearch') && document.getElementById('sowsSearch').value.trim()) {
+        applySowSearch();
+      } else {
+        updateSowsVisibleCount();
+      }
     } catch (err) { showToast(err.message, 'danger'); hideLoading(tbody); }
   }
 
@@ -479,14 +510,14 @@
       var rcLabel = rateCards.length === 1 ? '1 rate card' : rateCards.length + ' rate cards';
       if (pos.length || rateCards.length) {
         var poDetails = pos.map(function (po) {
-          return (po.po_number || 'PO #' + po.id) + ' (ID ' + po.id + ', ' + po.status + ')';
-        }).join(', ');
-        detailText = ' This SOW is currently associated with ' + poLabel + ' and ' + rcLabel + '.';
-        if (poDetails) detailText += ' Linked PO details: ' + poDetails + '.';
-        detailText += ' Linked POs will not be changed automatically.';
+          return '- PO ' + (po.po_number || 'number not added') + ': ' + (po.status || 'Status not set');
+        }).join('\n');
+        detailText = '\n\nLinked information:\n- ' + poLabel + ' connected\n- ' + rcLabel + ' connected';
+        if (poDetails) detailText += '\n' + poDetails;
+        detailText += '\n- Existing linked POs will stay as they are';
       }
     } catch (err) { /* ignore association lookup failure */ }
-    return confirmAction('Mark SOW Inactive', 'Marking this SOW inactive will stop billing for rate cards linked to it and prevent new rate cards/POs from using it.' + detailText + ' You can mark it active again later.');
+    return confirmAction('Mark SOW Inactive', 'This will inactivate the SOW.\n\nWhat changes:\n- Stops billing for active rate cards linked to this SOW\n- Prevents new rate cards and POs from using this SOW\n- You can mark it active again later' + detailText);
   }
 
   window.runSOWActionLinkPO = function (sowId, clientId) {
@@ -717,8 +748,13 @@
     if (sowDocumentUploadMode === 'with-quote') {
       fd.append('quote_id', document.getElementById('sowDocumentQuote').value);
     } else {
+      var candidateName = document.getElementById('sowDocumentCandidate').value.trim();
+      if (candidateName && !isCleanPersonName(candidateName)) {
+        showToast('Candidate name can contain only letters and spaces', 'danger');
+        return;
+      }
       fd.append('client_id', document.getElementById('sowDocumentClient').value);
-      fd.append('candidate_name', document.getElementById('sowDocumentCandidate').value.trim());
+      fd.append('candidate_name', candidateName);
       fd.append('role', document.getElementById('sowDocumentRole').value.trim());
       fd.append('sow_number', document.getElementById('sowDocumentManualSowNumber').value.trim());
       fd.append('reference_date', document.getElementById('sowDocumentReferenceDate').value);
@@ -786,10 +822,21 @@
     loadQuotesForClient(this.value);
   });
 
-  // Initialize search
-  initTableSearch('sowsSearch', 'sowsBody');
+  function applySowSearch() {
+    var input = document.getElementById('sowsSearch');
+    var tbody = document.getElementById('sowsBody');
+    var query = input ? input.value.toLowerCase().trim() : '';
+    if (!tbody) return;
+    tbody.querySelectorAll('tr').forEach(function (row) {
+      if (row.querySelector('td[colspan]')) { row.style.display = ''; return; }
+      var indexed = row.getAttribute('data-sow-search') || row.textContent.toLowerCase();
+      row.style.display = indexed.indexOf(query) !== -1 ? '' : 'none';
+    });
+    updateSowsVisibleCount();
+  }
+
   document.getElementById('sowsSearch').addEventListener('input', function () {
-    setTimeout(updateSowsVisibleCount, 250);
+    setTimeout(applySowSearch, 120);
   });
 
   loadClients().then(function () {

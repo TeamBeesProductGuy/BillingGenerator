@@ -166,11 +166,11 @@
       '</div>' +
       (count === 0
         ? '<div class="reminder-empty-state">' + section.empty + '</div>'
-        : '<div class="overflow-x-auto">' +
+        : '<div class="overflow-x-auto styled-scrollbar reminder-table-scroll">' +
             '<table class="stitch-table reminder-section-table" id="' + tableId + '">' +
               '<thead>' +
                 '<tr>' +
-                  '<th class="sortable" data-sort-key="0">Remarks</th>' +
+                  '<th class="sortable" data-sort-key="0">Invoice Issuing Date</th>' +
                   '<th class="sortable" data-sort-key="1">Client</th>' +
                   '<th class="sortable" data-sort-key="2">Candidate</th>' +
                   '<th class="sortable" data-sort-key="3">Role</th>' +

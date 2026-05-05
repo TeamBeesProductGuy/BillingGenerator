@@ -1,5 +1,10 @@
 const Joi = require('joi');
 
+const managerName = Joi.string()
+  .trim()
+  .pattern(/^[A-Za-z ]+$/)
+  .messages({ 'string.pattern.base': 'Reporting Manager can contain only letters and spaces' });
+
 const createRateCard = Joi.object({
   client_id: Joi.number()
     .integer()
@@ -21,10 +26,10 @@ const createRateCard = Joi.object({
   doj: Joi.string()
     .allow('', null),
 
-  reporting_manager: Joi.string()
-    .trim()
+  reporting_manager: managerName
+    .min(1)
     .max(200)
-    .allow('', null),
+    .required(),
 
   service_description: Joi.string()
     .trim()
@@ -113,8 +118,7 @@ const updateRateCard = Joi.object({
   doj: Joi.string()
     .allow('', null),
 
-  reporting_manager: Joi.string()
-    .trim()
+  reporting_manager: managerName
     .max(200)
     .allow('', null),
 

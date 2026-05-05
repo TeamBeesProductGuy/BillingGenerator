@@ -253,6 +253,51 @@ const BillingModel = {
     if (isMissingColumnError(error, 'po_consumed_at')) return;
     if (error) throw new Error(error.message);
   },
+
+  async updateItem(runId, itemId, payload) {
+    const allowed = [
+      'leaves_taken',
+      'days_present',
+      'billing_hours',
+      'chargeable_days',
+      'invoice_amount',
+      'billing_note',
+      'billing_status',
+    ];
+    const updatePayload = {};
+    allowed.forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(payload, key)) updatePayload[key] = payload[key];
+    });
+    const { data, error } = await supabase
+      .from('billing_items')
+      .update(updatePayload)
+      .eq('billing_run_id', runId)
+      .eq('id', itemId)
+      .select('*')
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
+  async updateRunTotals(runId) {
+    const { data: items, error: itemsError } = await supabase
+      .from('billing_items')
+      .select('invoice_amount')
+      .eq('billing_run_id', runId);
+    if (itemsError) throw new Error(itemsError.message);
+
+    const totalEmployees = (items || []).length;
+    const totalAmount = Math.round((items || []).reduce((sum, item) => sum + Number(item.invoice_amount || 0), 0) * 100) / 100;
+    const { error } = await supabase
+      .from('billing_runs')
+      .update({
+        total_employees: totalEmployees,
+        total_amount: totalAmount,
+      })
+      .eq('id', runId);
+    if (error) throw new Error(error.message);
+    return { totalEmployees, totalAmount };
+  },
 };
 
 module.exports = BillingModel;

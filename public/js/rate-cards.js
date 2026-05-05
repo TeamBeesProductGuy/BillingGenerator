@@ -500,7 +500,7 @@
     if (!box || !content) return;
     var billingStatus = data.disable_billing
       ? 'Disable billing from ' + (data.disable_from_date || '-')
-      : (data.pause_billing ? 'Pause billing from ' + (data.pause_start_date || '-') + ' to ' + (data.pause_end_date || '-') : 'Invoice enabled');
+      : (data.pause_billing ? 'Pause billing from ' + (data.pause_start_date || '-') + ' to ' + (data.pause_end_date || '-') : 'Active');
     content.innerHTML = [
       previewField('Emp Code', data.emp_code),
       previewField('Emp Name', data.emp_name),
@@ -513,7 +513,7 @@
       previewField('Leaves Allowed', String(data.leaves_allowed || 0)),
       previewField('Date of Reporting', data.charging_date ? formatDate(data.charging_date) : '-'),
       previewField('Purchase Order', getSelectedOptionText('rcPO') || '-'),
-      previewField('Billing Status', billingStatus),
+      previewField('Active Status', billingStatus),
       previewField('Reporting Manager', data.reporting_manager || '-'),
     ].join('');
     box.classList.remove('hidden');
@@ -538,6 +538,8 @@
 
   window.editRCPreview = function () {
     hideRCSavePreview();
+    var panel = document.getElementById('rcModalPanel');
+    if (panel) panel.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   window.confirmRCSave = function () {
@@ -602,7 +604,7 @@
           var clientDisplay = client ? getClientDisplayName(client) : (r.client_name || '');
           var billingPaused = r.pause_billing;
           var billingDisabled = r.no_invoice || r.billing_active === false || r.disable_billing;
-          var billingLabel = billingDisabled ? 'Disabled' : (billingPaused ? 'Paused' : 'Invoice');
+          var billingLabel = billingDisabled ? 'Disabled' : (billingPaused ? 'Paused' : 'Active');
           var billingClass = billingDisabled ? 'badge-warning' : (billingPaused ? 'badge-warning' : 'badge-success');
           var serviceDuration = (r.sow_item_valid_from || r.sow_item_valid_to)
             ? (formatDate(r.sow_item_valid_from) + ' to ' + formatDate(r.sow_item_valid_to))
@@ -753,6 +755,14 @@
     }
     if (!validateRateCardDates()) return;
     if (!validateAgainstSelectedSOW(monthlyRate, window.rcEdit)) return;
+    if (!document.getElementById('rcManager').value.trim()) {
+      showToast('Reporting Manager is required', 'danger');
+      return;
+    }
+    if (!/^[A-Za-z ]+$/.test(document.getElementById('rcManager').value.trim())) {
+      showToast('Reporting Manager can contain only letters and spaces', 'danger');
+      return;
+    }
 
     var data = {
       client_id: parseInt(document.getElementById('rcClient').value, 10),

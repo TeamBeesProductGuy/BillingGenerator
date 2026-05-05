@@ -60,6 +60,18 @@ function extractLegacyField(mailNotes, label) {
   return match ? match[1].trim() : '';
 }
 
+function isCleanPersonName(value) {
+  return /^[A-Za-z ]+$/.test(String(value || '').trim());
+}
+
+function validateQuoteCandidateName(notes) {
+  let candidateName = extractStructuredField(getMailFormatNotes(notes), 'Candidate', ['Dear', 'Body', 'Regards', 'Designation']);
+  if (candidateName === '[Write candidate name here]') candidateName = '';
+  if (candidateName && !isCleanPersonName(candidateName)) {
+    throw new AppError(400, 'Candidate name can contain only letters and spaces');
+  }
+}
+
 function splitAddressLines(value) {
   return String(value || '')
     .split(/\r?\n/)
@@ -367,6 +379,7 @@ const quoteController = {
 
   create: catchAsync(async (req, res) => {
     const { client_id, quote_date, valid_until, notes, items } = req.body;
+    validateQuoteCandidateName(notes);
     const result = await QuoteModel.create({ client_id, quote_date, valid_until, notes }, items);
     await logActivity(req, {
       module: 'quotes',
@@ -385,6 +398,7 @@ const quoteController = {
     if (!existing) throw new AppError(404, 'Quote not found');
     if (existing.status !== 'Draft') throw new AppError(400, 'Only draft quotes can be edited');
     const { client_id, quote_date, valid_until, notes, items } = req.body;
+    validateQuoteCandidateName(notes);
     const result = await QuoteModel.update(id, { client_id, quote_date, valid_until, notes }, items || []);
     await logActivity(req, {
       module: 'quotes',
@@ -403,6 +417,7 @@ const quoteController = {
     if (!existing) throw new AppError(404, 'Quote not found');
     if (existing.status !== 'Sent') throw new AppError(400, 'Only sent quotes can be amended');
     const { client_id, quote_date, valid_until, notes, items } = req.body;
+    validateQuoteCandidateName(notes);
     const result = await QuoteModel.createAmendment(id, { client_id, quote_date, valid_until, notes }, items || []);
     await logActivity(req, {
       module: 'quotes',

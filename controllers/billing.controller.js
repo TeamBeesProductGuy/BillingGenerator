@@ -654,6 +654,66 @@ const billingController = {
     });
   }),
 
+  updateRunItem: catchAsync(async (req, res) => {
+    const runId = parseInt(req.params.id, 10);
+    const itemId = parseInt(req.params.itemId, 10);
+    const run = await BillingModel.findRunById(runId);
+    if (!run) throw new AppError(404, 'Billing run not found');
+    if (!['Pending', 'Partially Accepted'].includes(run.request_status || deriveRunStatusFromItems(run.items || []))) {
+      throw new AppError(400, 'Approved or rejected service requests cannot be edited');
+    }
+    const item = (run.items || []).find((row) => Number(row.id) === itemId);
+    if (!item) throw new AppError(404, 'Service request item not found');
+    if (item.approval_status === 'Accepted') throw new AppError(400, 'Approved manager request cannot be edited');
+
+    const leavesTaken = Number(req.body.leaves_taken || 0);
+    const daysPresent = Number(req.body.days_present || 0);
+    const effectiveDays = Number(item.effective_days || item.days_in_month || 0);
+    const leavesAllowed = Number(item.leaves_allowed || 0);
+    let billingHours = req.body.billing_hours === null || req.body.billing_hours === undefined ? null : Number(req.body.billing_hours);
+    let chargeableDays = Math.min(Math.max(effectiveDays - leavesTaken + leavesAllowed, 0), 30, effectiveDays);
+    let invoiceAmount = Math.round(((chargeableDays / Number(item.days_in_month || 30)) * Number(item.monthly_rate || 0)) * 100) / 100;
+
+    if (item.billing_method === 'sgtc_hours') {
+      billingHours = Number.isFinite(billingHours) ? billingHours : Math.min(Math.round(daysPresent * 8.5 * 100) / 100, 170);
+      chargeableDays = daysPresent;
+      invoiceAmount = Math.round(((Number(item.monthly_rate || 0) / 170) * billingHours) * 100) / 100;
+    }
+
+    const updated = await BillingModel.updateItem(runId, itemId, {
+      leaves_taken: leavesTaken,
+      days_present: daysPresent,
+      billing_hours: billingHours,
+      chargeable_days: chargeableDays,
+      invoice_amount: invoiceAmount,
+      billing_note: 'Manual attendance correction applied',
+      billing_status: item.billing_status || 'Active',
+    });
+    const totals = await BillingModel.updateRunTotals(runId);
+    const refreshed = await BillingModel.findRunById(runId);
+    const requestStatus = deriveRunStatusFromItems(refreshed ? refreshed.items : run.items);
+    await BillingModel.updateRunStatusOnly(runId, requestStatus);
+    const finalRun = await BillingModel.findRunById(runId);
+    if (finalRun) {
+      await hydrateRunItemsForDecision(finalRun);
+      finalRun.request_status = requestStatus;
+      finalRun.total_employees = totals.totalEmployees;
+      finalRun.total_amount = totals.totalAmount;
+    }
+    res.json({
+      success: true,
+      data: {
+        item: updated,
+        totals,
+        requestStatus,
+        run: finalRun ? {
+          ...finalRun,
+          poCandidatesByEmp: await buildPoCandidates(finalRun.items || []),
+        } : null,
+      },
+    });
+  }),
+
   downloadFile: catchAsync(async (req, res) => {
     const run = await BillingModel.findRunById(parseInt(req.params.id, 10));
     if (!run) throw new AppError(404, 'Billing run not found');

@@ -1,5 +1,10 @@
 const Joi = require('joi');
 
+const managerName = Joi.string()
+  .trim()
+  .pattern(/^[A-Za-z ]+$/)
+  .messages({ 'string.pattern.base': 'Reporting Manager can contain only letters and spaces' });
+
 const submitSingle = Joi.object({
   emp_code: Joi.string()
     .trim()
@@ -9,8 +14,7 @@ const submitSingle = Joi.object({
     .trim()
     .allow('', null),
 
-  reporting_manager: Joi.string()
-    .trim()
+  reporting_manager: managerName
     .allow('', null),
 
   billing_month: Joi.string()
@@ -37,8 +41,7 @@ const submitBulk = Joi.object({
     .trim()
     .allow('', null),
 
-  reporting_manager: Joi.string()
-    .trim()
+  reporting_manager: managerName
     .allow('', null),
 
   billing_month: Joi.string()

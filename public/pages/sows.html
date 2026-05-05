@@ -71,17 +71,18 @@
           <tr>
             <th class="sortable" data-sort-key="0">SOW #</th>
             <th class="sortable" data-sort-key="1">Client</th>
-            <th class="sortable" data-sort-key="2" data-sort-type="date">Date</th>
-            <th class="sortable" data-sort-key="3" data-sort-type="date">Start</th>
-            <th class="sortable" data-sort-key="4" data-sort-type="date">End</th>
-            <th class="sortable text-right" data-sort-key="5" data-sort-type="currency">Total Value</th>
-            <th class="sortable" data-sort-key="6">Status</th>
+            <th class="sortable" data-sort-key="2">Role</th>
+            <th class="sortable" data-sort-key="3" data-sort-type="date">Date</th>
+            <th class="sortable" data-sort-key="4" data-sort-type="date">Start</th>
+            <th class="sortable" data-sort-key="5" data-sort-type="date">End</th>
+            <th class="sortable text-right" data-sort-key="6" data-sort-type="currency">Total Value</th>
+            <th class="sortable" data-sort-key="7">Status</th>
             <th class="text-center">Actions</th>
           </tr>
         </thead>
         <tbody id="sowsBody">
           <tr>
-            <td colspan="8">
+            <td colspan="9">
               <div class="loading-spinner"></div>
             </td>
           </tr>
@@ -180,7 +181,7 @@
           </div>
           <div>
             <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Candidate *</label>
-            <input type="text" id="sowDocumentCandidate" placeholder="Candidate name">
+            <input type="text" id="sowDocumentCandidate" placeholder="Candidate name" pattern="[A-Za-z ]+" title="Only letters and spaces are allowed">
           </div>
           <div>
             <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Role</label>

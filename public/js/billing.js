@@ -2,6 +2,9 @@
   var currentRunId = null;
   var currentRequestStatus = null;
   var currentPoCandidatesByEmp = {};
+  var currentBillingItems = [];
+  var managerGroups = {};
+  var currentBillingMonth = '';
 
   window.switchBillingTab = function (tabId) {
     document.querySelectorAll('.billing-tab').forEach(function (btn) {
@@ -221,6 +224,27 @@
     return String(value || 'Unassigned').trim() || 'Unassigned';
   }
 
+  function monthLabel(value) {
+    var raw = String(value || '');
+    if (/^\d{6}$/.test(raw)) {
+      var year = raw.slice(0, 4);
+      var month = parseInt(raw.slice(4, 6), 10) - 1;
+      return new Date(Number(year), month, 1).toLocaleString('en-US', { month: 'short', year: '2-digit' });
+    }
+    return raw || '-';
+  }
+
+  function buildServiceDescription(item) {
+    var service = item.service_description || 'Service';
+    var sow = item.sow_number ? (' for SOW no. ' + item.sow_number) : '';
+    var candidate = item.emp_name ? (' (' + item.emp_name + ')') : '';
+    return service + sow + candidate;
+  }
+
+  function managerApproved(rows) {
+    return rows.length > 0 && rows.every(function (item) { return item.approval_status === 'Accepted'; });
+  }
+
   function renderManagerApprovals(items) {
     var section = document.getElementById('managerApprovalSection');
     var body = document.getElementById('managerApprovalBody');
@@ -238,27 +262,91 @@
       return;
     }
 
+    managerGroups = groups;
     body.innerHTML = names.map(function (name) {
       var rows = groups[name];
       var total = rows.reduce(function (sum, item) { return sum + (parseFloat(item.invoice_amount) || 0); }, 0);
       var pending = rows.filter(function (item) { return item.approval_status === 'Pending'; }).length;
       var accepted = rows.filter(function (item) { return item.approval_status === 'Accepted'; }).length;
       var rejected = rows.filter(function (item) { return item.approval_status === 'Rejected'; }).length;
-      var disabled = pending === 0 ? ' disabled' : '';
-      var buttonText = pending === 0 && accepted > 0 ? 'Approved' : 'Approve This Manager';
+      var approved = managerApproved(rows);
       var statusText = accepted + ' accepted';
       if (pending) statusText += ', ' + pending + ' pending';
       if (rejected) statusText += ', ' + rejected + ' rejected';
+      var actionHtml = approved
+        ? '<div class="flex items-center justify-between gap-2"><span class="badge-success">Approved</span><button type="button" class="btn-secondary btn-sm manager-view-btn" data-manager="' + escapeHtml(name) + '">View</button></div>'
+        : '<div class="grid grid-cols-1 sm:grid-cols-3 gap-2">' +
+            '<button type="button" class="btn-primary btn-sm manager-approve-btn" data-manager="' + escapeHtml(name) + '">Approve</button>' +
+            '<button type="button" class="btn-secondary btn-sm manager-edit-btn" data-manager="' + escapeHtml(name) + '">Edit Request</button>' +
+            '<button type="button" class="btn-secondary btn-sm manager-view-btn" data-manager="' + escapeHtml(name) + '">View</button>' +
+          '</div>';
       return '<div class="rounded-xl border border-outline-variant/15 bg-surface-container p-4 space-y-3">' +
         '<div class="flex items-start justify-between gap-3">' +
           '<div><div class="text-xs text-on-surface-variant">Reporting Manager</div><div class="font-semibold text-on-surface">' + escapeHtml(name) + '</div></div>' +
           '<div class="text-right"><div class="text-xs text-on-surface-variant">Amount</div><div class="font-semibold">' + formatCurrency(total) + '</div></div>' +
         '</div>' +
         '<div class="text-xs text-on-surface-variant">' + rows.length + ' candidate(s) | ' + escapeHtml(statusText) + '</div>' +
-        '<button type="button" class="btn-primary btn-sm w-full manager-approve-btn" data-manager="' + escapeHtml(name) + '"' + disabled + '>' + buttonText + '</button>' +
+        actionHtml +
       '</div>';
     }).join('');
     section.classList.remove('hidden');
+  }
+
+  window.closeManagerViewModal = function () {
+    closeModal('managerViewModal');
+  };
+
+  window.closeManagerEditModal = function () {
+    closeModal('managerEditModal');
+  };
+
+  function openManagerView(managerName) {
+    var rows = managerGroups[managerName] || [];
+    document.getElementById('managerViewTitle').textContent = 'Manager Summary: ' + managerName;
+    document.getElementById('managerViewBody').innerHTML = rows.map(function (item, index) {
+      var hours = item.billing_hours !== null && item.billing_hours !== undefined
+        ? item.billing_hours
+        : Math.round(Number(item.chargeable_days || 0) * 8.5 * 100) / 100;
+      return '<tr>' +
+        '<td class="text-center">' + (index + 1) + '</td>' +
+        '<td>' + escapeHtml(buildServiceDescription(item)) + '</td>' +
+        '<td class="text-center">' + escapeHtml(managerName) + '</td>' +
+        '<td class="text-center">' + escapeHtml(String(hours)) + '</td>' +
+        '<td class="text-center">' + escapeHtml(monthLabel(currentBillingMonth || item.billing_month || '')) + '</td>' +
+        '<td class="text-right">' + formatCurrency(item.invoice_amount || 0) + '</td>' +
+      '</tr>';
+    }).join('');
+    openModal('managerViewModal');
+  }
+
+  function fillManagerEditCandidate(item) {
+    if (!item) return;
+    document.getElementById('managerEditItemId').value = item.id;
+    document.getElementById('managerEditPresent').value = item.days_present || 0;
+    document.getElementById('managerEditLeaves').value = item.leaves_taken || 0;
+    document.getElementById('managerEditHours').value = item.billing_hours !== null && item.billing_hours !== undefined ? item.billing_hours : '';
+    document.getElementById('managerEditMeta').innerHTML =
+      '<div><strong>' + escapeHtml(item.emp_code || '') + ' - ' + escapeHtml(item.emp_name || '') + '</strong></div>' +
+      '<div class="mt-1">' + escapeHtml(buildServiceDescription(item)) + '</div>' +
+      '<div class="mt-1">Current amount: ' + formatCurrency(item.invoice_amount || 0) + '</div>';
+  }
+
+  function openManagerEdit(managerName) {
+    var rows = (managerGroups[managerName] || []).filter(function (item) { return item.approval_status !== 'Accepted'; });
+    if (rows.length === 0) {
+      showToast('Approved manager requests cannot be edited', 'warning');
+      return;
+    }
+    var select = document.getElementById('managerEditCandidate');
+    select.innerHTML = rows.map(function (item) {
+      return '<option value="' + item.id + '">' + escapeHtml(item.emp_code + ' - ' + item.emp_name) + '</option>';
+    }).join('');
+    select.onchange = function () {
+      var itemId = this.value;
+      fillManagerEditCandidate(rows.find(function (item) { return String(item.id) === String(itemId); }));
+    };
+    fillManagerEditCandidate(rows[0]);
+    openModal('managerEditModal');
   }
 
   function showResults(data) {
@@ -268,6 +356,7 @@
     currentRunId = data.billingRunId || data.id || null;
     currentRequestStatus = data.requestStatus || data.request_status || 'Pending';
     currentPoCandidatesByEmp = data.poCandidatesByEmp || {};
+    currentBillingMonth = (data.summary && (data.summary.billingMonth || data.summary.billing_month)) || data.billing_month || '';
     var blockedByErrors = !!data.blockedByErrors;
 
     document.getElementById('resTotalEmp').textContent = data.summary.totalEmployees;
@@ -277,6 +366,7 @@
     setDownloadLinks(currentRunId, data.downloadUrl);
 
     var items = normalizeItems(data.billingItems || data.items || []);
+    currentBillingItems = items;
     var itemsBody = document.getElementById('billingItemsBody');
     if (items.length === 0) {
       itemsBody.innerHTML = '<tr><td colspan="13" class="text-center text-on-surface-variant py-6">No service request items</td></tr>';
@@ -480,9 +570,59 @@
 
   document.getElementById('managerApprovalBody').addEventListener('click', function (e) {
     var btn = e.target.closest('.manager-approve-btn');
-    if (!btn || btn.disabled) return;
-    var managerName = btn.getAttribute('data-manager') || '';
-    window.approveManagerGroup(managerName);
+    if (btn && !btn.disabled) {
+      window.approveManagerGroup(btn.getAttribute('data-manager') || '');
+      return;
+    }
+    var editBtn = e.target.closest('.manager-edit-btn');
+    if (editBtn) {
+      openManagerEdit(editBtn.getAttribute('data-manager') || '');
+      return;
+    }
+    var viewBtn = e.target.closest('.manager-view-btn');
+    if (viewBtn) {
+      openManagerView(viewBtn.getAttribute('data-manager') || '');
+    }
+  });
+
+  document.getElementById('managerEditForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var itemId = document.getElementById('managerEditItemId').value;
+    if (!currentRunId || !itemId) return;
+    try {
+      var res = await apiCall('PATCH', '/api/billing/runs/' + currentRunId + '/items/' + itemId, {
+        days_present: parseFloat(document.getElementById('managerEditPresent').value) || 0,
+        leaves_taken: parseFloat(document.getElementById('managerEditLeaves').value) || 0,
+        billing_hours: document.getElementById('managerEditHours').value === '' ? null : (parseFloat(document.getElementById('managerEditHours').value) || 0),
+      });
+      showToast('Candidate service request recalculated', 'success');
+      closeManagerEditModal();
+      if (res.data && res.data.run) {
+        var run = res.data.run;
+        showResults({
+          id: run.id,
+          billingRunId: run.id,
+          billing_month: run.billing_month,
+          summary: {
+            totalEmployees: run.total_employees,
+            totalAmount: run.total_amount,
+            errorCount: run.error_count,
+            daysInMonth: run.items && run.items.length > 0 ? run.items[0].days_in_month : 0,
+            billingMonth: run.billing_month,
+          },
+          errors: run.errors || [],
+          billingItems: run.items || [],
+          requestStatus: run.request_status || res.data.requestStatus || 'Pending',
+          downloadUrl: '/api/billing/runs/' + run.id + '/download',
+          poCandidatesByEmp: run.poCandidatesByEmp || {},
+        });
+      } else {
+        await reviewRun(currentRunId);
+      }
+      loadHistory();
+    } catch (err) {
+      showToast(err.message, 'danger');
+    }
   });
 
   setupFileZone('rateCardZone', 'rateCardFile', 'rateCardFileName');
