@@ -5,6 +5,8 @@
   var currentBillingItems = [];
   var managerGroups = {};
   var currentBillingMonth = '';
+  var managerEditSyncBaseDays = 0;
+  var managerEditSyncing = false;
 
   window.switchBillingTab = function (tabId) {
     document.querySelectorAll('.billing-tab').forEach(function (btn) {
@@ -254,6 +256,14 @@
     return roleLine + ' for\nSow no. ' + sowNumberLabel(item.sow_number) + ' (' + candidate + ')';
   }
 
+  function isSgtcBillingItem(item) {
+    return item && item.billing_method === 'sgtc_hours';
+  }
+
+  function roundHalfDay(value) {
+    return Math.max(Math.round(Number(value || 0) * 2) / 2, 0);
+  }
+
   function managerApproved(rows) {
     return rows.length > 0 && rows.every(function (item) { return item.approval_status === 'Accepted'; });
   }
@@ -315,16 +325,18 @@
 
   function openManagerView(managerName) {
     var rows = managerGroups[managerName] || [];
+    var showHoursColumn = rows.some(isSgtcBillingItem);
+    document.getElementById('managerViewHoursHeader').classList.toggle('hidden', !showHoursColumn);
     document.getElementById('managerViewTitle').textContent = 'Manager Summary: ' + managerName;
     document.getElementById('managerViewBody').innerHTML = rows.map(function (item, index) {
-      var hours = item.billing_hours !== null && item.billing_hours !== undefined
+      var hours = isSgtcBillingItem(item) && item.billing_hours !== null && item.billing_hours !== undefined
         ? item.billing_hours
-        : Math.round(Number(item.chargeable_days || 0) * 8.5 * 100) / 100;
+        : '-';
       return '<tr>' +
         '<td class="text-center">' + (index + 1) + '</td>' +
         '<td>' + serviceDescriptionHtml(item) + '</td>' +
         '<td class="text-center">' + escapeHtml(managerName) + '</td>' +
-        '<td class="text-center">' + escapeHtml(String(hours)) + '</td>' +
+        (showHoursColumn ? '<td class="text-center">' + escapeHtml(String(hours)) + '</td>' : '') +
         '<td class="text-center">' + escapeHtml(monthLabel(currentBillingMonth || item.billing_month || '')) + '</td>' +
         '<td class="text-right">' + formatCurrency(item.invoice_amount || 0) + '</td>' +
       '</tr>';
@@ -334,14 +346,21 @@
 
   function fillManagerEditCandidate(item) {
     if (!item) return;
+    var isSgtc = isSgtcBillingItem(item);
+    managerEditSyncBaseDays = roundHalfDay(Number(item.days_present || 0) + Number(item.leaves_taken || 0));
     document.getElementById('managerEditItemId').value = item.id;
     document.getElementById('managerEditPresent').value = item.days_present || 0;
     document.getElementById('managerEditLeaves').value = item.leaves_taken || 0;
     document.getElementById('managerEditHours').value = item.billing_hours !== null && item.billing_hours !== undefined ? item.billing_hours : '';
+    document.getElementById('managerEditHoursField').classList.toggle('hidden', !isSgtc);
+    document.getElementById('managerEditHours').disabled = !isSgtc;
     document.getElementById('managerEditMeta').innerHTML =
       '<div><strong>' + escapeHtml(item.emp_code || '') + ' - ' + escapeHtml(item.emp_name || '') + '</strong></div>' +
       '<div class="mt-1">' + serviceDescriptionHtml(item) + '</div>' +
-      '<div class="mt-1">Current amount: ' + formatCurrency(item.invoice_amount || 0) + '</div>';
+      '<div class="mt-1">Current amount: ' + formatCurrency(item.invoice_amount || 0) + '</div>' +
+      (isSgtc
+        ? '<div class="mt-1">SGTC hourly billing: billing hours drive the amount.</div>'
+        : '<div class="mt-1">Non-SGTC billing: leaves taken drive the amount; billing hours are not used.</div>');
   }
 
   function openManagerEdit(managerName) {
@@ -598,6 +617,35 @@
     }
   });
 
+  function syncManagerEditAttendance(source) {
+    if (managerEditSyncing) return;
+    managerEditSyncing = true;
+    var presentEl = document.getElementById('managerEditPresent');
+    var leavesEl = document.getElementById('managerEditLeaves');
+    var hoursEl = document.getElementById('managerEditHours');
+    if (source === 'leaves') {
+      var leaves = Math.min(roundHalfDay(leavesEl.value), managerEditSyncBaseDays);
+      leavesEl.value = leaves;
+      presentEl.value = roundHalfDay(managerEditSyncBaseDays - leaves);
+    } else {
+      var present = Math.min(roundHalfDay(presentEl.value), managerEditSyncBaseDays);
+      presentEl.value = present;
+      leavesEl.value = roundHalfDay(managerEditSyncBaseDays - present);
+    }
+    if (!hoursEl.disabled) {
+      hoursEl.value = Math.min(Math.round(Number(presentEl.value || 0) * 8.5 * 100) / 100, 170);
+    }
+    managerEditSyncing = false;
+  }
+
+  document.getElementById('managerEditPresent').addEventListener('input', function () {
+    syncManagerEditAttendance('present');
+  });
+
+  document.getElementById('managerEditLeaves').addEventListener('input', function () {
+    syncManagerEditAttendance('leaves');
+  });
+
   document.getElementById('managerEditForm').addEventListener('submit', async function (e) {
     e.preventDefault();
     var itemId = document.getElementById('managerEditItemId').value;
@@ -606,7 +654,7 @@
       var res = await apiCall('PATCH', '/api/billing/runs/' + currentRunId + '/items/' + itemId, {
         days_present: parseFloat(document.getElementById('managerEditPresent').value) || 0,
         leaves_taken: parseFloat(document.getElementById('managerEditLeaves').value) || 0,
-        billing_hours: document.getElementById('managerEditHours').value === '' ? null : (parseFloat(document.getElementById('managerEditHours').value) || 0),
+        billing_hours: document.getElementById('managerEditHours').disabled || document.getElementById('managerEditHours').value === '' ? null : (parseFloat(document.getElementById('managerEditHours').value) || 0),
       });
       showToast('Candidate service request recalculated', 'success');
       closeManagerEditModal();
