@@ -9,7 +9,7 @@ module.exports = {
   logLevel: process.env.LOG_LEVEL || 'dev',
   maxFileSize: parseInt(process.env.MAX_FILE_SIZE, 10) || 10 * 1024 * 1024,
   corsOrigins: process.env.CORS_ORIGINS || '*',
-  billingDivisor: process.env.BILLING_DIVISOR || 'actual',
+  billingDivisor: process.env.BILLING_DIVISOR || '30',
   supabaseUrl: process.env.SUPABASE_URL,
   supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
