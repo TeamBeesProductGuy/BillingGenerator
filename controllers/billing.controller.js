@@ -273,7 +273,9 @@ function normalizeSowLabel(value) {
 
 function buildManagerServiceDescription(item) {
   const role = String(item.service_description || item.role_position || 'Service').trim();
-  const roleLine = /\bservices$/i.test(role) ? role : `${role} services`;
+  const roleLine = /\bservices$/i.test(role)
+    ? role.replace(/\bservices$/i, 'Services')
+    : `${role} Services`;
   const candidate = item.emp_name || 'Candidate';
   return `${roleLine} for\nSow no. ${normalizeSowLabel(item.sow_number)} (${candidate})`;
 }

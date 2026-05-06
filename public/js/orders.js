@@ -57,7 +57,10 @@
     var summary = document.getElementById('ordersSummary');
     var count = document.getElementById('ordersTableCount');
     var clientCount = new Set(items.map(function (order) { return order.client_id; }).filter(Boolean)).size;
-    var upcomingCount = items.filter(function (order) { return !!order.next_bill_date; }).length;
+    var upcomingCount = items.filter(function (order) {
+      var paymentStatus = order.reminder ? String(order.reminder.payment_status || 'pending').toLowerCase() : 'pending';
+      return !!order.next_bill_date && paymentStatus !== 'paid';
+    }).length;
     if (summary) {
       var cards = summary.querySelectorAll('.table-summary-value');
       if (cards[0]) cards[0].textContent = items.length;
