@@ -73,6 +73,10 @@ function formatDisplayName(value) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function escapeHtmlWithBreaks(value) {
+  return escapeHtml(value).replace(/\r?\n/g, '<br/>');
+}
+
 function getDaysOverdue(dueDate) {
   const due = new Date(dueDate);
   const today = new Date();
@@ -245,7 +249,7 @@ function buildManagerSummaryTable(rows, billingMonth) {
     const hours = item.billing_method === 'sgtc_hours' && item.billing_hours !== null && item.billing_hours !== undefined ? item.billing_hours : '-';
     const cols = [
       '<td style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:center;background:' + cellBg + ';">' + (index + 1) + '</td>',
-      '<td style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:left;background:' + cellBg + ';white-space:pre-line;">' + escapeHtml(item.service_description_html || '') + '</td>',
+      '<td style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:left;background:' + cellBg + ';line-height:1.45;">' + escapeHtmlWithBreaks(item.service_description_html || '') + '</td>',
       '<td style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:center;background:' + cellBg + ';">' + escapeHtml(item.reporting_manager || 'Unassigned') + '</td>',
     ];
     if (showHours) {
@@ -256,7 +260,7 @@ function buildManagerSummaryTable(rows, billingMonth) {
     return '<tr>' + cols.join('') + '</tr>';
   }).join('');
 
-  return '<table style="width:100%;border-collapse:collapse;font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#111827;">' +
+  return '<table style="width:92%;margin:0 auto;border-collapse:collapse;font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#111827;">' +
     '<thead><tr>' + headerCells.join('') + '</tr></thead>' +
     '<tbody>' + bodyRows + '</tbody></table>';
 }
