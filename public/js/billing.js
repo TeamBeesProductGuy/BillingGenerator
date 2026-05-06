@@ -298,9 +298,10 @@
       if (rejected) statusText += ', ' + rejected + ' rejected';
       var actionHtml = approved
         ? '<div class="flex items-center justify-between gap-2"><span class="badge-success">Approved</span><button type="button" class="btn-secondary btn-sm manager-view-btn" data-manager="' + escapeHtml(name) + '">View</button></div>'
-        : '<div class="grid grid-cols-1 sm:grid-cols-3 gap-2">' +
+        : '<div class="grid grid-cols-1 sm:grid-cols-4 gap-2">' +
             '<button type="button" class="btn-primary btn-sm manager-approve-btn" data-manager="' + escapeHtml(name) + '">Approve</button>' +
             '<button type="button" class="btn-secondary btn-sm manager-edit-btn" data-manager="' + escapeHtml(name) + '">Edit Request</button>' +
+            '<button type="button" class="btn-secondary btn-sm manager-mail-btn" data-manager="' + escapeHtml(name) + '">Send Mail</button>' +
             '<button type="button" class="btn-secondary btn-sm manager-view-btn" data-manager="' + escapeHtml(name) + '">View</button>' +
           '</div>';
       return '<div class="rounded-xl border border-outline-variant/15 bg-surface-container p-4 space-y-3">' +
@@ -322,6 +323,18 @@
   window.closeManagerEditModal = function () {
     closeModal('managerEditModal');
   };
+
+  window.closeManagerMailModal = function () {
+    closeModal('managerMailModal');
+  };
+
+  function openManagerMail(managerName) {
+    document.getElementById('managerMailForm').reset();
+    document.getElementById('managerMailManagerName').value = managerName;
+    document.getElementById('managerMailSubtitle').textContent = 'Create a draft for ' + managerName;
+    document.getElementById('managerMailSubjectPreview').textContent = 'Attendance Sheet and Service Request for ' + monthLabel(currentBillingMonth);
+    openModal('managerMailModal');
+  }
 
   function openManagerView(managerName) {
     var rows = managerGroups[managerName] || [];
@@ -611,6 +624,11 @@
       openManagerEdit(editBtn.getAttribute('data-manager') || '');
       return;
     }
+    var mailBtn = e.target.closest('.manager-mail-btn');
+    if (mailBtn) {
+      openManagerMail(mailBtn.getAttribute('data-manager') || '');
+      return;
+    }
     var viewBtn = e.target.closest('.manager-view-btn');
     if (viewBtn) {
       openManagerView(viewBtn.getAttribute('data-manager') || '');
@@ -683,6 +701,41 @@
       loadHistory();
     } catch (err) {
       showToast(err.message, 'danger');
+    }
+  });
+
+  document.getElementById('managerMailForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (!currentRunId) return;
+    var managerName = document.getElementById('managerMailManagerName').value;
+    var submitBtn = this.querySelector('button[type="submit"]');
+    var originalBtnHtml = submitBtn ? submitBtn.innerHTML : '';
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="material-symbols-outlined text-base">hourglass_top</span> Creating Draft...';
+    }
+    try {
+      var res = await apiCall('POST', '/api/billing/runs/' + currentRunId + '/manager-draft', {
+        manager_name: managerName,
+        to: document.getElementById('managerMailTo').value.trim(),
+        cc: document.getElementById('managerMailCc').value.trim(),
+      });
+      var url = res.data && (res.data.webLink || res.data.composeUrl);
+      if (url) {
+        var opened = window.open(url, '_blank');
+        if (!opened) {
+          window.location.href = url;
+        }
+      }
+      closeManagerMailModal();
+      showToast('Draft created in Outlook Web', 'success');
+    } catch (err) {
+      showToast(err.message, 'danger');
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalBtnHtml;
+      }
     }
   });
 

@@ -52,6 +52,27 @@ function formatCurrency(value) {
   }).format(Number(value) || 0);
 }
 
+function formatBillingMonth(value) {
+  const raw = String(value || '').trim();
+  if (/^\d{6}$/.test(raw)) {
+    const year = raw.slice(0, 4);
+    const month = parseInt(raw.slice(4, 6), 10) - 1;
+    return new Date(Number(year), month, 1).toLocaleString('en-US', { month: 'short', year: '2-digit' });
+  }
+  return raw || '-';
+}
+
+function formatDisplayName(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (raw.indexOf('@') === -1) return raw;
+  return raw.split('@')[0]
+    .replace(/[._-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 function getDaysOverdue(dueDate) {
   const due = new Date(dueDate);
   const today = new Date();
@@ -199,7 +220,121 @@ async function sendPaymentReminderEmail(reminders) {
   return { accepted: true };
 }
 
+function buildManagerSummaryTable(rows, billingMonth) {
+  const border = '#1f2937';
+  const headerBg = '#F4B740';
+  const headerText = '#111111';
+  const cellBg = '#ffffff';
+  const cellPad = '10px 12px';
+  const showHours = rows.some((item) => item && item.billing_method === 'sgtc_hours');
+
+  const headerCells = [
+    '<th style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:center;background:' + headerBg + ';color:' + headerText + ';font-weight:700;">S.No.</th>',
+    '<th style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:center;background:' + headerBg + ';color:' + headerText + ';font-weight:700;">Service Descriptions</th>',
+    '<th style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:center;background:' + headerBg + ';color:' + headerText + ';font-weight:700;">Manager\'s Name</th>',
+  ];
+
+  if (showHours) {
+    headerCells.push('<th style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:center;background:' + headerBg + ';color:' + headerText + ';font-weight:700;">Billable Hours</th>');
+  }
+
+  headerCells.push('<th style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:center;background:' + headerBg + ';color:' + headerText + ';font-weight:700;">Service month</th>');
+  headerCells.push('<th style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:center;background:' + headerBg + ';color:' + headerText + ';font-weight:700;">Service billable Amount (INR)</th>');
+
+  const bodyRows = rows.map((item, index) => {
+    const hours = item.billing_method === 'sgtc_hours' && item.billing_hours !== null && item.billing_hours !== undefined ? item.billing_hours : '-';
+    const cols = [
+      '<td style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:center;background:' + cellBg + ';">' + (index + 1) + '</td>',
+      '<td style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:left;background:' + cellBg + ';white-space:pre-line;">' + escapeHtml(item.service_description_html || '') + '</td>',
+      '<td style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:center;background:' + cellBg + ';">' + escapeHtml(item.reporting_manager || 'Unassigned') + '</td>',
+    ];
+    if (showHours) {
+      cols.push('<td style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:center;background:' + cellBg + ';">' + escapeHtml(String(hours)) + '</td>');
+    }
+    cols.push('<td style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:center;background:' + cellBg + ';">' + escapeHtml(formatBillingMonth(billingMonth)) + '</td>');
+    cols.push('<td style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:right;background:' + cellBg + ';">' + escapeHtml(formatCurrency(item.invoice_amount || 0)) + '</td>');
+    return '<tr>' + cols.join('') + '</tr>';
+  }).join('');
+
+  return '<table style="width:100%;border-collapse:collapse;font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#111827;">' +
+    '<thead><tr>' + headerCells.join('') + '</tr></thead>' +
+    '<tbody>' + bodyRows + '</tbody></table>';
+}
+
+async function createDraftMessage(message) {
+  ensureConfigured();
+  const token = await getAccessToken();
+  const payload = {
+    subject: message.subject,
+    body: {
+      contentType: 'HTML',
+      content: message.htmlBody,
+    },
+    toRecipients: recipientObjects(splitRecipients(message.to)),
+    ccRecipients: recipientObjects(splitRecipients(message.cc)),
+  };
+
+  const response = await globalThis.fetch(`${GRAPH_BASE_URL}/users/${encodeURIComponent(env.msSenderUpn)}/messages`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error((data && data.error && data.error.message) || 'Microsoft Graph draft creation failed');
+  }
+
+  const webLink = data.webLink || '';
+  const editWebLink = webLink
+    ? webLink.replace('viewmodel=ReadMessageItem', 'viewmodel=EditMessageItem')
+    : '';
+  const composeUrl = editWebLink || webLink || (data.id
+    ? `https://outlook.office.com/mail/deeplink/compose/${encodeURIComponent(data.id)}?ItemID=${encodeURIComponent(data.id)}&exvsurl=1`
+    : '');
+
+  return {
+    id: data.id,
+    webLink,
+    composeUrl: composeUrl || webLink,
+  };
+}
+
+async function createManagerApprovalDraft(options) {
+  const rows = Array.isArray(options.rows) ? options.rows : [];
+  const billingMonthLabel = formatBillingMonth(options.billingMonth);
+  const managerName = String(options.reportingManager || 'Manager').trim() || 'Manager';
+  const userName = formatDisplayName(options.userName) || formatDisplayName(options.userEmail) || 'Team';
+  const subject = `Attendance Sheet and Service Request for ${billingMonthLabel}`;
+  const tableHtml = buildManagerSummaryTable(rows, options.billingMonth);
+  const htmlBody = [
+    `<p>Hi ${escapeHtml(managerName)},</p>`,
+    `<p>Please find below the Attendance Sheet and Service Request for the month of <strong>${escapeHtml(billingMonthLabel)}</strong>.</p>`,
+    '<p>Kindly review the details and provide your approval.</p>',
+    '<br/>',
+    tableHtml,
+    '<br/>',
+    `<p>Regards,<br/>${escapeHtml(userName)}</p>`,
+  ].join('');
+
+  const draft = await createDraftMessage({
+    subject,
+    htmlBody,
+    to: options.to,
+    cc: options.cc,
+  });
+
+  return {
+    ...draft,
+    subject,
+  };
+}
+
 module.exports = {
   getAccessToken,
   sendPaymentReminderEmail,
+  createManagerApprovalDraft,
 };

@@ -703,6 +703,8 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
 
 .ratecards-table-scroll .stitch-table th,
 .ratecards-table-scroll .stitch-table td,
+.billing-items-table-scroll .stitch-table th,
+.billing-items-table-scroll .stitch-table td,
 .orders-table-scroll .stitch-table th,
 .orders-table-scroll .stitch-table td,
 .quotes-table-scroll .stitch-table th,
@@ -719,6 +721,12 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
     padding-left: 0.35rem;
     padding-right: 0.35rem;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.billing-items-table-scroll {
+    max-height: 32rem;
+    overflow: auto;
     -webkit-overflow-scrolling: touch;
 }
 

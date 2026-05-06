@@ -193,7 +193,7 @@
         <span class="material-symbols-outlined text-on-surface-variant">table_chart</span>
         <h5 class="section-label">Service Request Items</h5>
       </div>
-      <div class="overflow-x-auto">
+      <div class="billing-items-table-scroll overflow-x-auto">
         <table class="stitch-table">
           <thead>
             <tr>
@@ -303,6 +303,47 @@
       <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
         <button type="submit" class="btn-primary">Save & Recalculate</button>
         <button type="button" class="btn-secondary" onclick="closeManagerEditModal()">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="managerMailModal" class="fixed inset-0 z-[220] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
+  <div class="bg-surface-container-high rounded-2xl w-full max-w-xl mx-4 border border-outline-variant/15 shadow-2xl">
+    <form id="managerMailForm">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8">
+        <div>
+          <h5 class="font-headline font-bold text-lg text-on-surface">Manager Approval Mail</h5>
+          <p class="text-sm text-on-surface-variant mt-1" id="managerMailSubtitle">Create a draft for manager approval</p>
+        </div>
+        <button type="button" onclick="closeManagerMailModal()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="p-6 space-y-4">
+        <input type="hidden" id="managerMailManagerName">
+        <div class="rounded-xl border border-outline-variant/15 bg-surface-container p-4 space-y-2">
+          <div>
+            <div class="text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Subject</div>
+            <div class="mt-1 text-sm font-medium text-on-surface" id="managerMailSubjectPreview"></div>
+          </div>
+          <div class="text-xs text-on-surface-variant">The draft opens in Outlook Web with the latest manager summary table in the email body.</div>
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">To</label>
+          <input type="text" id="managerMailTo" placeholder="manager@company.com, another@company.com" required>
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">CC</label>
+          <input type="text" id="managerMailCc" placeholder="optional@company.com, finance@company.com">
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
+        <button type="submit" class="btn-primary inline-flex items-center gap-2">
+          <span class="material-symbols-outlined text-base">draft</span>
+          Create Draft
+        </button>
+        <button type="button" class="btn-secondary" onclick="closeManagerMailModal()">Cancel</button>
       </div>
     </form>
   </div>

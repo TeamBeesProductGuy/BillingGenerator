@@ -37,4 +37,10 @@ const updateRunItem = Joi.object({
   billing_hours: Joi.number().min(0).allow(null),
 });
 
-module.exports = { generateFromDb, previewBilling, decideRun, updateRunItem };
+const createManagerDraft = Joi.object({
+  manager_name: Joi.string().trim().min(1).required(),
+  to: Joi.string().trim().min(1).required(),
+  cc: Joi.string().trim().allow('').default(''),
+});
+
+module.exports = { generateFromDb, previewBilling, decideRun, updateRunItem, createManagerDraft };

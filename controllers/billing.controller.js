@@ -11,6 +11,8 @@ const POModel = require('../models/purchaseOrder.model');
 const { supabase } = require('../config/database');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
+const { logActivity } = require('../services/activityLog.service');
+const { createManagerApprovalDraft } = require('../services/graphMail.service');
 
 function isWarningError(errorItem) {
   return Boolean(errorItem && typeof errorItem.error_message === 'string' && errorItem.error_message.startsWith('WARNING:'));
@@ -253,6 +255,35 @@ function deriveRunStatusFromItems(items) {
   return 'Pending';
 }
 
+function formatBillingMonthLabel(value) {
+  const raw = String(value || '').trim();
+  if (/^\d{6}$/.test(raw)) {
+    const year = raw.slice(0, 4);
+    const month = parseInt(raw.slice(4, 6), 10) - 1;
+    return new Date(Number(year), month, 1).toLocaleString('en-US', { month: 'short', year: '2-digit' });
+  }
+  return raw || '-';
+}
+
+function normalizeSowLabel(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return 'Not linked';
+  return raw.replace(/^sow\s*(no\.?|#)?\s*/i, '').trim() || raw;
+}
+
+function buildManagerServiceDescription(item) {
+  const role = String(item.service_description || item.role_position || 'Service').trim();
+  const roleLine = /\bservices$/i.test(role) ? role : `${role} services`;
+  const candidate = item.emp_name || 'Candidate';
+  return `${roleLine} for\nSow no. ${normalizeSowLabel(item.sow_number)} (${candidate})`;
+}
+
+function resolveUserDisplayName(user) {
+  if (!user) return '';
+  const metadata = user.user_metadata || {};
+  return metadata.display_name || metadata.full_name || metadata.name || user.email || '';
+}
+
 async function autoConsumeApprovedItems(items, billingMonth, runId) {
   const consumptionByPo = {};
   const itemIdsByPo = {};
@@ -389,6 +420,14 @@ const billingController = {
           summary: blockedSummary,
           blockedByErrors: true,
         });
+        await logActivity(req, {
+          module: 'billing',
+          action: 'generate_service_request',
+          entityType: 'billing_run',
+          entityId: responseData.billingRunId,
+          entityLabel: `Service Request ${billingMonth}`,
+          details: { summary: `Generated blocked service request for ${billingMonth} from uploaded files`, error_count: allErrors.length },
+        });
         return res.json({ success: true, data: responseData });
       }
 
@@ -412,6 +451,14 @@ const billingController = {
           summary: blockedSummary,
           blockedByErrors: true,
         });
+        await logActivity(req, {
+          module: 'billing',
+          action: 'generate_service_request',
+          entityType: 'billing_run',
+          entityId: responseData.billingRunId,
+          entityLabel: `Service Request ${billingMonth}`,
+          details: { summary: `Generated blocked service request for ${billingMonth} from uploaded files`, error_count: allErrors.length },
+        });
         return res.json({ success: true, data: responseData });
       }
       const responseData = await createStoredRun({
@@ -419,6 +466,14 @@ const billingController = {
         billingItems: result.billingItems,
         allErrors: [...warningErrors],
         summary: result.summary,
+      });
+      await logActivity(req, {
+        module: 'billing',
+        action: 'generate_service_request',
+        entityType: 'billing_run',
+        entityId: responseData.billingRunId,
+        entityLabel: `Service Request ${billingMonth}`,
+        details: { summary: `Generated service request for ${billingMonth} from uploaded files`, total_amount: result.summary.totalAmount, employee_count: result.summary.totalEmployees },
       });
 
       res.json({ success: true, data: responseData });
@@ -504,6 +559,14 @@ const billingController = {
         },
         blockedByErrors: true,
       });
+      await logActivity(req, {
+        module: 'billing',
+        action: 'generate_service_request',
+        entityType: 'billing_run',
+        entityId: responseData.billingRunId,
+        entityLabel: `Service Request ${billingMonth}`,
+        details: { summary: `Generated blocked service request for ${billingMonth} from database`, error_count: allErrors.length },
+      });
       return res.json({ success: true, data: responseData });
     }
 
@@ -527,6 +590,14 @@ const billingController = {
         },
         blockedByErrors: true,
       });
+      await logActivity(req, {
+        module: 'billing',
+        action: 'generate_service_request',
+        entityType: 'billing_run',
+        entityId: responseData.billingRunId,
+        entityLabel: `Service Request ${billingMonth}`,
+        details: { summary: `Generated blocked service request for ${billingMonth} from database`, error_count: allErrors.length },
+      });
       return res.json({ success: true, data: responseData });
     }
     const responseData = await createStoredRun({
@@ -538,6 +609,14 @@ const billingController = {
         ...result.summary,
         errorCount: missingAttendanceErrors.length + warningErrors.length,
       },
+    });
+    await logActivity(req, {
+      module: 'billing',
+      action: 'generate_service_request',
+      entityType: 'billing_run',
+      entityId: responseData.billingRunId,
+      entityLabel: `Service Request ${billingMonth}`,
+      details: { summary: `Generated service request for ${billingMonth} from database`, total_amount: result.summary.totalAmount, employee_count: result.summary.totalEmployees },
     });
 
     res.json({ success: true, data: responseData });
@@ -710,6 +789,59 @@ const billingController = {
           ...finalRun,
           poCandidatesByEmp: await buildPoCandidates(finalRun.items || []),
         } : null,
+      },
+    });
+  }),
+
+  createManagerDraft: catchAsync(async (req, res) => {
+    const runId = parseInt(req.params.id, 10);
+    const managerName = String(req.body.manager_name || '').trim();
+    const run = await BillingModel.findRunById(runId);
+    if (!run) throw new AppError(404, 'Billing run not found');
+    await hydrateRunItemsForDecision(run);
+
+    const rows = (run.items || []).filter((item) => normalizeManagerKey(item.reporting_manager || 'Unassigned') === normalizeManagerKey(managerName));
+    if (rows.length === 0) {
+      throw new AppError(404, 'No service request items found for this reporting manager');
+    }
+
+    const decoratedRows = rows.map((item) => ({
+      ...item,
+      service_description_html: buildManagerServiceDescription(item),
+    }));
+
+    const draft = await createManagerApprovalDraft({
+      reportingManager: managerName,
+      billingMonth: run.billing_month,
+      rows: decoratedRows,
+      to: req.body.to,
+      cc: req.body.cc,
+      userName: resolveUserDisplayName(req.user),
+      userEmail: req.user && req.user.email ? req.user.email : '',
+    });
+
+    await logActivity(req, {
+      module: 'billing',
+      action: 'create_manager_draft_mail',
+      entityType: 'billing_run',
+      entityId: runId,
+      entityLabel: `${managerName} - ${formatBillingMonthLabel(run.billing_month)}`,
+      details: {
+        summary: `Created manager approval draft for ${managerName}`,
+        billing_month: run.billing_month,
+        recipient_to: req.body.to,
+        recipient_cc: req.body.cc || '',
+      },
+    });
+
+    res.json({
+      success: true,
+      data: {
+        runId,
+        managerName,
+        subject: draft.subject,
+        webLink: draft.webLink,
+        composeUrl: draft.composeUrl,
       },
     });
   }),

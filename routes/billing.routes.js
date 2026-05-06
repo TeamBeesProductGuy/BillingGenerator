@@ -2,7 +2,7 @@ const router = require('express').Router();
 const billingController = require('../controllers/billing.controller');
 const upload = require('../middleware/upload');
 const validate = require('../middleware/validate');
-const { generateFromDb, decideRun, updateRunItem } = require('../validators/billing.validator');
+const { generateFromDb, decideRun, updateRunItem, createManagerDraft } = require('../validators/billing.validator');
 
 router.post(
   '/generate',
@@ -17,6 +17,7 @@ router.post('/generate-from-db', validate(generateFromDb), billingController.gen
 router.get('/runs', billingController.listRuns);
 router.get('/runs/:id', billingController.getRunDetails);
 router.patch('/runs/:id/items/:itemId', validate(updateRunItem), billingController.updateRunItem);
+router.post('/runs/:id/manager-draft', validate(createManagerDraft), billingController.createManagerDraft);
 router.post('/runs/:id/decision', validate(decideRun), billingController.decideRun);
 router.get('/runs/:id/download', billingController.downloadFile);
 router.get('/runs/:id/download/:worksheet', billingController.downloadWorksheet);
