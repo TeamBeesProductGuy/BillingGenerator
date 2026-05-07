@@ -311,7 +311,6 @@ async function createManagerApprovalDraft(options) {
   const rows = Array.isArray(options.rows) ? options.rows : [];
   const billingMonthLabel = formatBillingMonth(options.billingMonth);
   const managerName = String(options.reportingManager || 'Manager').trim() || 'Manager';
-  const userName = formatDisplayName(options.userName) || formatDisplayName(options.userEmail) || 'Team';
   const subject = `Attendance Sheet and Service Request for ${billingMonthLabel}`;
   const tableHtml = buildManagerSummaryTable(rows, options.billingMonth);
   const htmlBody = [
@@ -320,8 +319,6 @@ async function createManagerApprovalDraft(options) {
     '<p>Kindly review the details and provide your approval.</p>',
     '<br/>',
     tableHtml,
-    '<br/>',
-    `<p>Regards,<br/>${escapeHtml(userName)}</p>`,
   ].join('');
 
   const draft = await createDraftMessage({
