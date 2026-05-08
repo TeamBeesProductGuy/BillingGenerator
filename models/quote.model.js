@@ -15,6 +15,11 @@ function normalizeBaseQuoteNumber(value) {
     .trim();
 }
 
+function getQuoteSerialNumber(quoteNumber, fyCode) {
+  const match = String(quoteNumber || '').match(new RegExp(`^TBC-${fyCode}-(\\d+)`));
+  return match ? Number(match[1]) : 0;
+}
+
 function getFinancialYearCode(dateValue) {
   const parsed = new Date(dateValue);
   const date = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
@@ -185,7 +190,10 @@ const QuoteModel = {
     if (error) throw new Error(error.message);
 
     const baseNumbers = new Set((data || []).map((row) => normalizeBaseQuoteNumber(row.base_quote_number || row.quote_number)));
-    const seq = String(baseNumbers.size + 1 + getQuoteSequenceOffset(fyCode) + offset).padStart(3, '0');
+    const highestSequence = Math.max(0, ...Array.from(baseNumbers).map((quoteNumber) => getQuoteSerialNumber(quoteNumber, fyCode)));
+    const firstSequence = getQuoteSequenceOffset(fyCode) + 1;
+    const nextSequence = Math.max(highestSequence + 1, firstSequence) + offset;
+    const seq = String(nextSequence).padStart(3, '0');
     return `TBC-${fyCode}-${seq}`;
   },
 
