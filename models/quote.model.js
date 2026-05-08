@@ -1,5 +1,9 @@
 const { supabase } = require('../config/database');
 
+const QUOTE_NUMBER_SEQUENCE_OFFSETS = {
+  2627: 100,
+};
+
 function buildQuoteRevisionNumber(baseQuoteNumber, versionNumber) {
   return `${baseQuoteNumber}/${versionNumber}`;
 }
@@ -23,6 +27,10 @@ function getFinancialYearCode(dateValue) {
 
 function toIsoDateOnly(date) {
   return date.toISOString().slice(0, 10);
+}
+
+function getQuoteSequenceOffset(fyCode) {
+  return QUOTE_NUMBER_SEQUENCE_OFFSETS[fyCode] || 0;
 }
 
 function isMissingColumnError(error, columnName) {
@@ -177,7 +185,7 @@ const QuoteModel = {
     if (error) throw new Error(error.message);
 
     const baseNumbers = new Set((data || []).map((row) => normalizeBaseQuoteNumber(row.base_quote_number || row.quote_number)));
-    const seq = String(baseNumbers.size + 1 + offset).padStart(3, '0');
+    const seq = String(baseNumbers.size + 1 + getQuoteSequenceOffset(fyCode) + offset).padStart(3, '0');
     return `TBC-${fyCode}-${seq}`;
   },
 
