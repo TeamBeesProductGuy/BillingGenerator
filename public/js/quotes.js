@@ -108,25 +108,12 @@
     if (!bodyEl) return;
     var lines = String(bodyEl.value || '').split(/\r?\n/);
     var validityLine = '4. This Quote is valid till ' + getValidityDaysText();
-    var found = false;
     lines = lines.map(function (line) {
       if (/^4\.\s*This Quote is valid till\b/i.test(String(line).trim())) {
-        found = true;
         return validityLine;
       }
       return line;
     });
-    if (!found) {
-      var insertAt = -1;
-      lines.forEach(function (line, index) {
-        if (/^3\.\s*Location\s*:/i.test(String(line).trim())) insertAt = index + 1;
-      });
-      if (insertAt === -1) {
-        lines.push(validityLine);
-      } else {
-        lines.splice(insertAt, 0, validityLine);
-      }
-    }
     bodyEl.value = lines.join('\n');
   }
 
@@ -136,25 +123,12 @@
     var locations = collectQuoteItemLocations();
     var locationLine = '3. Location: ' + (locations.length ? locations.join(', ') : '[Auto-filled from line item locations]');
     var lines = String(bodyEl.value || '').split(/\r?\n/);
-    var found = false;
     lines = lines.map(function (line) {
       if (/^3\.\s*Location\s*:/i.test(String(line).trim())) {
-        found = true;
         return locationLine;
       }
       return line;
     });
-    if (!found) {
-      var insertAt = -1;
-      lines.forEach(function (line, index) {
-        if (/^2\.\s*Prevailing taxes\b/i.test(String(line).trim())) insertAt = index + 1;
-      });
-      if (insertAt === -1) {
-        lines.push(locationLine);
-      } else {
-        lines.splice(insertAt, 0, locationLine);
-      }
-    }
     bodyEl.value = lines.join('\n');
   }
   if (typeof window !== 'undefined') {
@@ -553,11 +527,11 @@
       '<div class="quote-item-grid">' +
       '<div class="quote-item-field quote-item-field-wide">' +
       '<label class="quote-item-input-label">Role / Description</label>' +
-      '<textarea class="qi-desc" rows="3" required placeholder="Enter role, skillset, or description">' + (item ? escapeHtml(item.description) : '') + '</textarea>' +
+      '<textarea class="qi-desc" rows="3" required data-no-uppercase placeholder="Enter role, skillset, or description">' + (item ? escapeHtml(item.description) : '') + '</textarea>' +
       '</div>' +
       '<div class="quote-item-field">' +
       '<label class="quote-item-input-label">Location</label>' +
-      '<input type="text" class="qi-loc" value="' + (item && item.location ? escapeHtml(item.location) : '') + '" placeholder="Enter location">' +
+      '<input type="text" class="qi-loc" data-no-uppercase value="' + (item && item.location ? escapeHtml(item.location) : '') + '" placeholder="Enter location">' +
       '</div>' +
       '<div class="quote-item-field">' +
       '<label class="quote-item-input-label">Quantity</label>' +

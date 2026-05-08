@@ -265,6 +265,12 @@ function formatBillingMonthLabel(value) {
   return raw || '-';
 }
 
+function toTwoDecimalValue(value) {
+  const number = Number(value || 0);
+  if (!Number.isFinite(number)) return 0;
+  return Math.trunc(Math.max(number, 0) * 100) / 100;
+}
+
 function normalizeSowLabel(value) {
   const raw = String(value || '').trim();
   if (!raw) return 'Not linked';
@@ -747,16 +753,16 @@ const billingController = {
     if (!item) throw new AppError(404, 'Service request item not found');
     if (item.approval_status === 'Accepted') throw new AppError(400, 'Approved manager request cannot be edited');
 
-    const leavesTaken = Number(req.body.leaves_taken || 0);
-    const daysPresent = Number(req.body.days_present || 0);
+    const leavesTaken = toTwoDecimalValue(req.body.leaves_taken);
+    const daysPresent = toTwoDecimalValue(req.body.days_present);
     const effectiveDays = Number(item.effective_days || item.days_in_month || 0);
     const leavesAllowed = Number(item.leaves_allowed || 0);
-    let billingHours = req.body.billing_hours === null || req.body.billing_hours === undefined ? null : Number(req.body.billing_hours);
-    let chargeableDays = Math.min(Math.max(effectiveDays - leavesTaken + leavesAllowed, 0), 30, effectiveDays);
+    let billingHours = req.body.billing_hours === null || req.body.billing_hours === undefined ? null : toTwoDecimalValue(req.body.billing_hours);
+    let chargeableDays = toTwoDecimalValue(Math.min(Math.max(effectiveDays - leavesTaken + leavesAllowed, 0), 30, effectiveDays));
     let invoiceAmount = Math.round(((chargeableDays / Number(item.days_in_month || 30)) * Number(item.monthly_rate || 0)) * 100) / 100;
 
     if (item.billing_method === 'sgtc_hours') {
-      billingHours = Number.isFinite(billingHours) ? billingHours : Math.min(Math.round(daysPresent * 8.5 * 100) / 100, 170);
+      billingHours = Number.isFinite(billingHours) ? billingHours : Math.min(toTwoDecimalValue(daysPresent * 8.5), 170);
       chargeableDays = daysPresent;
       invoiceAmount = Math.round(((Number(item.monthly_rate || 0) / 170) * billingHours) * 100) / 100;
     }
