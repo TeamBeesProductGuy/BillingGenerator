@@ -295,6 +295,54 @@ function formatIndianCurrencyNumber(value) {
   }).format(Number(value) || 0);
 }
 
+function isAllCapsText(value) {
+  const text = String(value || '').trim();
+  const letters = text.match(/[A-Za-z]/g) || [];
+  if (letters.length < 2) return false;
+  return !/[a-z]/.test(text);
+}
+
+function applyKnownCasing(value) {
+  return String(value || '')
+    .replace(/\bios\b/gi, 'IOS')
+    .replace(/\bgst\b/gi, 'GST')
+    .replace(/\bpo\b/gi, 'PO')
+    .replace(/\binr\b/gi, 'INR')
+    .replace(/\bpvt\b/gi, 'Pvt')
+    .replace(/\bltd\b/gi, 'Ltd')
+    .replace(/\bL(\d+)\b/gi, 'L$1');
+}
+
+function toTitleCaseFromCaps(value) {
+  if (!isAllCapsText(value)) return String(value || '');
+  const text = String(value || '').toLowerCase().replace(/\b[a-z]/g, (char) => char.toUpperCase());
+  return applyKnownCasing(text);
+}
+
+function toSentenceCaseFromCaps(value) {
+  if (!isAllCapsText(value)) return String(value || '');
+  let text = String(value || '').toLowerCase();
+  text = text.replace(/(^|[.!?]\s+|\(\s*|"\s*)[a-z]/g, (match) => match.toUpperCase());
+  return applyKnownCasing(text);
+}
+
+function normalizeQuoteBodyLine(line) {
+  const trimmed = String(line || '').trim();
+  if (/^4\.?$/i.test(trimmed)) return '';
+  if (/^4\.\s*this quote is valid till\b/i.test(trimmed)) {
+    return trimmed.replace(/^4\.\s*this quote is valid till\b/i, '4. This Quote is valid till');
+  }
+  if (/^1\.\s*cost of resource/i.test(trimmed)) return '1. Cost of resource (per man month):';
+  if (/^2\.\s*prevailing taxes/i.test(trimmed)) return '2. Prevailing taxes, GST extra as applicable';
+  if (/^3\.\s*location\s*:/i.test(trimmed)) return trimmed;
+  if (/^kindly issue the purchase order/i.test(trimmed)) return 'Kindly issue the Purchase Order (PO).';
+  return toSentenceCaseFromCaps(trimmed);
+}
+
+function removeQuotePlaceholder(value) {
+  return /^\[\s*write\s+.+?\s+here\s*\]$/i.test(String(value || '').trim()) ? '' : String(value || '');
+}
+
 function splitAddressLines(value) {
   return String(value || '')
     .split(/\r?\n/)
@@ -304,7 +352,10 @@ function splitAddressLines(value) {
 
 function formatAddressLinesForDocument(value) {
   const lines = splitAddressLines(value);
-  return lines.map((line, index) => (index === lines.length - 1 ? line : `${line},`));
+  return lines.map((line, index) => {
+    const normalizedLine = toTitleCaseFromCaps(line);
+    return index === lines.length - 1 ? normalizedLine : `${normalizedLine},`;
+  });
 }
 
 function isQuoteTablePlaceholder(line) {
@@ -481,7 +532,7 @@ function buildQuoteItemsTableXml(quote) {
   items.forEach(function (item, index) {
     tableRows.push(makeTableRow([
       makeTableCell(String(index + 1), 980, { justify: 'center', font: DEFAULT_FONT, size: BODY_FONT_SIZE, spacing: 28, color: '000000' }),
-      makeTableCell(item.description || '', 5980, { font: DEFAULT_FONT, size: BODY_FONT_SIZE, spacing: 28, color: '000000' }),
+      makeTableCell(toTitleCaseFromCaps(item.description || ''), 5980, { font: DEFAULT_FONT, size: BODY_FONT_SIZE, spacing: 28, color: '000000' }),
       makeTableCell(formatIndianCurrencyNumber(item.amount || 0), 2400, { justify: 'right', font: DEFAULT_FONT, size: BODY_FONT_SIZE, spacing: 28, color: '000000' }),
     ]));
   });
@@ -523,9 +574,9 @@ function buildQuoteItemsTableXml(quote) {
 function buildQuoteDocumentXml(quote, client) {
   const items = quote.items || [];
   const mailNotes = getMailFormatNotes(quote.notes);
-  const subject = extractStructuredField(mailNotes, 'Subject', ['Candidate', 'Dear', 'Body', 'Regards', 'Designation']) || extractLegacyField(mailNotes, 'Subject');
-  const candidateName = extractStructuredField(mailNotes, 'Candidate', ['Dear', 'Body', 'Regards', 'Designation']);
-  const dear = extractStructuredField(mailNotes, 'Dear', ['Body', 'Regards', 'Designation']) || extractLegacyField(mailNotes, 'Dear').replace(/,\s*$/, '');
+  const subject = removeQuotePlaceholder(toSentenceCaseFromCaps(extractStructuredField(mailNotes, 'Subject', ['Candidate', 'Dear', 'Body', 'Regards', 'Designation']) || extractLegacyField(mailNotes, 'Subject')));
+  const candidateName = removeQuotePlaceholder(toTitleCaseFromCaps(extractStructuredField(mailNotes, 'Candidate', ['Dear', 'Body', 'Regards', 'Designation'])));
+  const dear = removeQuotePlaceholder(toTitleCaseFromCaps(extractStructuredField(mailNotes, 'Dear', ['Body', 'Regards', 'Designation']) || extractLegacyField(mailNotes, 'Dear').replace(/,\s*$/, '')));
   const body = extractStructuredField(mailNotes, 'Body', ['Regards', 'Designation']) || [
     'Please refer to the following quote with best fitment to the requirements:',
     '1. Cost of resource (per man month):',
@@ -535,9 +586,9 @@ function buildQuoteDocumentXml(quote, client) {
     '',
     'Kindly issue the Purchase Order (PO).'
   ].join('\n');
-  const location = deriveQuoteLocations(items);
-  const regards = extractStructuredField(mailNotes, 'Regards', ['Designation']) || extractLegacyField(mailNotes, 'Regards');
-  const designation = extractStructuredField(mailNotes, 'Designation', []);
+  const location = toTitleCaseFromCaps(deriveQuoteLocations(items));
+  const regards = removeQuotePlaceholder(toTitleCaseFromCaps(extractStructuredField(mailNotes, 'Regards', ['Designation']) || extractLegacyField(mailNotes, 'Regards')));
+  const designation = removeQuotePlaceholder(toTitleCaseFromCaps(extractStructuredField(mailNotes, 'Designation', [])));
   const addressLines = formatAddressLinesForDocument((client && client.address) || '');
   const quoteDateLabel = formatDisplayDate(quote.quote_date);
 
@@ -552,7 +603,7 @@ function buildQuoteDocumentXml(quote, client) {
     }));
   }
   content.push(makeParagraph('To,', { spacingAfter: 70, font: DEFAULT_FONT, color: '000000', size: BODY_FONT_SIZE }));
-  content.push(makeParagraph(quote.client_name || '', { size: BODY_FONT_SIZE, spacingAfter: 70, font: DEFAULT_FONT, color: '000000' }));
+  content.push(makeParagraph(toTitleCaseFromCaps(quote.client_name || ''), { size: BODY_FONT_SIZE, spacingAfter: 70, font: DEFAULT_FONT, color: '000000' }));
   addressLines.forEach(function (line) {
     content.push(makeParagraph(line, { color: '000000', spacingAfter: 40, font: DEFAULT_FONT, size: BODY_FONT_SIZE }));
   });
@@ -575,8 +626,9 @@ function buildQuoteDocumentXml(quote, client) {
 
   var insertedQuoteTable = false;
   body.split(/\r?\n/).forEach(function (line) {
-    var trimmed = String(line || '').trim();
+    var trimmed = normalizeQuoteBodyLine(line);
     if (!trimmed) {
+      if (String(line || '').trim()) return;
       content.push(makeParagraph('', { spacingAfter: 70 }));
       return;
     }
@@ -620,11 +672,15 @@ function buildQuoteDocumentXml(quote, client) {
   }
   if (designation) {
     content.push(makeParagraph(`(${designation})`, {
-      spacingAfter: 90,
+      spacingAfter: 0,
       font: DEFAULT_FONT,
       color: '000000',
       size: BODY_FONT_SIZE,
     }));
+  }
+
+  for (let index = 0; index < 9; index += 1) {
+    content.push(makeParagraph('', { spacingAfter: 0, font: DEFAULT_FONT, size: BODY_FONT_SIZE }));
   }
 
   const disclaimerText = quote.quote_number

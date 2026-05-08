@@ -48,7 +48,7 @@
       </div>
       <div class="flex items-center gap-3 sm:ml-auto w-full sm:w-auto max-w-sm">
         <span class="material-symbols-outlined text-on-surface-variant">search</span>
-        <input type="text" id="quotesSearch" placeholder="Search quotes..." class="flex-1">
+        <input type="text" id="quotesSearch" data-no-uppercase placeholder="Search quotes..." class="flex-1">
       </div>
     </div>
   </div>
@@ -166,19 +166,19 @@
               <div>
                 <label
                   class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Subject</label>
-                <textarea id="quoteSubject" rows="2" placeholder="Enter quote subject"></textarea>
+                <textarea id="quoteSubject" rows="2" data-no-uppercase placeholder="Enter quote subject"></textarea>
               </div>
               <div>
                 <label
                   class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Candidate
                   Name</label>
-                <textarea id="quoteCandidateName" rows="2" placeholder="Enter candidate name if applicable"></textarea>
+                <textarea id="quoteCandidateName" rows="2" data-no-uppercase placeholder="Enter candidate name if applicable"></textarea>
               </div>
               <div>
                 <label
                   class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Dear
                   / Recipient</label>
-                <textarea id="quoteRecipient" rows="2" placeholder="Enter recipient name"></textarea>
+                <textarea id="quoteRecipient" rows="2" data-no-uppercase placeholder="Enter recipient name"></textarea>
               </div>
             </div>
           </div>
@@ -202,7 +202,7 @@
         <div class="rounded-2xl border border-outline-variant/12 bg-surface-container p-4">
           <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Side
             Note</label>
-          <textarea id="quoteSideNote" rows="4"
+          <textarea id="quoteSideNote" rows="4" data-no-uppercase
             placeholder="Reference note for internal use only. This will not be included in the downloaded document."></textarea>
           <p class="mt-2 text-xs text-on-surface-variant">Stored for reference only and excluded from the exported quote
             document.</p>
@@ -215,19 +215,19 @@
               <label
                 class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Regards
                 / Sender</label>
-              <textarea id="quoteSender" rows="2" placeholder="Enter sender name"></textarea>
+              <textarea id="quoteSender" rows="2" data-no-uppercase placeholder="Enter sender name"></textarea>
             </div>
             <div>
               <label
                 class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Designation</label>
-              <input type="text" id="quoteDesignation" placeholder="Enter designation">
+              <input type="text" id="quoteDesignation" data-no-uppercase placeholder="Enter designation">
             </div>
           </div>
         </div>
 
         <div class="rounded-2xl border border-outline-variant/12 bg-surface-container p-4">
           <h6 class="text-sm font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-3">Mail Body</h6>
-          <textarea id="quoteBody" rows="10" class="leading-7" placeholder="Enter the standard quote body"></textarea>
+          <textarea id="quoteBody" rows="10" class="leading-7" data-no-uppercase placeholder="Enter the standard quote body"></textarea>
           <p class="mt-3 text-xs text-on-surface-variant">Default wording is prefilled. You can adjust line breaks
             here, and the exported document will follow the same structure.</p>
         </div>

@@ -260,8 +260,10 @@
     return item && item.billing_method === 'sgtc_hours';
   }
 
-  function roundHalfDay(value) {
-    return Math.max(Math.round(Number(value || 0) * 2) / 2, 0);
+  function toTwoDecimalInput(value) {
+    var number = Math.max(Number(value || 0), 0);
+    if (!Number.isFinite(number)) return 0;
+    return Math.trunc(number * 100) / 100;
   }
 
   function managerApproved(rows) {
@@ -360,7 +362,7 @@
   function fillManagerEditCandidate(item) {
     if (!item) return;
     var isSgtc = isSgtcBillingItem(item);
-    managerEditSyncBaseDays = roundHalfDay(Number(item.days_present || 0) + Number(item.leaves_taken || 0));
+    managerEditSyncBaseDays = toTwoDecimalInput(Number(item.days_present || 0) + Number(item.leaves_taken || 0));
     document.getElementById('managerEditItemId').value = item.id;
     document.getElementById('managerEditPresent').value = item.days_present || 0;
     document.getElementById('managerEditLeaves').value = item.leaves_taken || 0;
@@ -642,16 +644,16 @@
     var leavesEl = document.getElementById('managerEditLeaves');
     var hoursEl = document.getElementById('managerEditHours');
     if (source === 'leaves') {
-      var leaves = Math.min(roundHalfDay(leavesEl.value), managerEditSyncBaseDays);
+      var leaves = Math.min(toTwoDecimalInput(leavesEl.value), managerEditSyncBaseDays);
       leavesEl.value = leaves;
-      presentEl.value = roundHalfDay(managerEditSyncBaseDays - leaves);
+      presentEl.value = toTwoDecimalInput(managerEditSyncBaseDays - leaves);
     } else {
-      var present = Math.min(roundHalfDay(presentEl.value), managerEditSyncBaseDays);
+      var present = Math.min(toTwoDecimalInput(presentEl.value), managerEditSyncBaseDays);
       presentEl.value = present;
-      leavesEl.value = roundHalfDay(managerEditSyncBaseDays - present);
+      leavesEl.value = toTwoDecimalInput(managerEditSyncBaseDays - present);
     }
     if (!hoursEl.disabled) {
-      hoursEl.value = Math.min(Math.round(Number(presentEl.value || 0) * 8.5 * 100) / 100, 170);
+      hoursEl.value = Math.min(toTwoDecimalInput(Number(presentEl.value || 0) * 8.5), 170);
     }
     managerEditSyncing = false;
   }
