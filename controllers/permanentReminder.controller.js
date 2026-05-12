@@ -72,7 +72,7 @@ const permanentReminderController = {
     const existing = await PermanentReminderModel.findById(id);
     if (!existing) throw new AppError(404, 'Reminder not found');
     if (existing.status !== 'Open') throw new AppError(400, 'Reminder is already closed');
-    if (existing.payment_status === 'paid') throw new AppError(400, 'Reminder is already marked as paid');
+    if (existing.invoice_status === 'sent') throw new AppError(400, 'Invoice is already marked as sent');
 
     try {
       await sendPaymentReminderEmail([existing]);

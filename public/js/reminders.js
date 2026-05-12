@@ -51,8 +51,7 @@
   }
 
   function getReminderBucket(reminder) {
-    if (String(reminder.payment_status || '').toLowerCase() === 'paid'
-      && String(reminder.invoice_status || '').toLowerCase() === 'sent') {
+    if (String(reminder.invoice_status || '').toLowerCase() === 'sent') {
       return 'closed';
     }
     if (String(reminder.status || '').toLowerCase() === 'closed') return 'closed';
