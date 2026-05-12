@@ -375,7 +375,9 @@ function isQuoteTablePlaceholder(line) {
     || normalized === 'quote table will be inserted automatically';
 }
 
-function buildFooterXml() {
+function buildFooterXml(quoteNumber) {
+  const disclaimerText = buildQuoteDisclaimerText(quoteNumber);
+
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
   <w:ftr xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -394,7 +396,6 @@ function buildFooterXml() {
     xmlns:wne="http://schemas.microsoft.com/office/word/2006/wordml"
     xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"
     mc:Ignorable="w14 w15 wp14">
-    ${makeDividerParagraph('D6DCE5')}
     <w:tbl>
       <w:tblPr>
         <w:tblW w:w="${FOOTER_TABLE_WIDTH_DXA}" w:type="dxa"/>
@@ -416,12 +417,39 @@ function buildFooterXml() {
       <w:tr>
         <w:tc>
           <w:tcPr>
-            <w:tcW w:w="${FOOTER_LEFT_CELL_WIDTH_DXA}" w:type="dxa"/>
-            <w:vAlign w:val="bottom"/>
+            <w:tcW w:w="${FOOTER_TABLE_WIDTH_DXA}" w:type="dxa"/>
+            <w:gridSpan w:val="2"/>
           </w:tcPr>
           <w:p>
             <w:pPr>
-              <w:spacing w:after="20"/>
+              <w:jc w:val="center"/>
+              <w:spacing w:after="180" w:line="240" w:lineRule="auto"/>
+              <w:keepLines/>
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="${DEFAULT_FONT}" w:hAnsi="${DEFAULT_FONT}" w:cs="${DEFAULT_FONT}"/>
+                <w:i/>
+                <w:sz w:val="16"/>
+                <w:color w:val="666666"/>
+              </w:rPr>
+              ${buildTextXml(disclaimerText)}
+            </w:r>
+          </w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc>
+          <w:tcPr>
+            <w:tcW w:w="${FOOTER_LEFT_CELL_WIDTH_DXA}" w:type="dxa"/>
+            <w:vAlign w:val="bottom"/>
+            <w:tcBorders>
+              <w:top w:val="single" w:sz="10" w:space="1" w:color="D6DCE5"/>
+            </w:tcBorders>
+          </w:tcPr>
+          <w:p>
+            <w:pPr>
+              <w:spacing w:before="220" w:after="20"/>
               <w:ind w:left="${FOOTER_LEFT_TEXT_INDENT_DXA}"/>
             </w:pPr>
             <w:r>
@@ -468,16 +496,14 @@ function buildFooterXml() {
           <w:tcPr>
             <w:tcW w:w="${FOOTER_RIGHT_CELL_WIDTH_DXA}" w:type="dxa"/>
             <w:vAlign w:val="bottom"/>
+            <w:tcBorders>
+              <w:top w:val="single" w:sz="10" w:space="1" w:color="D6DCE5"/>
+            </w:tcBorders>
           </w:tcPr>
           <w:p>
             <w:pPr>
-              <w:spacing w:after="160"/>
-            </w:pPr>
-          </w:p>
-          <w:p>
-            <w:pPr>
               <w:jc w:val="right"/>
-              <w:spacing w:after="0"/>
+              <w:spacing w:before="420" w:after="0"/>
             </w:pPr>
             <w:r>
               <w:rPr>
@@ -685,26 +711,6 @@ function buildQuoteDocumentXml(quote, client) {
     }));
   }
 
-  for (let index = 0; index < 9; index += 1) {
-    content.push(makeParagraph('', { spacingAfter: 0, font: DEFAULT_FONT, size: BODY_FONT_SIZE }));
-  }
-
-  const disclaimerText = buildQuoteDisclaimerText(quote.quote_number);
-
-  content.push(makeParagraph(disclaimerText, {
-    spacingBefore: 0,
-    spacingAfter: 0,
-    lineSpacing: 240,
-    lineSpacingRule: 'auto',
-    justify: 'center',
-    font: DEFAULT_FONT,
-    color: '666666',
-    size: 16,
-    italic: true,
-    keepLines: true,
-    keepNext: true,
-  }));
-
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
   <w:document xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -789,7 +795,7 @@ async function generateQuoteDocxBuffer(quote, client) {
   const word = zip.folder('word');
   word.file('document.xml', buildQuoteDocumentXml(quote, client));
   word.file('header1.xml', buildHeaderXml(hasLogo));
-  word.file('footer1.xml', buildFooterXml());
+  word.file('footer1.xml', buildFooterXml(quote.quote_number));
   word.file('styles.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
   <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
     <w:docDefaults>
