@@ -33,14 +33,13 @@ function calculateInitialReminderAt(dueDate) {
   return addDays(new Date(dueDate), -3).toISOString();
 }
 
-function shouldAutoCloseReminder(paymentStatus, invoiceStatus) {
-  return String(paymentStatus || '').toLowerCase() === 'paid'
-    && String(invoiceStatus || '').toLowerCase() === 'sent';
+function isInvoiceSent(invoiceStatus) {
+  return String(invoiceStatus || '').toLowerCase() === 'sent';
 }
 
 function normalizeReminderState(reminder) {
   if (!reminder) return reminder;
-  if (shouldAutoCloseReminder(reminder.payment_status, reminder.invoice_status)) {
+  if (isInvoiceSent(reminder.invoice_status)) {
     return {
       ...reminder,
       status: 'Closed',
@@ -102,7 +101,6 @@ const PermanentReminderModel = {
         updated_at: now,
       })
       .eq('status', 'Open')
-      .eq('payment_status', 'paid')
       .eq('invoice_status', 'sent');
     if (isMissingReminderMailColumn(error)) return;
     if (error) throw new Error(error.message);
@@ -188,25 +186,24 @@ const PermanentReminderModel = {
   async updatePaymentStatus(id, paymentStatus) {
     const { data: existing, error: existingError } = await supabase
       .from(TABLE)
-      .select('invoice_status')
+      .select('invoice_status, next_reminder_at')
       .eq('id', id)
       .maybeSingle();
     if (existingError) throw new Error(existingError.message);
 
-    const autoClose = shouldAutoCloseReminder(paymentStatus, existing && existing.invoice_status);
     const updates = {
       payment_status: paymentStatus,
       updated_at: new Date().toISOString(),
     };
 
-    if (autoClose) {
+    if (isInvoiceSent(existing && existing.invoice_status)) {
       updates.status = 'Closed';
       updates.closed_at = new Date().toISOString();
       updates.next_reminder_at = null;
-      updates.mail_last_status = 'paid';
-      updates.mail_last_error = null;
     } else if (paymentStatus === 'paid') {
-      updates.next_reminder_at = null;
+      if (!existing || !existing.next_reminder_at) {
+        updates.next_reminder_at = new Date().toISOString();
+      }
       updates.mail_last_status = 'paid';
       updates.mail_last_error = null;
     } else {
@@ -229,24 +226,17 @@ const PermanentReminderModel = {
   },
 
   async markInvoiceSent(id, invoiceNumber, invoiceDate) {
-    const { data: existing, error: existingError } = await supabase
-      .from(TABLE)
-      .select('payment_status')
-      .eq('id', id)
-      .maybeSingle();
-    if (existingError) throw new Error(existingError.message);
-
-    const autoClose = shouldAutoCloseReminder(existing && existing.payment_status, 'sent');
+    const now = new Date().toISOString();
     const updates = {
       invoice_status: 'sent',
       invoice_number: invoiceNumber,
       invoice_date: invoiceDate,
-      invoice_sent_at: new Date().toISOString(),
-      status: autoClose ? 'Closed' : 'Open',
-      closed_at: autoClose ? new Date().toISOString() : null,
-      updated_at: new Date().toISOString(),
+      invoice_sent_at: now,
+      status: 'Closed',
+      closed_at: now,
+      next_reminder_at: null,
+      updated_at: now,
     };
-    if (autoClose) updates.next_reminder_at = null;
 
     const { error } = await supabase
       .from(TABLE)
@@ -304,7 +294,7 @@ const PermanentReminderModel = {
       .from(TABLE)
       .select('*')
       .eq('status', 'Open')
-      .eq('payment_status', 'pending')
+      .neq('invoice_status', 'sent')
       .gte('due_date', fromDate)
       .lte('due_date', toDate)
       .lte('next_reminder_at', nowIso)

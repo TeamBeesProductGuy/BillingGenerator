@@ -58,8 +58,8 @@
     var count = document.getElementById('ordersTableCount');
     var clientCount = new Set(items.map(function (order) { return order.client_id; }).filter(Boolean)).size;
     var upcomingCount = items.filter(function (order) {
-      var paymentStatus = order.reminder ? String(order.reminder.payment_status || 'pending').toLowerCase() : 'pending';
-      return !!order.next_bill_date && paymentStatus !== 'paid';
+      var invoiceStatus = order.reminder ? String(order.reminder.invoice_status || 'pending').toLowerCase() : 'pending';
+      return !!order.next_bill_date && invoiceStatus !== 'sent';
     }).length;
     if (summary) {
       var cards = summary.querySelectorAll('.table-summary-value');
@@ -102,8 +102,8 @@
       };
       var invoiceStatus = order.reminder ? String(order.reminder.invoice_status || 'pending').toLowerCase() : 'pending';
       var paymentStatus = order.reminder ? String(order.reminder.payment_status || 'pending').toLowerCase() : 'pending';
-      var invoiceDueDisplay = paymentStatus === 'paid'
-        ? '<span class="badge-success">Paid</span>'
+      var invoiceDueDisplay = invoiceStatus === 'sent'
+        ? '<span class="badge-success">Invoice Sent</span>'
         : '<span class="table-date-chip">' + (order.next_bill_date ? formatDate(order.next_bill_date) : 'TBD') + '</span>';
       return '<tr>' +
         '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(clientName) + '">' + escapeHtml(clientName) + '</span></div></td>' +
