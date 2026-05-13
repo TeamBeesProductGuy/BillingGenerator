@@ -539,7 +539,12 @@
   window.editRCPreview = function () {
     hideRCSavePreview();
     var panel = document.getElementById('rcModalPanel');
-    if (panel) panel.scrollTo({ top: 0, behavior: 'smooth' });
+    var body = panel ? panel.querySelector('.enterprise-modal-body') : null;
+    if (body) {
+      body.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (panel) {
+      panel.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   window.confirmRCSave = function () {

@@ -101,16 +101,16 @@
 </div>
 
 <!-- Add/Edit Rate Card Modal -->
-<div id="rcModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
-  <div id="rcModalPanel" class="bg-surface-container-high rounded-2xl w-full max-w-lg mx-4 border border-outline-variant/15 shadow-2xl max-h-[90vh] overflow-y-auto styled-scrollbar">
-    <form id="rcForm">
-      <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8">
-        <h5 class="font-headline font-bold text-lg text-on-surface" id="rcModalTitle">Add Rate Card</h5>
-        <button type="button" onclick="closeRCModal()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+<div id="rcModal" class="fixed inset-0 z-[200] hidden items-start justify-center bg-black/60 backdrop-blur-sm px-3 py-4 sm:px-5 sm:py-6">
+  <div id="rcModalPanel" class="enterprise-modal-shell rc-modal-shell">
+    <form id="rcForm" class="enterprise-modal-form">
+      <div class="enterprise-modal-header">
+        <h5 class="enterprise-modal-title" id="rcModalTitle">Add Rate Card</h5>
+        <button type="button" onclick="closeRCModal()" class="enterprise-modal-close" aria-label="Close rate card modal">
           <span class="material-symbols-outlined">close</span>
         </button>
       </div>
-      <div class="p-6 space-y-5">
+      <div class="enterprise-modal-body styled-scrollbar rc-modal-body">
         <input type="hidden" id="rcId">
         <div class="rounded-xl border border-outline-variant/15 bg-surface-container p-4 space-y-4">
           <h6 class="section-label">Employee Details</h6>
@@ -260,9 +260,9 @@
           </div>
         </div>
       </div>
-      <div id="rcModalFooter" class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
-        <button type="submit" class="btn-primary">Review & Save</button>
-        <button type="button" class="btn-secondary" onclick="closeRCModal()">Cancel</button>
+      <div id="rcModalFooter" class="enterprise-modal-footer">
+        <button type="button" class="btn-secondary enterprise-modal-cancel" onclick="closeRCModal()">Cancel</button>
+        <button type="submit" class="btn-primary enterprise-modal-save">Review & Save</button>
       </div>
     </form>
   </div>
