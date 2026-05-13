@@ -245,109 +245,118 @@
 </div>
 
 <!-- SOW Modal -->
-<div id="sowModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
-  <div
-    class="bg-surface-container-high rounded-2xl w-full max-w-3xl mx-4 border border-outline-variant/15 shadow-2xl max-h-[90vh] overflow-y-auto styled-scrollbar">
-    <form id="sowForm">
-      <div
-        class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/8 sticky top-0 bg-surface-container-high z-10">
-        <h5 class="font-headline font-bold text-lg text-on-surface" id="sowModalTitle">Create SOW</h5>
-        <button type="button" onclick="closeSOWModal()"
-          class="text-on-surface-variant hover:text-on-surface transition-colors">
+<div id="sowModal" class="fixed inset-0 z-[200] hidden items-start justify-center bg-black/60 backdrop-blur-sm px-3 py-4 sm:px-5 sm:py-6">
+  <div class="sow-modal-shell">
+    <form id="sowForm" class="sow-modal-form">
+      <div class="sow-modal-header">
+        <h5 class="sow-modal-title" id="sowModalTitle">Create SOW</h5>
+        <button type="button" onclick="closeSOWModal()" class="sow-modal-close" aria-label="Close SOW modal">
           <span class="material-symbols-outlined">close</span>
         </button>
       </div>
-      <div class="p-6 space-y-4">
+      <div class="sow-modal-body styled-scrollbar">
         <input type="hidden" id="sowId">
-        <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
-          <div>
-            <label
-              class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Client
-              *</label>
-            <select id="sowClient" required>
-              <option value="">Select</option>
-            </select>
-          </div>
-          <div>
-            <label
-              class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">SOW ID
-              *</label>
-            <input type="text" id="sowNumber" required>
-          </div>
-          <div>
-            <label
-              class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Quote
-              (Optional)</label>
-            <select id="sowQuote">
-              <option value="">None</option>
-            </select>
-          </div>
-          <div>
-            <label
-              class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">SOW
-              Date *</label>
-            <input type="date" id="sowDate" required>
-          </div>
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div class="max-w-[220px]">
-            <label
-              class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">SOW
-              End Date *</label>
-            <input type="date" id="sowEnd" required class="w-full">
-          </div>
-          <div class="max-w-[220px]">
-            <label
-              class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Effect
-              Start / DOJ Client *</label>
-            <input type="date" id="sowStart" required class="w-full">
-          </div>
-          <div class="max-w-[220px]">
-            <label
-              class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Effective
-              Months</label>
-            <input type="number" id="sowEffectiveMonths" min="1" step="1" class="w-full" placeholder="Auto-calculated" readonly>
-          </div>
-        </div>
 
-        <h6 class="section-label pt-2">Line Items</h6>
-        <div class="overflow-x-auto">
-          <table class="stitch-table" id="sowItemsTable">
-            <thead>
-              <tr>
-                <th>Role / Position</th>
-                <th style="width:110px">Qty</th>
-                <th style="width:140px">Amount</th>
-                <th style="width:190px">Duration</th>
-                <th style="width:40px"></th>
-              </tr>
-            </thead>
-            <tbody id="sowItemsBody"></tbody>
-          </table>
-        </div>
-        <button type="button" class="btn-secondary btn-sm inline-flex items-center gap-1.5" id="btnAddSowItem">
-          <span class="material-symbols-outlined text-base">add</span>Add Item
-        </button>
-
-        <div class="flex justify-end">
-          <div class="w-full max-w-xs">
-            <table class="w-full text-sm">
-              <tr class="border-t border-outline-variant/8">
-                <td class="py-2 text-on-surface font-bold">Total Value:</td>
-                <td class="py-2 text-right text-on-surface font-bold text-lg" id="sowTotal">&#8377;0.00</td>
-              </tr>
-            </table>
+        <section class="sow-form-section">
+          <div class="sow-form-section-header">
+            <span class="sow-form-section-icon material-symbols-outlined">contract</span>
+            <h6>SOW Details</h6>
           </div>
-        </div>
-        <div>
-          <label
-            class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Notes</label>
-          <textarea id="sowNotes" rows="2"></textarea>
-        </div>
+          <div class="sow-form-grid">
+            <div class="sow-field">
+              <label for="sowClient">Client <span>*</span></label>
+              <select id="sowClient" required>
+                <option value="">Select client</option>
+              </select>
+            </div>
+            <div class="sow-field">
+              <label for="sowNumber">SOW ID <span>*</span></label>
+              <input type="text" id="sowNumber" required placeholder="Enter SOW ID">
+            </div>
+            <div class="sow-field">
+              <label for="sowQuote">Quote</label>
+              <select id="sowQuote">
+                <option value="">None</option>
+              </select>
+            </div>
+            <div class="sow-field">
+              <label for="sowDate">SOW Date <span>*</span></label>
+              <input type="date" id="sowDate" required>
+            </div>
+          </div>
+        </section>
+
+        <section class="sow-form-section">
+          <div class="sow-form-section-header">
+            <span class="sow-form-section-icon material-symbols-outlined">event_repeat</span>
+            <h6>Effective Period</h6>
+          </div>
+          <div class="sow-form-grid sow-period-grid">
+            <div class="sow-field">
+              <label for="sowStart">Effect Start / DOJ Client <span>*</span></label>
+              <input type="date" id="sowStart" required>
+            </div>
+            <div class="sow-field">
+              <label for="sowEnd">SOW End Date <span>*</span></label>
+              <input type="date" id="sowEnd" required>
+            </div>
+            <div class="sow-field">
+              <label for="sowEffectiveMonths">Effective Months</label>
+              <input type="number" id="sowEffectiveMonths" min="1" step="1" placeholder="Auto-calculated" readonly>
+            </div>
+          </div>
+        </section>
+
+        <section class="sow-form-section">
+          <div class="sow-form-section-header">
+            <span class="sow-form-section-icon material-symbols-outlined">format_list_bulleted_add</span>
+            <h6>Line Items</h6>
+          </div>
+          <div class="sow-items-panel">
+            <div class="sow-items-toolbar">
+              <button type="button" class="btn-secondary btn-sm inline-flex items-center gap-1.5" id="btnAddSowItem">
+                <span class="material-symbols-outlined text-base">add</span>Add Item
+              </button>
+            </div>
+            <div class="sow-items-table-wrap styled-scrollbar">
+              <table class="stitch-table sow-items-table" id="sowItemsTable">
+                <thead>
+                  <tr>
+                    <th>Role / Position</th>
+                    <th style="width:110px">Qty</th>
+                    <th style="width:150px">Amount</th>
+                    <th style="width:220px">Duration</th>
+                    <th style="width:56px"></th>
+                  </tr>
+                </thead>
+                <tbody id="sowItemsBody"></tbody>
+              </table>
+            </div>
+
+            <div class="sow-total-row">
+              <span>Total Value</span>
+              <strong id="sowTotal">&#8377;0.00</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="sow-form-section">
+          <div class="sow-form-section-header">
+            <span class="sow-form-section-icon material-symbols-outlined">notes</span>
+            <h6>Notes</h6>
+          </div>
+          <div class="sow-field">
+            <label for="sowNotes">Notes</label>
+            <textarea id="sowNotes" rows="3" placeholder="Add internal notes or commercial context"></textarea>
+          </div>
+        </section>
       </div>
-      <div class="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/8">
-        <button type="submit" class="btn-primary">Save</button>
-        <button type="button" class="btn-secondary" onclick="closeSOWModal()">Cancel</button>
+      <div class="sow-modal-footer">
+        <button type="button" class="btn-secondary sow-modal-cancel" onclick="closeSOWModal()">Cancel</button>
+        <button type="submit" class="btn-primary sow-modal-save">
+          <span class="material-symbols-outlined text-base">save</span>
+          <span class="sow-submit-label">Save</span>
+        </button>
       </div>
     </form>
   </div>

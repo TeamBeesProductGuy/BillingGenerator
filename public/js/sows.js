@@ -13,7 +13,12 @@
     var submitButton = form.querySelector('button[type="submit"]');
     if (!submitButton) return;
     submitButton.disabled = sowFormSubmitting;
-    submitButton.textContent = sowFormSubmitting ? 'Saving...' : 'Save';
+    var label = submitButton.querySelector('.sow-submit-label');
+    if (label) {
+      label.textContent = sowFormSubmitting ? 'Saving...' : 'Save';
+    } else {
+      submitButton.textContent = sowFormSubmitting ? 'Saving...' : 'Save';
+    }
   }
 
   window.openSowDocumentUploadModal = async function () {
