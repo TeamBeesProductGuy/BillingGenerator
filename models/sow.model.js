@@ -179,10 +179,20 @@ const SOWModel = {
     const normalizedNumber = String(sowNumber || '').trim().toLowerCase();
     if (!normalizedNumber || !clientId) return false;
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('sows')
       .select('id, sow_number, base_sow_number')
       .eq('client_id', clientId);
+
+    if (isMissingColumnError(error, 'base_sow_number')) {
+      const fallback = await supabase
+        .from('sows')
+        .select('id, sow_number')
+        .eq('client_id', clientId);
+      data = fallback.data;
+      error = fallback.error;
+    }
+
     if (error) throw new Error(error.message);
 
     const excludedBase = String(excludeBaseSowNumber || '').trim().toLowerCase();
@@ -289,7 +299,7 @@ const SOWModel = {
         if (iErr) throw new Error(iErr.message);
       }
 
-      return { id, sow_number: existing.sow_number };
+      return { id, sow_number: sow.sow_number || existing.sow_number };
     }
 
     const baseSowNumber = existing.base_sow_number || existing.sow_number;

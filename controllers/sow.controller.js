@@ -629,8 +629,8 @@ const sowController = {
     const existing = await SOWModel.findById(id);
     if (!existing) throw new AppError(404, 'SOW not found');
     if (!isEditableStatus(existing.status)) throw new AppError(400, 'Only Draft, Amendment Draft, or Signed SOWs can be edited');
-    const { client_id, quote_id, sow_date, effective_start, effective_end, notes, items } = req.body;
-    const result = await SOWModel.update(id, { client_id, quote_id, sow_date, effective_start, effective_end, notes }, items || []);
+    const { sow_number, client_id, quote_id, sow_date, effective_start, effective_end, notes, items } = req.body;
+    const result = await SOWModel.update(id, { sow_number, client_id, quote_id, sow_date, effective_start, effective_end, notes }, items || []);
     await logActivity(req, {
       module: 'sows',
       action: 'update',
