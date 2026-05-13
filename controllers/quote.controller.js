@@ -148,6 +148,13 @@ function normalizeQuoteBodyLine(line) {
   return toSentenceCaseFromCaps(trimmed);
 }
 
+function getNormalizedQuoteBodyLines(body) {
+  return String(body || '')
+    .split(/\r?\n/)
+    .map((line) => normalizeQuoteBodyLine(line))
+    .filter(Boolean);
+}
+
 function removeQuotePlaceholder(value) {
   return /^\[\s*write\s+.+?\s+here\s*\]$/i.test(String(value || '').trim()) ? '' : String(value || '');
 }
@@ -361,13 +368,7 @@ function drawQuotePdf(doc, quote, client) {
   }
 
   let insertedQuoteTable = false;
-  body.split(/\r?\n/).forEach((line) => {
-    const trimmed = normalizeQuoteBodyLine(line);
-    if (!trimmed) {
-      if (String(line || '').trim()) return;
-      doc.moveDown(0.7);
-      return;
-    }
+  getNormalizedQuoteBodyLines(body).forEach((trimmed) => {
     if (isQuoteTablePlaceholder(trimmed)) {
       if (insertedQuoteTable) return;
       drawQuoteTable(doc, quote);
@@ -385,13 +386,16 @@ function drawQuotePdf(doc, quote, client) {
       doc.font('Roboto').fontSize(10).fillColor(brandSecondary).text(`3. Location: ${location || '-'}`, 70);
       return;
     }
+    if (/^Kindly issue the Purchase Order/i.test(trimmed)) {
+      doc.moveDown(0.8);
+    }
     doc.font('Roboto').fontSize(10).fillColor(brandSecondary).text(trimmed, 70);
   });
 
   if (regards) {
-    doc.moveDown(0.6);
+    doc.moveDown(0.9);
     doc.font('Roboto').fontSize(10).fillColor(brandSecondary).text('Regards,', 70);
-    doc.moveDown(0.5);
+    doc.moveDown(0.8);
     doc.text(regards, 70);
     if (designation) {
       doc.text(`(${designation})`, 70);
