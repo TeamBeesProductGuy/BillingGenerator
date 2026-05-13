@@ -167,6 +167,11 @@
     if (actionState.reminderId && actionState.reminderStatus === 'Open') {
       container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runOrderActionInvoice(' + id + ')"><span class="material-symbols-outlined">receipt_long</span><span><strong>Set Invoice Details</strong><small>Save invoice number and invoice date</small></span></button>';
     }
+    if (actionState.reminderId) {
+      var nextPaymentStatus = String(actionState.paymentStatus || '').toLowerCase() === 'paid' ? 'pending' : 'paid';
+      var paymentLabel = nextPaymentStatus === 'paid' ? 'Mark paid' : 'Mark pending';
+      container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runOrderActionPayment(' + id + ', \'' + nextPaymentStatus + '\')"><span class="material-symbols-outlined">payments</span><span><strong>' + paymentLabel + '</strong><small>Change the payment status for this order</small></span></button>';
+    }
     container.innerHTML += '<button type="button" class="action-sheet-btn action-sheet-btn-danger" onclick="runOrderActionDelete(' + id + ')"><span class="material-symbols-outlined">delete</span><span><strong>Delete order</strong><small>Remove this order from the active list</small></span></button>';
     openModal('orderActionModal');
   };
@@ -193,6 +198,24 @@
       return;
     }
     openOrderInvoiceSentModal(state.reminderId, state.invoiceNumber || '', state.invoiceDate || '');
+  };
+
+  window.runOrderActionPayment = async function (id, status) {
+    var state = orderActionMap[id] || {};
+    closeOrderActions();
+    if (!state.reminderId) {
+      showToast('No reminder found for this order', 'warning');
+      return;
+    }
+    try {
+      await apiCall('PATCH', '/api/permanent/reminders/' + state.reminderId + '/payment-status', {
+        payment_status: status,
+      });
+      showToast('Payment status updated', 'success');
+      loadOrders();
+    } catch (err) {
+      showToast(err.message, 'danger');
+    }
   };
 
   window.openOrderModal = function () {

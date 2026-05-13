@@ -301,7 +301,6 @@
     title.textContent = 'Reminder Actions';
     container.innerHTML = '';
     container.innerHTML += '<button type="button" class="reminder-action-sheet-btn" onclick="runReminderActionEditEmails(' + id + ')"><span class="material-symbols-outlined">alternate_email</span><span><strong>Edit emails</strong><small>Update primary and secondary recipients</small></span></button>';
-    container.innerHTML += '<button type="button" class="reminder-action-sheet-btn" onclick="runReminderActionTogglePayment(' + id + ', \'' + (state.paymentStatus === 'paid' ? 'pending' : 'paid') + '\')"><span class="material-symbols-outlined">payments</span><span><strong>' + (state.paymentStatus === 'paid' ? 'Mark pending' : 'Mark paid') + '</strong><small>Change the payment status for this reminder</small></span></button>';
     container.innerHTML += '<button type="button" class="reminder-action-sheet-btn" onclick="runReminderActionSendMail(' + id + ')"><span class="material-symbols-outlined">mail</span><span><strong>Send reminder mail</strong><small>Send the reminder email to saved recipients</small></span></button>';
     container.innerHTML += '<button type="button" class="reminder-action-sheet-btn" onclick="runReminderActionExtend(' + id + ')"><span class="material-symbols-outlined">event_repeat</span><span><strong>Extend reminder</strong><small>Move the due date to a later day</small></span></button>';
     container.innerHTML += '<button type="button" class="reminder-action-sheet-btn reminder-action-sheet-btn-danger" onclick="runReminderActionClose(' + id + ')"><span class="material-symbols-outlined">task_alt</span><span><strong>Close reminder</strong><small>Remove this reminder from the active queue</small></span></button>';
@@ -315,11 +314,6 @@
   window.runReminderActionEditEmails = function (id) {
     closeReminderActions();
     openReminderEmailModal(id);
-  };
-
-  window.runReminderActionTogglePayment = function (id, status) {
-    closeReminderActions();
-    updateReminderPaymentStatus(id, status);
   };
 
   window.runReminderActionSendMail = function (id) {
