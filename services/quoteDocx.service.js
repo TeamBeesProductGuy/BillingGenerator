@@ -345,6 +345,13 @@ function normalizeQuoteBodyLine(line) {
   return toSentenceCaseFromCaps(trimmed);
 }
 
+function getNormalizedQuoteBodyLines(body) {
+  return String(body || '')
+    .split(/\r?\n/)
+    .map((line) => normalizeQuoteBodyLine(line))
+    .filter(Boolean);
+}
+
 function removeQuotePlaceholder(value) {
   return /^\[\s*write\s+.+?\s+here\s*\]$/i.test(String(value || '').trim()) ? '' : String(value || '');
 }
@@ -657,13 +664,7 @@ function buildQuoteDocumentXml(quote, client) {
   }
 
   var insertedQuoteTable = false;
-  body.split(/\r?\n/).forEach(function (line) {
-    var trimmed = normalizeQuoteBodyLine(line);
-    if (!trimmed) {
-      if (String(line || '').trim()) return;
-      content.push(makeParagraph('', { spacingAfter: 70 }));
-      return;
-    }
+  getNormalizedQuoteBodyLines(body).forEach(function (trimmed) {
     if (isQuoteTablePlaceholder(trimmed)) {
       if (insertedQuoteTable) {
         return;
@@ -684,19 +685,20 @@ function buildQuoteDocumentXml(quote, client) {
       content.push(makeParagraph(`3. Location: ${location || '-'}`, { spacingAfter: 90, font: DEFAULT_FONT, color: '000000', size: BODY_FONT_SIZE }));
       return;
     }
-    content.push(makeParagraph(trimmed, { spacingAfter: 90, font: DEFAULT_FONT, color: '000000', size: BODY_FONT_SIZE }));
+    var spacingBefore = /^Kindly issue the Purchase Order/i.test(trimmed) ? 120 : 0;
+    content.push(makeParagraph(trimmed, { spacingBefore, spacingAfter: 90, font: DEFAULT_FONT, color: '000000', size: BODY_FONT_SIZE }));
   });
 
   if (regards) {
     content.push(makeParagraph('Regards,', {
-      spacingBefore: 70,
-      spacingAfter: 80,
+      spacingBefore: 120,
+      spacingAfter: 120,
       font: DEFAULT_FONT,
       color: '000000',
       size: BODY_FONT_SIZE,
     }));
     content.push(makeParagraph(regards, {
-      spacingAfter: designation ? 40 : 90,
+      spacingAfter: designation ? 20 : 90,
       font: DEFAULT_FONT,
       color: '000000',
       size: BODY_FONT_SIZE,
