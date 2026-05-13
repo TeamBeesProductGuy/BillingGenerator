@@ -934,9 +934,27 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
 }
 
 #quotesTable {
-    width: auto;
-    min-width: 1480px;
+    width: 100%;
+    min-width: 1120px;
+    table-layout: fixed;
 }
+
+#quotesTable th:nth-child(1),
+#quotesTable td:nth-child(1) { width: 13%; }
+#quotesTable th:nth-child(2),
+#quotesTable td:nth-child(2) { width: 13%; }
+#quotesTable th:nth-child(3),
+#quotesTable td:nth-child(3) { width: 18%; }
+#quotesTable th:nth-child(4),
+#quotesTable td:nth-child(4) { width: 10%; }
+#quotesTable th:nth-child(5),
+#quotesTable td:nth-child(5) { width: 11%; }
+#quotesTable th:nth-child(6),
+#quotesTable td:nth-child(6) { width: 13%; }
+#quotesTable th:nth-child(7),
+#quotesTable td:nth-child(7) { width: 9%; }
+#quotesTable th:nth-child(8),
+#quotesTable td:nth-child(8) { width: 13%; }
 
 #quotesAmendmentsTable {
     width: auto;
@@ -974,10 +992,53 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
 }
 
 .quotes-table-scroll {
-    padding-left: 0.35rem;
-    padding-right: 0.35rem;
+    padding-left: 0;
+    padding-right: 0;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+}
+
+.quotes-table-scroll .stitch-table th,
+.quotes-table-scroll .stitch-table td {
+    padding-left: 0.85rem;
+    padding-right: 0.85rem;
+}
+
+.quotes-table-scroll .table-cell-box {
+    min-height: 3.75rem;
+}
+
+.quotes-table-scroll .entity-pill,
+.quotes-table-scroll .table-date-chip,
+.quotes-table-scroll .table-amount-pill,
+.quotes-table-scroll .table-cell-text {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.quotes-table-scroll .table-action-group {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    width: 100%;
+    min-width: 0;
+}
+
+.quotes-table-scroll .table-action-group .btn-sm {
+    width: 2rem;
+    height: 2rem;
+    min-width: 2rem;
+    padding: 0;
+    justify-content: center;
+}
+
+@media (min-width: 1536px) {
+    #quotesTable {
+        min-width: 0;
+    }
 }
 
 .billing-items-table-scroll {
