@@ -116,8 +116,16 @@
     var type = document.getElementById('contractType').value;
     var contractualFields = document.getElementById('contractualFields');
     var permanentFields = document.getElementById('permanentFields');
+    var isPermanent = type === 'Permanent';
 
-    if (type === 'Permanent') {
+    document.querySelectorAll('.client-contractual-only').forEach(function (field) {
+      field.classList.toggle('hidden', isPermanent);
+    });
+    document.querySelectorAll('.client-permanent-only').forEach(function (field) {
+      field.classList.toggle('hidden', !isPermanent);
+    });
+
+    if (isPermanent) {
       contractualFields.classList.add('hidden');
       permanentFields.classList.remove('hidden');
       document.getElementById('clientEntityType').value = 'Permanent';

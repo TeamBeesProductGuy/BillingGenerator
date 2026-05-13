@@ -33,104 +33,131 @@
   </div>
 </div>
 
-<div id="clientModal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
-  <div class="bg-surface rounded-2xl w-full max-w-3xl mx-4 border border-border shadow-2xl max-h-[90vh] overflow-y-auto styled-scrollbar">
-    <form id="clientForm">
-      <div class="flex items-center justify-between px-6 py-4 border-b border-border">
-        <h5 class="font-headline font-bold text-lg text-on-surface" id="clientModalTitle">Add Client</h5>
-        <button type="button" onclick="closeClientModal()" class="text-on-surface-variant hover:text-on-surface transition-colors">
+<div id="clientModal" class="fixed inset-0 z-[200] hidden items-start justify-center bg-black/60 backdrop-blur-sm px-3 py-4 sm:px-5 sm:py-6">
+  <div class="client-modal-shell">
+    <form id="clientForm" class="client-modal-form">
+      <div class="client-modal-header">
+        <h5 class="client-modal-title" id="clientModalTitle">Add Client</h5>
+        <button type="button" onclick="closeClientModal()" class="client-modal-close" aria-label="Close client modal">
           <span class="material-symbols-outlined">close</span>
         </button>
       </div>
-      <div class="p-6 space-y-4">
+      <div class="client-modal-body styled-scrollbar">
         <input type="hidden" id="clientId">
         <input type="hidden" id="clientEntityType" value="Contractual">
 
-        <div>
-          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Contract Type *</label>
-          <select id="contractType" required>
-            <option value="Contractual">Contractual</option>
-            <option value="Permanent">Permanent</option>
-          </select>
-        </div>
-
-        <div id="contractualFields" class="space-y-4">
-          <div>
-            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Client Name *</label>
-            <input type="text" id="clientName">
+        <section class="client-form-section">
+          <div class="client-form-section-header">
+            <span class="client-form-section-icon material-symbols-outlined">badge</span>
+            <h6>Basic Info</h6>
           </div>
-          <div>
-            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Abbreviation</label>
-            <input type="text" id="clientAbbreviation" placeholder="e.g. NTT">
-          </div>
-          <div>
-            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Contact Person</label>
-            <input type="text" id="contactPerson">
-          </div>
-          <div>
-            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Email</label>
-            <input type="email" id="clientEmail">
-          </div>
-          <div>
-            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Phone</label>
-            <div class="client-phone-field-grid">
-              <select id="clientPhoneCountryCode">
-                <option value="+91">+91 (India)</option>
-                <option value="+1">+1 (US/CA)</option>
-                <option value="+44">+44 (UK)</option>
-                <option value="+61">+61 (Australia)</option>
-                <option value="+65">+65 (Singapore)</option>
-                <option value="+971">+971 (UAE)</option>
+          <div class="client-form-grid">
+            <div class="client-field">
+              <label for="contractType">Contract Type <span>*</span></label>
+              <select id="contractType" required>
+                <option value="Contractual">Contractual</option>
+                <option value="Permanent">Permanent</option>
               </select>
-              <input type="text" id="clientPhone" class="client-phone-input" placeholder="Phone number">
+            </div>
+            <div class="client-field client-contractual-only">
+              <label for="clientName">Client Name <span>*</span></label>
+              <input type="text" id="clientName" placeholder="Enter client name">
+            </div>
+            <div class="client-field client-contractual-only">
+              <label for="clientAbbreviation">Abbreviation</label>
+              <input type="text" id="clientAbbreviation" placeholder="e.g. NTT">
+            </div>
+            <div class="client-field client-permanent-only hidden">
+              <label for="permanentClientName">Name <span>*</span></label>
+              <input type="text" id="permanentClientName" placeholder="Enter client name">
+            </div>
+            <div class="client-field client-permanent-only hidden">
+              <label for="permanentClientAbbreviation">Abbreviation <span>*</span></label>
+              <input type="text" id="permanentClientAbbreviation" placeholder="Used for search">
             </div>
           </div>
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Industry</label>
-              <input type="text" id="clientIndustry" placeholder="e.g. IT Services, Healthcare...">
+        </section>
+
+        <div id="contractualFields" class="client-modal-sections">
+          <section class="client-form-section">
+            <div class="client-form-section-header">
+              <span class="client-form-section-icon material-symbols-outlined">contact_mail</span>
+              <h6>Contact Details</h6>
             </div>
-            <div>
-              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Default Leaves Allowed</label>
-              <input type="number" id="clientLeavesAllowed" min="0" step="1" value="0">
-            </div>
-          </div>
-          <div class="space-y-4">
-            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Address *</label>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-[11px] text-on-surface-variant mb-1">Address Line 1</label>
-                <input type="text" id="clientAddressLine1">
+            <div class="client-form-grid">
+              <div class="client-field">
+                <label for="contactPerson">Contact Person</label>
+                <input type="text" id="contactPerson" placeholder="Enter contact person">
               </div>
-              <div>
-                <label class="block text-[11px] text-on-surface-variant mb-1">Address Line 2</label>
-                <input type="text" id="clientAddressLine2">
+              <div class="client-field">
+                <label for="clientEmail">Email</label>
+                <input type="email" id="clientEmail" placeholder="Enter email address">
               </div>
-              <div>
-                <label class="block text-[11px] text-on-surface-variant mb-1">City / District *</label>
-                <input type="text" id="clientAddressCity">
-              </div>
-              <div>
-                <label class="block text-[11px] text-on-surface-variant mb-1">State *</label>
-                <input type="text" id="clientAddressState">
-              </div>
-              <div>
-                <label class="block text-[11px] text-on-surface-variant mb-1">Pincode</label>
-                <input type="text" id="clientAddressPincode">
+              <div class="client-field client-field-wide">
+                <label for="clientPhone">Phone</label>
+                <div class="client-phone-field-grid">
+                  <select id="clientPhoneCountryCode" aria-label="Phone country code">
+                    <option value="+91">+91 (India)</option>
+                    <option value="+1">+1 (US/CA)</option>
+                    <option value="+44">+44 (UK)</option>
+                    <option value="+61">+61 (Australia)</option>
+                    <option value="+65">+65 (Singapore)</option>
+                    <option value="+971">+971 (UAE)</option>
+                  </select>
+                  <input type="text" id="clientPhone" class="client-phone-input" placeholder="Enter phone number">
+                </div>
               </div>
             </div>
-          </div>
+          </section>
+
+          <section class="client-form-section">
+            <div class="client-form-section-header">
+              <span class="client-form-section-icon material-symbols-outlined">business_center</span>
+              <h6>Business Details</h6>
+            </div>
+            <div class="client-form-grid">
+              <div class="client-field">
+                <label for="clientIndustry">Industry</label>
+                <input type="text" id="clientIndustry" placeholder="e.g. IT Services, Healthcare...">
+              </div>
+              <div class="client-field">
+                <label for="clientLeavesAllowed">Default Leaves Allowed</label>
+                <input type="number" id="clientLeavesAllowed" min="0" step="1" value="0">
+              </div>
+            </div>
+          </section>
+
+          <section class="client-form-section">
+            <div class="client-form-section-header">
+              <span class="client-form-section-icon material-symbols-outlined">location_on</span>
+              <h6>Address</h6>
+            </div>
+            <div class="client-form-grid">
+              <div class="client-field">
+                <label for="clientAddressLine1">Address Line 1</label>
+                <input type="text" id="clientAddressLine1" placeholder="Enter address line 1">
+              </div>
+              <div class="client-field">
+                <label for="clientAddressLine2">Address Line 2</label>
+                <input type="text" id="clientAddressLine2" placeholder="Enter address line 2">
+              </div>
+              <div class="client-field">
+                <label for="clientAddressCity">City / District <span>*</span></label>
+                <input type="text" id="clientAddressCity" placeholder="Enter city or district">
+              </div>
+              <div class="client-field">
+                <label for="clientAddressState">State <span>*</span></label>
+                <input type="text" id="clientAddressState" placeholder="Enter state">
+              </div>
+              <div class="client-field">
+                <label for="clientAddressPincode">Pincode</label>
+                <input type="text" id="clientAddressPincode" placeholder="Enter pincode">
+              </div>
+            </div>
+          </section>
         </div>
 
-        <div id="permanentFields" class="hidden space-y-4">
-          <div>
-            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Name *</label>
-            <input type="text" id="permanentClientName">
-          </div>
-          <div>
-            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Abbreviation *</label>
-            <input type="text" id="permanentClientAbbreviation" placeholder="Used for search">
-          </div>
+        <div id="permanentFields" class="hidden client-modal-sections">
           <div class="space-y-4">
             <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Address *</label>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -214,9 +241,12 @@
           </div>
         </div>
       </div>
-      <div class="flex justify-end gap-3 px-6 py-4 border-t border-border">
-        <button type="submit" class="btn-primary">Save</button>
-        <button type="button" class="btn-secondary" onclick="closeClientModal()">Cancel</button>
+      <div class="client-modal-footer">
+        <button type="button" class="btn-secondary client-modal-cancel" onclick="closeClientModal()">Cancel</button>
+        <button type="submit" class="btn-primary client-modal-save">
+          <span class="material-symbols-outlined text-base">save</span>
+          Save
+        </button>
       </div>
     </form>
   </div>
