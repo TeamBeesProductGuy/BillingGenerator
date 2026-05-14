@@ -290,7 +290,7 @@
   };
 
   var statusBadge = function (s) {
-    var map = { Draft: 'badge-processing', 'Amendment Draft': 'badge-processing', Signed: 'badge-success', Inactive: 'badge-warning', Expired: 'badge-warning', Terminated: 'badge-error' };
+    var map = { Draft: 'badge-processing', 'Amendment Draft': 'badge-processing', Signed: 'badge-success', Active: 'badge-success', Inactive: 'badge-warning', Expired: 'badge-warning', Terminated: 'badge-error' };
     return '<span class="' + (map[s] || 'badge-processing') + '">' + s + '</span>';
   };
 
@@ -404,7 +404,7 @@
           var client = sowClientMap[String(s.client_id)] || null;
           var clientDisplay = client ? getClientDisplayName(client) : (s.client_name || '');
           var clientFullName = client ? (client.client_name || clientDisplay) : (s.client_name || clientDisplay);
-          var VALID_TRANSITIONS = { Draft: ['Signed', 'Inactive'], 'Amendment Draft': ['Signed', 'Inactive'], Signed: ['Inactive', 'Expired', 'Terminated'], Active: ['Inactive', 'Expired', 'Terminated'], Inactive: ['Signed'], Expired: [], Terminated: [] };
+          var VALID_TRANSITIONS = { Draft: ['Signed'], 'Amendment Draft': ['Signed'], Signed: ['Inactive'], Active: ['Inactive'], Inactive: ['Active'], Expired: [], Terminated: [] };
           var allowed = VALID_TRANSITIONS[s.status] || [];
           sowActionMap[s.id] = {
             id: s.id,
@@ -414,7 +414,7 @@
           };
 
           var actionsHtml = '<div class="table-action-group">';
-          if (s.status === 'Draft' || s.status === 'Amendment Draft' || s.status === 'Signed') {
+          if (s.status === 'Draft' || s.status === 'Amendment Draft' || s.status === 'Signed' || s.status === 'Active') {
             actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="editSOW(' + s.id + ')" title="Edit"><span class="material-symbols-outlined text-base">edit</span></button>';
           }
           actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="viewSOW(' + s.id + ')" title="View"><span class="material-symbols-outlined text-base">visibility</span></button>';
@@ -466,7 +466,7 @@
     var actionState = sowActionMap[id];
     var container = document.getElementById('sowActionList');
     var title = document.getElementById('sowActionTitle');
-    var STATUS_LABELS = { Signed: 'Mark Active', Inactive: 'Mark Inactive', Expired: 'Mark Expired', Terminated: 'Terminate', Draft: 'Revert to Draft' };
+    var STATUS_LABELS = { Signed: 'Mark Signed', Active: 'Mark Active', Inactive: 'Mark Inactive', Expired: 'Mark Expired', Terminated: 'Terminate', Draft: 'Revert to Draft' };
 
     if (!actionState || !container || !title) return;
 
@@ -477,7 +477,7 @@
       container.innerHTML += '<button type="button" class="w-full text-left rounded-xl px-4 py-3 text-sm font-medium text-on-surface bg-surface hover:bg-surface-container-highest transition-colors" onclick="runSOWActionStatus(' + actionState.id + ', \'' + st + '\')">' + (STATUS_LABELS[st] || st) + '</button>';
     });
 
-    if (actionState.status === 'Signed') {
+    if (actionState.status === 'Signed' || actionState.status === 'Active') {
       container.innerHTML += '<button type="button" class="w-full text-left rounded-xl px-4 py-3 text-sm font-medium text-on-surface bg-surface hover:bg-surface-container-highest transition-colors" onclick="runSOWActionLinkPO(' + actionState.id + ', ' + actionState.clientId + ')">Link to PO</button>';
       container.innerHTML += '<button type="button" class="w-full text-left rounded-xl px-4 py-3 text-sm font-medium text-on-surface bg-surface hover:bg-surface-container-highest transition-colors" onclick="runSOWActionAmendment(' + actionState.id + ')">Make Amendment</button>';
     }
@@ -498,7 +498,7 @@
     if (status === 'Inactive') {
       var ok = await confirmSowInactive(id);
       if (!ok) return;
-    } else if (status === 'Signed') {
+    } else if (status === 'Active') {
       var activateOk = await confirmAction('Mark SOW Active', 'This will make the SOW available again for rate cards and billing. Continue?');
       if (!activateOk) return;
     }

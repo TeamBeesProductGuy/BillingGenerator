@@ -11,16 +11,20 @@ const catchAsync = require('../middleware/catchAsync');
 const { logActivity } = require('../services/activityLog.service');
 
 function isEditableStatus(status) {
-  return status === 'Draft' || status === 'Amendment Draft' || status === 'Signed';
+  return status === 'Draft' || status === 'Amendment Draft' || status === 'Signed' || status === 'Active';
+}
+
+function isDeletableStatus(status) {
+  return status === 'Draft' || status === 'Amendment Draft';
 }
 
 function isAllowedSowStatusChange(fromStatus, toStatus) {
   const transitions = {
-    Draft: ['Signed', 'Inactive'],
-    'Amendment Draft': ['Signed', 'Inactive'],
-    Signed: ['Expired', 'Terminated', 'Inactive'],
-    Active: ['Expired', 'Terminated', 'Inactive'],
-    Inactive: ['Signed'],
+    Draft: ['Signed'],
+    'Amendment Draft': ['Signed'],
+    Signed: ['Inactive'],
+    Active: ['Inactive'],
+    Inactive: ['Active'],
     Expired: [],
     Terminated: [],
   };
@@ -628,7 +632,7 @@ const sowController = {
     const id = parseInt(req.params.id, 10);
     const existing = await SOWModel.findById(id);
     if (!existing) throw new AppError(404, 'SOW not found');
-    if (!isEditableStatus(existing.status)) throw new AppError(400, 'Only Draft, Amendment Draft, or Signed SOWs can be edited');
+    if (!isEditableStatus(existing.status)) throw new AppError(400, 'Only Draft, Amendment Draft, Signed, or Active SOWs can be edited');
     const { sow_number, client_id, quote_id, sow_date, effective_start, effective_end, notes, items } = req.body;
     const result = await SOWModel.update(id, { sow_number, client_id, quote_id, sow_date, effective_start, effective_end, notes }, items || []);
     await logActivity(req, {
@@ -646,7 +650,7 @@ const sowController = {
     const id = parseInt(req.params.id, 10);
     const existing = await SOWModel.findById(id);
     if (!existing) throw new AppError(404, 'SOW not found');
-    if (existing.status !== 'Signed') throw new AppError(400, 'Only signed SOWs can be amended');
+    if (existing.status !== 'Signed' && existing.status !== 'Active') throw new AppError(400, 'Only signed or active SOWs can be amended');
 
     const { client_id, quote_id, sow_date, effective_start, effective_end, notes, items } = req.body;
     const result = await SOWModel.createAmendment(id, { client_id, quote_id, sow_date, effective_start, effective_end, notes }, items || []);
@@ -694,7 +698,7 @@ const sowController = {
     const id = parseInt(req.params.id, 10);
     const existing = await SOWModel.findById(id);
     if (!existing) throw new AppError(404, 'SOW not found');
-    if (!isEditableStatus(existing.status)) throw new AppError(400, 'Only Draft or Amendment Draft SOWs can be deleted');
+    if (!isDeletableStatus(existing.status)) throw new AppError(400, 'Only Draft or Amendment Draft SOWs can be deleted');
     await SOWModel.delete(id);
     await logActivity(req, {
       module: 'sows',

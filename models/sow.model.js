@@ -7,10 +7,7 @@ function buildSowRevisionNumber(baseSowNumber, versionNumber) {
 function normalizeSowStatus(row) {
   if (!row) return row;
   if (Array.isArray(row)) return row.map(normalizeSowStatus);
-  return {
-    ...row,
-    status: row.status === 'Active' ? 'Signed' : row.status,
-  };
+  return row;
 }
 
 function uniqueStrings(values) {
