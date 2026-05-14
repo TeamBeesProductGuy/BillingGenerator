@@ -167,7 +167,8 @@
     }
 
     body.innerHTML = missing.map(function (item) {
-      var candidates = (poCandidatesByEmp && poCandidatesByEmp[item.emp_code]) || [];
+      var itemKey = item.id ? ('item:' + item.id) : ('emp:' + item.emp_code + ':sow:' + (item.sow_id || ''));
+      var candidates = (poCandidatesByEmp && (poCandidatesByEmp[itemKey] || poCandidatesByEmp[item.emp_code])) || [];
       var optionHtml = '<option value="">Select linked PO</option>' + candidates.map(function (po) {
         var sowSuffix = po.sow_number ? (' | SOW: ' + escapeHtml(po.sow_number)) : '';
         return '<option value="' + po.id + '">' +
@@ -177,10 +178,10 @@
           '</option>';
       }).join('');
       var selectorHtml = candidates.length > 0
-        ? '<select class="missing-po-select" data-emp-code="' + escapeHtml(item.emp_code) + '">' + optionHtml + '</select>'
+        ? '<select class="missing-po-select" data-item-id="' + escapeHtml(item.id || '') + '" data-emp-code="' + escapeHtml(item.emp_code) + '">' + optionHtml + '</select>'
         : '<div class="text-xs text-on-surface-variant mt-2">No linked purchase orders found. Enter PO number manually below.</div>';
       var manualInputHtml = '<label class="block text-xs text-on-surface-variant mt-3 mb-1">Manual PO Number</label>' +
-        '<input type="text" class="missing-po-manual-input" data-emp-code="' + escapeHtml(item.emp_code) + '" placeholder="Enter PO number if not linked">';
+        '<input type="text" class="missing-po-manual-input" data-item-id="' + escapeHtml(item.id || '') + '" data-emp-code="' + escapeHtml(item.emp_code) + '" placeholder="Enter PO number if not linked">';
 
       return '<div class="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-xl bg-surface-container-high p-3">' +
         '<div><div class="text-xs text-on-surface-variant">Employee</div><div class="font-semibold">' + escapeHtml(item.emp_code) + ' - ' + escapeHtml(item.emp_name) + '</div></div>' +
@@ -576,12 +577,14 @@
         var select = row.querySelector('.missing-po-select');
         var manualInput = row.querySelector('.missing-po-manual-input');
         var empCode = (select || manualInput).getAttribute('data-emp-code');
+        var itemId = (select || manualInput).getAttribute('data-item-id');
         var selectedPoId = select && select.value.trim() ? parseInt(select.value.trim(), 10) : null;
         var manualPoNumber = manualInput && manualInput.value.trim() ? manualInput.value.trim() : '';
 
         if (selectedPoId) {
           poAssignments.push({
             emp_code: empCode,
+            item_id: itemId ? parseInt(itemId, 10) : null,
             po_id: selectedPoId
           });
           return;
@@ -590,6 +593,7 @@
         if (manualPoNumber) {
           poAssignments.push({
             emp_code: empCode,
+            item_id: itemId ? parseInt(itemId, 10) : null,
             po_number: manualPoNumber
           });
         }

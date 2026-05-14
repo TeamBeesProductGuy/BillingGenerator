@@ -62,6 +62,7 @@ const rateCardController = {
     validateRateCardDates(doj, charging_date);
     validateBillingWindowDates(payload);
     const sowItem = validateSowServiceDescription(sow, service_description, sow_item_id);
+    await validateEmployeeSowWindow(payload, sow, sowItem, null);
     await validateSowCapacity(sow, service_description, monthly_rate, no_invoice || disable_billing, null, sowItem);
 
     if (po_id) {
@@ -96,7 +97,7 @@ const rateCardController = {
       res.status(201).json({ success: true, data: { id } });
     } catch (err) {
       if (err.message && (err.message.includes('UNIQUE') || err.message.includes('duplicate key'))) {
-        throw new AppError(409, 'Employee code already exists for this client');
+        throw new AppError(409, 'This employee is already linked to this SOW role for the selected client');
       }
       throw err;
     }
@@ -121,6 +122,7 @@ const rateCardController = {
     const serviceDescription = payload.service_description || existing.service_description;
     const sowItemId = payload.sow_item_id !== undefined ? payload.sow_item_id : existing.sow_item_id;
     const sowItem = validateSowServiceDescription(sow, serviceDescription, sowItemId);
+    await validateEmployeeSowWindow({ ...existing, ...payload, client_id: clientId }, sow, sowItem, id);
     await validateSowCapacity(
       sow,
       serviceDescription,
@@ -144,7 +146,7 @@ const rateCardController = {
       res.json({ success: true, data: { id } });
     } catch (err) {
       if (err.message && (err.message.includes('UNIQUE') || err.message.includes('duplicate key'))) {
-        throw new AppError(409, 'Employee code already exists for this client');
+        throw new AppError(409, 'This employee is already linked to this SOW role for the selected client');
       }
       throw err;
     }
@@ -199,6 +201,7 @@ const rateCardController = {
           validateBillingWindowDates(r);
           const sowItem = validateSowServiceDescription(sow, r.service_description, r.sow_item_id);
           r.sow_item_id = sowItem ? sowItem.id : null;
+          await validateEmployeeSowWindow({ ...r, client_id: clientId }, sow, sowItem, null, validRecords);
           await validateSowCapacity(sow, r.service_description, r.monthly_rate, r.no_invoice || r.disable_billing, null, sowItem);
         } catch (err) {
           errors.push({ emp_code: r.emp_code, error_message: err.message || 'Rate card validation failed' });
@@ -302,6 +305,94 @@ function normalizeRateCardPayload(payload) {
 
 function normalizeComparableText(value) {
   return String(value || '').trim().toUpperCase();
+}
+
+function normalizeDateKey(value) {
+  if (!value) return null;
+  return String(value).slice(0, 10);
+}
+
+function getSowWindowFromPayload(payload, sow, sowItem) {
+  const windowStart = normalizeDateKey((sowItem && sowItem.valid_from) || sow.effective_start || payload.charging_date || payload.doj);
+  const windowEnd = normalizeDateKey((sowItem && sowItem.valid_to) || sow.effective_end);
+  const chargingDate = normalizeDateKey(payload.charging_date);
+  const disableFrom = payload.disable_billing ? normalizeDateKey(payload.disable_from_date) : null;
+  let start = windowStart;
+  if (chargingDate && (!start || chargingDate > start)) start = chargingDate;
+  let end = windowEnd;
+  if (disableFrom && (!end || disableFrom <= end)) {
+    const disabledDate = new Date(disableFrom);
+    disabledDate.setDate(disabledDate.getDate() - 1);
+    end = disabledDate.toISOString().slice(0, 10);
+  }
+  return { start, end };
+}
+
+function getSowWindowFromRow(row) {
+  const windowStart = normalizeDateKey(row.sow_item_valid_from || row.charging_date || row.doj);
+  const windowEnd = normalizeDateKey(row.sow_item_valid_to);
+  const chargingDate = normalizeDateKey(row.charging_date);
+  const disableFrom = row.disable_billing ? normalizeDateKey(row.disable_from_date) : null;
+  let start = windowStart;
+  if (chargingDate && (!start || chargingDate > start)) start = chargingDate;
+  let end = windowEnd;
+  if (disableFrom && (!end || disableFrom <= end)) {
+    const disabledDate = new Date(disableFrom);
+    disabledDate.setDate(disabledDate.getDate() - 1);
+    end = disabledDate.toISOString().slice(0, 10);
+  }
+  return { start, end };
+}
+
+function windowsOverlap(a, b) {
+  const aStart = a.start || '0000-01-01';
+  const bStart = b.start || '0000-01-01';
+  const aEnd = a.end || '9999-12-31';
+  const bEnd = b.end || '9999-12-31';
+  return aStart <= bEnd && bStart <= aEnd;
+}
+
+function formatWindow(window) {
+  return `${window.start || 'open'} to ${window.end || 'open'}`;
+}
+
+async function validateEmployeeSowWindow(payload, sow, sowItem, excludeRateCardId, pendingRows = []) {
+  if (payload.no_invoice || payload.billing_active === false || payload.disable_billing) return;
+  const empCode = String(payload.emp_code || '').trim();
+  const clientId = payload.client_id;
+  if (!empCode || !clientId) return;
+  const nextWindow = getSowWindowFromPayload(payload, sow, sowItem);
+  if (nextWindow.start && nextWindow.end && nextWindow.start > nextWindow.end) {
+    throw new AppError(400, 'Selected SOW/charging dates leave no billable days for this rate card');
+  }
+
+  const existingRows = await RateCardModel.findActiveByEmpClient(empCode, clientId);
+  const conflicts = (existingRows || []).filter((row) => {
+    if (excludeRateCardId && Number(row.id) === Number(excludeRateCardId)) return false;
+    if (row.no_invoice || row.billing_active === false || row.disable_billing) return false;
+    return windowsOverlap(nextWindow, getSowWindowFromRow(row));
+  });
+  if (conflicts.length > 0) {
+    const conflict = conflicts[0];
+    throw new AppError(400, `SOW billing window overlaps with existing rate card for ${empCode}: SOW ${conflict.sow_number || '-'} (${formatWindow(getSowWindowFromRow(conflict))}). New window is ${formatWindow(nextWindow)}.`);
+  }
+
+  const pendingConflicts = (pendingRows || []).filter((row) => {
+    if (String(row.emp_code || '').trim().toUpperCase() !== empCode.toUpperCase()) return false;
+    if (Number(row.client_id || clientId) !== Number(clientId)) return false;
+    if (row.no_invoice || row.billing_active === false || row.disable_billing) return false;
+    const rowWindow = {
+      start: normalizeDateKey(row.sow_item_valid_from || row._sow_item_valid_from || row.charging_date || row.doj),
+      end: normalizeDateKey(row.sow_item_valid_to || row._sow_item_valid_to),
+    };
+    return windowsOverlap(nextWindow, rowWindow);
+  });
+  if (pendingConflicts.length > 0) {
+    throw new AppError(400, `Upload contains overlapping SOW windows for ${empCode}. New window is ${formatWindow(nextWindow)}.`);
+  }
+
+  payload._sow_item_valid_from = nextWindow.start;
+  payload._sow_item_valid_to = nextWindow.end;
 }
 
 function resolveSowCapacityTarget(sow, serviceDescription, selectedSowItem) {

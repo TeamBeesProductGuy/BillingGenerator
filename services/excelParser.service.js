@@ -154,7 +154,7 @@ async function parseRateCard(filePath) {
   }
 
   const records = [];
-  const empCodes = new Set();
+  const rateCardKeys = new Set();
 
   for (let rowNum = 2; rowNum <= worksheet.rowCount; rowNum++) {
     const row = worksheet.getRow(rowNum);
@@ -176,12 +176,6 @@ async function parseRateCard(filePath) {
       continue;
     }
 
-    if (empCodes.has(empCodeStr)) {
-      errors.push({ emp_code: empCodeStr, error_message: `Duplicate emp_code in Rate Card at row ${rowNum}` });
-      continue;
-    }
-    empCodes.add(empCodeStr);
-
     const monthlyRate = parseFloat(getValue('monthly_rate'));
     if (isNaN(monthlyRate) || monthlyRate < 0) {
       errors.push({ emp_code: empCodeStr, error_message: `Invalid monthly_rate: ${getValue('monthly_rate')}` });
@@ -200,6 +194,17 @@ async function parseRateCard(filePath) {
       continue;
     }
     const poNumber = String(getValue('po_number') || '').trim();
+    const serviceDescription = String(getValue('service_description') || '').trim();
+    const duplicateKey = [
+      empCodeStr.toUpperCase(),
+      sowNumber.toUpperCase(),
+      serviceDescription.toUpperCase(),
+    ].join('|');
+    if (rateCardKeys.has(duplicateKey)) {
+      errors.push({ emp_code: empCodeStr, error_message: `Duplicate rate card row for emp_code, SOW, and service at row ${rowNum}` });
+      continue;
+    }
+    rateCardKeys.add(duplicateKey);
 
     let doj = getValue('doj');
     if (doj instanceof Date) {
@@ -221,7 +226,7 @@ async function parseRateCard(filePath) {
       emp_name: String(getValue('emp_name') || '').trim(),
       doj: doj || null,
       reporting_manager: String(getValue('reporting_manager') || '').trim(),
-      service_description: String(getValue('service_description') || '').trim(),
+      service_description: serviceDescription,
       monthly_rate: monthlyRate,
       leaves_allowed: leavesAllowed,
       sow_number: sowNumber,

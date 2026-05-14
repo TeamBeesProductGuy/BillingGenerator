@@ -63,12 +63,30 @@ async function resolveSowNumbers(records) {
   for (const sow of sows) {
     sowMap[sow.sow_number] = sow;
   }
+  const sowIds = sows.map((sow) => sow.id);
+  const { data: sowItems } = await supabase
+    .from('sow_items')
+    .select('id, sow_id, role_position, amount, valid_from, valid_to')
+    .in('sow_id', sowIds);
+  const itemsBySowId = new Map();
+  (sowItems || []).forEach((item) => {
+    if (!itemsBySowId.has(item.sow_id)) itemsBySowId.set(item.sow_id, []);
+    itemsBySowId.get(item.sow_id).push(item);
+  });
 
   for (const record of records) {
     if (!record.sow_id && record.sow_number && sowMap[record.sow_number]) {
       record.sow_id = sowMap[record.sow_number].id;
       record.sow_status = sowMap[record.sow_number].status;
       record.client_id = record.client_id || sowMap[record.sow_number].client_id;
+      const serviceKey = String(record.service_description || '').trim().toUpperCase();
+      const matchedItem = (itemsBySowId.get(record.sow_id) || []).find((item) => String(item.role_position || '').trim().toUpperCase() === serviceKey);
+      if (matchedItem) {
+        record.sow_item_id = matchedItem.id;
+        record.sow_item_valid_from = matchedItem.valid_from || null;
+        record.sow_item_valid_to = matchedItem.valid_to || null;
+        record.sow_item_role_position = matchedItem.role_position || null;
+      }
     }
   }
 }
@@ -164,12 +182,14 @@ async function buildPoCandidates(billingItems) {
       return false;
     });
 
-    candidatesByEmp[item.emp_code] = filtered.map((po) => ({
+    const itemKey = item.id ? `item:${item.id}` : `emp:${item.emp_code}:sow:${item.sow_id || ''}`;
+    candidatesByEmp[itemKey] = filtered.map((po) => ({
       id: po.id,
       po_number: po.po_number,
       sow_id: po.sow_id || null,
       remaining_value: Number(po.po_value || 0) - Number(po.consumed_value || 0),
     }));
+    if (!candidatesByEmp[item.emp_code]) candidatesByEmp[item.emp_code] = candidatesByEmp[itemKey];
   }
 
   return candidatesByEmp;
@@ -197,7 +217,10 @@ async function hydrateRunItemsForDecision(run) {
     if (item.po_id && item.client_id && item.sow_id) continue;
     if (!item.emp_code || !item.client_id) continue;
 
-    const currentRateCard = await RateCardModel.findByEmpCode(item.emp_code, item.client_id);
+    const currentRateCard = await RateCardModel.findMatchingByEmpCode(item.emp_code, item.client_id, {
+      sow_id: item.sow_id,
+      sow_item_id: item.sow_item_id,
+    });
     if (!currentRateCard) continue;
 
     item.client_id = item.client_id || currentRateCard.client_id || run.client_id || null;
@@ -687,11 +710,15 @@ const billingController = {
 
     const missingItems = itemsToApprove.filter((item) => !item.po_id);
     if (missingItems.length > 0) {
-      const assignmentMap = new Map(poAssignments.map((entry) => [entry.emp_code, entry]));
+      const assignmentMap = new Map();
+      poAssignments.forEach((entry) => {
+        if (entry.item_id) assignmentMap.set(`item:${entry.item_id}`, entry);
+        if (entry.emp_code && !assignmentMap.has(`emp:${entry.emp_code}`)) assignmentMap.set(`emp:${entry.emp_code}`, entry);
+      });
       const resolvedAssignments = [];
 
       for (const item of missingItems) {
-        const assignment = assignmentMap.get(item.emp_code);
+        const assignment = assignmentMap.get(`item:${item.id}`) || assignmentMap.get(`emp:${item.emp_code}`);
         if (!assignment) {
           throw new AppError(400, `PO selection or PO number is required for ${item.emp_code} before acceptance`);
         }
@@ -710,7 +737,7 @@ const billingController = {
         if ((item.sow_id || item.client_id) && !itemCanUsePo(item, po)) {
           throw new AppError(400, `Selected PO is not linked to the correct client/SOW for ${item.emp_code}`);
         }
-        resolvedAssignments.push({ emp_code: item.emp_code, po_id: po.id });
+        resolvedAssignments.push({ emp_code: item.emp_code, item_id: item.id, po_id: po.id });
         item.po_id = po.id;
       }
 

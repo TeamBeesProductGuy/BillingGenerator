@@ -369,6 +369,12 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(user_action);
 -- VIEWS
 -- ============================================================
 
+ALTER TABLE rate_cards ADD COLUMN IF NOT EXISTS sow_id INTEGER REFERENCES sows(id);
+ALTER TABLE rate_cards DROP CONSTRAINT IF EXISTS rate_cards_client_id_emp_code_key;
+ALTER TABLE rate_cards DROP CONSTRAINT IF EXISTS rate_cards_client_emp_sow_sow_item_key;
+ALTER TABLE rate_cards ADD CONSTRAINT rate_cards_client_emp_sow_sow_item_key
+  UNIQUE NULLS NOT DISTINCT (client_id, emp_code, sow_id, sow_item_id);
+
 CREATE OR REPLACE VIEW rate_cards_view AS
 SELECT rc.*, c.client_name, c.abbreviation AS client_abbreviation, c.leaves_allowed AS client_leaves_allowed, po.po_number, po.po_date, sw.sow_number,
   si.role_position AS sow_item_role_position, si.amount AS sow_item_amount, si.quantity AS sow_item_quantity,

@@ -48,15 +48,41 @@ const RateCardModel = {
   },
 
   async findByEmpCode(empCode, clientId) {
+    let query = supabase
+      .from('rate_cards_view')
+      .select('*')
+      .eq('emp_code', empCode)
+      .eq('client_id', clientId)
+      .eq('is_active', true);
+    const { data, error } = await query.order('sow_item_valid_from', { ascending: false }).limit(1);
+    if (error) throw new Error(error.message);
+    return data && data.length > 0 ? data[0] : null;
+  },
+
+  async findMatchingByEmpCode(empCode, clientId, options = {}) {
+    let query = supabase
+      .from('rate_cards_view')
+      .select('*')
+      .eq('emp_code', empCode)
+      .eq('client_id', clientId)
+      .eq('is_active', true);
+    if (options.sow_id) query = query.eq('sow_id', options.sow_id);
+    if (options.sow_item_id) query = query.eq('sow_item_id', options.sow_item_id);
+    const { data, error } = await query.order('sow_item_valid_from', { ascending: false }).limit(1);
+    if (error) throw new Error(error.message);
+    return data && data.length > 0 ? data[0] : null;
+  },
+
+  async findActiveByEmpClient(empCode, clientId) {
     const { data, error } = await supabase
       .from('rate_cards_view')
       .select('*')
       .eq('emp_code', empCode)
       .eq('client_id', clientId)
       .eq('is_active', true)
-      .maybeSingle();
+      .order('sow_item_valid_from');
     if (error) throw new Error(error.message);
-    return data;
+    return data || [];
   },
 
   async findActiveByEmpCode(empCode) {
@@ -139,7 +165,7 @@ const RateCardModel = {
     }));
     let result = await supabase
       .from('rate_cards')
-      .upsert(rows, { onConflict: 'client_id,emp_code' })
+      .upsert(rows, { onConflict: 'client_id,emp_code,sow_id,sow_item_id' })
       .select('id');
 
     if (isMissingColumnError(result.error, 'sow_id')) {
