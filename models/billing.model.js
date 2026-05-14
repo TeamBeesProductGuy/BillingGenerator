@@ -205,11 +205,14 @@ const BillingModel = {
 
   async assignMissingPOs(runId, assignments) {
     for (const assignment of assignments) {
-      let { error } = await supabase
+      let query = supabase
         .from('billing_items')
         .update({ po_id: assignment.po_id })
-        .eq('billing_run_id', runId)
-        .eq('emp_code', assignment.emp_code);
+        .eq('billing_run_id', runId);
+      query = assignment.item_id
+        ? query.eq('id', assignment.item_id)
+        : query.eq('emp_code', assignment.emp_code);
+      let { error } = await query;
       if (isMissingColumnError(error, 'po_id')) {
         return;
       }
