@@ -112,7 +112,6 @@ function buildReminderEmail(reminders) {
   const rows = reminders.map((reminder) => {
     const clientName = reminder.client && reminder.client.client_name ? reminder.client.client_name : '-';
     const order = reminder.order || {};
-    const dueDate = reminder.due_date;
 
     return `
       <tr>
@@ -120,7 +119,6 @@ function buildReminderEmail(reminders) {
         <td style="padding:12px 14px;border:1px solid ${brandBorder};">${escapeHtml(order.requisition_description || '')}</td>
         <td style="padding:12px 14px;border:1px solid ${brandBorder};">${escapeHtml(order.candidate_name || '')}</td>
         <td style="padding:12px 14px;border:1px solid ${brandBorder};">${escapeHtml(order.position_role || '')}</td>
-        <td style="padding:12px 14px;border:1px solid ${brandBorder};">${escapeHtml(formatDate(order.date_of_offer || ''))}</td>
         <td style="padding:12px 14px;border:1px solid ${brandBorder};">${escapeHtml(formatDate(order.date_of_joining || ''))}</td>
         <td style="padding:12px 14px;border:1px solid ${brandBorder};text-align:right;">${escapeHtml(formatCurrency(order.ctc_offered || 0))}</td>
         <td style="padding:12px 14px;border:1px solid ${brandBorder};text-align:right;">${escapeHtml(formatCurrency(order.bill_amount || 0))}</td>
@@ -143,7 +141,6 @@ function buildReminderEmail(reminders) {
                 <th style="padding:12px 14px;border:1px solid ${brandBorder};text-align:left;">Requisition / Description</th>
                 <th style="padding:12px 14px;border:1px solid ${brandBorder};text-align:left;">Candidate Name</th>
                 <th style="padding:12px 14px;border:1px solid ${brandBorder};text-align:left;">Role</th>
-                <th style="padding:12px 14px;border:1px solid ${brandBorder};text-align:left;">Date of Offer</th>
                 <th style="padding:12px 14px;border:1px solid ${brandBorder};text-align:left;">Date of Joining</th>
                 <th style="padding:12px 14px;border:1px solid ${brandBorder};text-align:right;">CTC</th>
                 <th style="padding:12px 14px;border:1px solid ${brandBorder};text-align:right;">Invoice Value</th>
