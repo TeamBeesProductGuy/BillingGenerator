@@ -102,7 +102,7 @@ async function attachQuoteItemSummaries(quotes) {
 
 const QuoteModel = {
   async findAll(clientId, status) {
-    let query = supabase.from('quotes_view').select('*').eq('is_latest', true);
+    let query = supabase.from('quotes_view').select('*');
     if (clientId) query = query.eq('client_id', clientId);
     if (status) query = query.eq('status', status);
     query = query.order('created_at', { ascending: false });

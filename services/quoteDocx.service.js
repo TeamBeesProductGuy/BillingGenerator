@@ -310,6 +310,12 @@ function isAllCapsText(value) {
 
 function applyKnownCasing(value) {
   return String(value || '')
+    .replace(/\bitpg\b/gi, 'ITPG')
+    .replace(/\bsgtc\b/gi, 'SGTC')
+    .replace(/\bggn\b/gi, 'GGN')
+    .replace(/\bctc\b/gi, 'CTC')
+    .replace(/\bsow\b/gi, 'SOW')
+    .replace(/\btbc\b/gi, 'TBC')
     .replace(/\bios\b/gi, 'IOS')
     .replace(/\bgst\b/gi, 'GST')
     .replace(/\bpo\b/gi, 'PO')
@@ -320,14 +326,18 @@ function applyKnownCasing(value) {
 }
 
 function toTitleCaseFromCaps(value) {
-  if (!isAllCapsText(value)) return String(value || '');
-  const text = String(value || '').toLowerCase().replace(/\b[a-z]/g, (char) => char.toUpperCase());
+  const original = String(value || '');
+  if (!isAllCapsText(original)) return original;
+  if (/^[A-Z0-9&./-]{2,8}$/.test(original.trim())) return original.trim();
+  const text = original.toLowerCase().replace(/\b[a-z]/g, (char) => char.toUpperCase());
   return applyKnownCasing(text);
 }
 
 function toSentenceCaseFromCaps(value) {
-  if (!isAllCapsText(value)) return String(value || '');
-  let text = String(value || '').toLowerCase();
+  const original = String(value || '');
+  if (!isAllCapsText(original)) return original;
+  if (/^[A-Z0-9&./-]{2,8}$/.test(original.trim())) return original.trim();
+  let text = original.toLowerCase();
   text = text.replace(/(^|[.!?]\s+|\(\s*|"\s*)[a-z]/g, (match) => match.toUpperCase());
   return applyKnownCasing(text);
 }

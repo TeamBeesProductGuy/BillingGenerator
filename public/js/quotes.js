@@ -362,15 +362,19 @@
   }
 
   function renderQuoteStatus(q) {
+    if (q.is_latest === false) {
+      return '<span class="badge-warning">Amended</span>';
+    }
     return statusBadge(q.status);
   }
 
   function buildQuoteActions(q) {
     var actionsHtml = '<div class="table-action-group">';
-    if (q.status === 'Draft') {
+    var isActionable = q.is_latest !== false;
+    if (isActionable && q.status === 'Draft') {
       actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="editQuote(' + q.id + ')" title="Edit"><span class="material-symbols-outlined text-base">edit</span></button>';
     }
-    if (q.status === 'Sent') {
+    if (isActionable && q.status === 'Sent') {
       actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="amendQuote(' + q.id + ')" title="Amend Quote"><span class="material-symbols-outlined text-base">edit_document</span></button>';
     }
     actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="viewQuote(' + q.id + ')" title="View"><span class="material-symbols-outlined text-base">visibility</span></button>';
@@ -385,9 +389,12 @@
     quoteActionMap[q.id] = {
       id: q.id,
       status: q.status,
-      allowed: (VALID_TRANSITIONS[q.status] || []).slice(),
+      allowed: isActionable ? (VALID_TRANSITIONS[q.status] || []).slice() : [],
+      isActionable: isActionable,
     };
-    actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="openQuoteActions(' + q.id + ')" title="More"><span class="material-symbols-outlined text-base">more_vert</span></button>';
+    if (isActionable) {
+      actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="openQuoteActions(' + q.id + ')" title="More"><span class="material-symbols-outlined text-base">more_vert</span></button>';
+    }
     actionsHtml += '</div>';
     return actionsHtml;
   }
