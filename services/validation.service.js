@@ -9,13 +9,35 @@ function validateBillingMonth(billingMonth) {
   return null;
 }
 
+function normalizeEmpCode(value) {
+  return String(value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function normalizeEmpName(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ').replace(/[^a-z0-9 ]/g, '');
+}
+
+function buildUniqueNameSet(rows) {
+  const counts = new Map();
+  (rows || []).forEach((row) => {
+    const key = normalizeEmpName(row.emp_name);
+    if (!key) return;
+    counts.set(key, (counts.get(key) || 0) + 1);
+  });
+  return new Set(Array.from(counts.entries()).filter((entry) => entry[1] === 1).map((entry) => entry[0]));
+}
+
 function crossValidate(rateCards, attendanceRecords) {
   const errors = [];
-  const rateCardEmpCodes = new Set(rateCards.map((r) => String(r.emp_code || '').trim()));
-  const attendanceEmpCodes = new Set(attendanceRecords.map((a) => String(a.emp_code || '').trim()));
+  const rateCardEmpCodes = new Set(rateCards.map((r) => normalizeEmpCode(r.emp_code)).filter(Boolean));
+  const attendanceEmpCodes = new Set(attendanceRecords.map((a) => normalizeEmpCode(a.emp_code)).filter(Boolean));
+  const uniqueRateCardNames = buildUniqueNameSet(rateCards);
+  const uniqueAttendanceNames = buildUniqueNameSet(attendanceRecords);
 
   for (const rc of rateCards) {
-    if (!attendanceEmpCodes.has(rc.emp_code)) {
+    const codeMatched = attendanceEmpCodes.has(normalizeEmpCode(rc.emp_code));
+    const nameMatched = uniqueAttendanceNames.has(normalizeEmpName(rc.emp_name));
+    if (!codeMatched && !nameMatched) {
       errors.push({
         emp_code: rc.emp_code,
         error_message: `Employee ${rc.emp_code} (${rc.emp_name}) found in Rate Card but missing in Attendance`,
@@ -24,7 +46,9 @@ function crossValidate(rateCards, attendanceRecords) {
   }
 
   for (const att of attendanceRecords) {
-    if (!rateCardEmpCodes.has(att.emp_code)) {
+    const codeMatched = rateCardEmpCodes.has(normalizeEmpCode(att.emp_code));
+    const nameMatched = uniqueRateCardNames.has(normalizeEmpName(att.emp_name));
+    if (!codeMatched && !nameMatched) {
       errors.push({
         emp_code: att.emp_code,
         error_message: `Employee ${att.emp_code} (${att.emp_name}) found in Attendance but missing in Rate Card`,
