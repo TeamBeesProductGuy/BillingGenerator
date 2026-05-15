@@ -6,6 +6,10 @@ const generateFromDb = Joi.object({
     .positive()
     .allow(null),
 
+  clientIds: Joi.array()
+    .items(Joi.number().integer().positive())
+    .default([]),
+
   billingMonth: Joi.string()
     .pattern(/^\d{6}$/)
     .required()

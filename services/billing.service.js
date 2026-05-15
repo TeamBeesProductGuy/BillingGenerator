@@ -136,6 +136,9 @@ function calculateBilling(rateCards, attendanceRecords, billingMonth) {
     const attendance = attendanceMap.get(rc.emp_code);
     if (!attendance) {
       errors.push({
+        client_id: rc.client_id || null,
+        client_name: rc.client_name || null,
+        client_abbreviation: rc.client_abbreviation || rc.abbreviation || null,
         emp_code: rc.emp_code,
         error_message: `No attendance record found for ${rc.emp_code} (${rc.emp_name})`,
       });
@@ -150,6 +153,9 @@ function calculateBilling(rateCards, attendanceRecords, billingMonth) {
       if (chargeDate > billingMonthEnd) {
         // Charging date is after this billing month — skip billing
         errors.push({
+          client_id: rc.client_id || null,
+          client_name: rc.client_name || null,
+          client_abbreviation: rc.client_abbreviation || rc.abbreviation || null,
           emp_code: rc.emp_code,
           error_message: `WARNING: ${rc.emp_code} (${rc.emp_name}) charging date is ${rc.charging_date}, which is after billing month ${billingMonth}. Skipped.`,
         });
@@ -166,6 +172,9 @@ function calculateBilling(rateCards, attendanceRecords, billingMonth) {
     effectiveDays = activeWindow.activeDays.length;
     if (effectiveDays === 0) {
       errors.push({
+        client_id: rc.client_id || null,
+        client_name: rc.client_name || null,
+        client_abbreviation: rc.client_abbreviation || rc.abbreviation || null,
         emp_code: rc.emp_code,
         error_message: `WARNING: ${rc.emp_code} (${rc.emp_name}) skipped because SOW role duration is not active for billing month ${billingMonth}.`,
       });

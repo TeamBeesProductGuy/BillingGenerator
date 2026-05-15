@@ -110,7 +110,16 @@
     </div>
 
     <!-- Summary Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 stagger-in">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 stagger-in">
+      <div class="stat-card">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-9 h-9 rounded-xl bg-accent/12 flex items-center justify-center">
+            <span class="material-symbols-outlined text-accent text-lg">business</span>
+          </div>
+          <span class="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Client</span>
+        </div>
+        <div class="text-2xl font-headline font-bold text-on-surface break-words" id="resClients">-</div>
+      </div>
       <div class="stat-card">
         <div class="flex items-center gap-3 mb-3">
           <div class="w-9 h-9 rounded-xl bg-primary/12 flex items-center justify-center">
@@ -129,7 +138,7 @@
         </div>
         <div class="text-2xl font-headline font-bold text-on-surface" id="resTotalAmount">&#8377;0</div>
       </div>
-      <div class="stat-card">
+      <button type="button" class="stat-card text-left cursor-pointer hover:shadow-lg transition-shadow" id="resErrorsCard" title="View errors">
         <div class="flex items-center gap-3 mb-3">
           <div class="w-9 h-9 rounded-xl bg-error/10 flex items-center justify-center">
             <span class="material-symbols-outlined text-error text-lg">error</span>
@@ -137,7 +146,7 @@
           <span class="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">Errors</span>
         </div>
         <div class="text-2xl font-headline font-bold text-on-surface" id="resErrors">0</div>
-      </div>
+      </button>
       <div class="stat-card">
         <div class="flex items-center gap-3 mb-3">
           <div class="w-9 h-9 rounded-xl bg-accent/12 flex items-center justify-center">
@@ -217,7 +226,7 @@
       </div>
       <div class="overflow-x-auto">
         <table class="stitch-table">
-          <thead><tr><th>Emp Code</th><th>Error Message</th></tr></thead>
+          <thead><tr><th>Client</th><th>Emp Code</th><th>Error Message</th></tr></thead>
           <tbody id="errorsBody"></tbody>
         </table>
       </div>

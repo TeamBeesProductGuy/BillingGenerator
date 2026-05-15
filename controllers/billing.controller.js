@@ -22,6 +22,54 @@ function isRateCardBillableByLinkedStatus(rc) {
   return rc.sow_status !== 'Inactive' && rc.po_status !== 'Inactive';
 }
 
+async function getClientAbbreviationsByIds(clientIds) {
+  const ids = Array.from(new Set((clientIds || []).map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0)));
+  if (ids.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('clients')
+    .select('id, client_name, abbreviation')
+    .in('id', ids);
+  if (error || !data) return [];
+
+  const byId = new Map(data.map((client) => [Number(client.id), client]));
+  return ids
+    .map((id) => byId.get(id))
+    .filter(Boolean)
+    .map((client) => String(client.abbreviation || client.client_name || '').trim())
+    .filter(Boolean);
+}
+
+async function enrichSummaryWithClients(summary, billingItems, selectedClientIds) {
+  const seen = new Set();
+  const clientAbbreviations = [];
+  (billingItems || []).forEach((item) => {
+    const label = String(item.client_abbreviation || '').trim();
+    const key = label.toLowerCase();
+    if (!label || seen.has(key)) return;
+    seen.add(key);
+    clientAbbreviations.push(label);
+  });
+
+  const selectedAbbreviations = clientAbbreviations.length > 0
+    ? clientAbbreviations
+    : await getClientAbbreviationsByIds(selectedClientIds);
+
+  return {
+    ...summary,
+    clientAbbreviations: selectedAbbreviations,
+    clientLabel: selectedAbbreviations.length > 0 ? selectedAbbreviations.join(', ') : (selectedClientIds && selectedClientIds.length > 0 ? 'Selected clients' : 'All clients'),
+  };
+}
+
+function errorBelongsToSelectedClients(errorItem, selectedClientSet, empClientMap) {
+  if (!selectedClientSet || selectedClientSet.size === 0) return true;
+  if (errorItem.client_id) return selectedClientSet.has(Number(errorItem.client_id));
+  const empCode = String(errorItem.emp_code || '').trim();
+  if (!empCode || !empClientMap.has(empCode)) return false;
+  return selectedClientSet.has(Number(empClientMap.get(empCode)));
+}
+
 /**
  * Resolve po_number strings (from Excel upload) to po_id integers
  * by looking up active POs in the database.
@@ -339,19 +387,21 @@ async function autoConsumeApprovedItems(items, billingMonth, runId) {
 
 async function createStoredRun({
   clientId = null,
+  selectedClientIds = [],
   billingMonth,
   billingItems,
   allErrors,
   summary,
   blockedByErrors = false,
 }) {
+  const summaryWithClients = await enrichSummaryWithClients(summary, billingItems, selectedClientIds);
   const { filePath, filename } = await generateBillingExcel(billingItems, allErrors, billingMonth);
 
   const runId = await BillingModel.createRun({
     billing_month: billingMonth,
     client_id: clientId,
-    total_employees: summary.totalEmployees,
-    total_amount: summary.totalAmount,
+    total_employees: summaryWithClients.totalEmployees,
+    total_amount: summaryWithClients.totalAmount,
     error_count: allErrors.length,
     output_file: filePath,
     request_status: 'Pending',
@@ -362,7 +412,7 @@ async function createStoredRun({
 
   return {
     billingRunId: runId,
-    summary,
+    summary: summaryWithClients,
     errors: allErrors,
     billingItems,
     downloadUrl: `/api/billing/runs/${runId}/download`,
@@ -526,7 +576,11 @@ const billingController = {
     if (monthError) throw new AppError(400, monthError);
 
     const selectedClientIds = clientIds.length > 0 ? clientIds : (clientId ? [parseInt(clientId, 10)] : []);
-    const rateCards = await RateCardModel.findAll(selectedClientIds.length > 0 ? selectedClientIds : null);
+    const selectedClientSet = new Set(selectedClientIds.map((id) => Number(id)));
+    const fetchedRateCards = await RateCardModel.findAll(selectedClientIds.length > 0 ? selectedClientIds : null);
+    const rateCards = selectedClientSet.size > 0
+      ? fetchedRateCards.filter((rc) => selectedClientSet.has(Number(rc.client_id)))
+      : fetchedRateCards;
 
     if (rateCards.length === 0) {
       throw new AppError(400, 'No active rate cards found');
@@ -561,6 +615,9 @@ const billingController = {
     for (const rc of billableRateCards) {
       if (!attendanceEmpCodes.has(String(rc.emp_code || '').trim())) {
         missingAttendanceErrors.push({
+          client_id: rc.client_id || null,
+          client_name: rc.client_name || null,
+          client_abbreviation: rc.client_abbreviation || rc.abbreviation || null,
           emp_code: rc.emp_code,
           error_message: `Employee ${rc.emp_code} (${rc.emp_name}) found in Rate Card but missing in Attendance`,
         });
@@ -570,7 +627,13 @@ const billingController = {
     // Warn about PO linkage only for rows that will be calculated.
     for (const rc of calculableRateCards) {
       if (!rc.po_id) {
-        warningErrors.push({ emp_code: rc.emp_code, error_message: `WARNING: ${rc.emp_code} (${rc.emp_name}) has no PO assignment. Billing will not consume from any PO.` });
+        warningErrors.push({
+          client_id: rc.client_id || null,
+          client_name: rc.client_name || null,
+          client_abbreviation: rc.client_abbreviation || rc.abbreviation || null,
+          emp_code: rc.emp_code,
+          error_message: `WARNING: ${rc.emp_code} (${rc.emp_name}) has no PO assignment. Billing will not consume from any PO.`,
+        });
       }
     }
 
@@ -578,6 +641,7 @@ const billingController = {
       const allErrors = [...missingAttendanceErrors, ...warningErrors];
       const responseData = await createStoredRun({
         clientId: selectedClientIds.length === 1 ? selectedClientIds[0] : null,
+        selectedClientIds,
         billingMonth,
         billingItems: [],
         allErrors,
@@ -606,10 +670,13 @@ const billingController = {
     const calcFatalErrors = result.errors.filter((item) => !isWarningError(item));
     warningErrors.push(...calcWarnings);
     fatalErrors.push(...calcFatalErrors);
+    const empClientMap = new Map(rateCards.map((rc) => [String(rc.emp_code || '').trim(), Number(rc.client_id)]));
     if (fatalErrors.length > 0) {
-      const allErrors = [...fatalErrors, ...missingAttendanceErrors, ...warningErrors];
+      const allErrors = [...fatalErrors, ...missingAttendanceErrors, ...warningErrors]
+        .filter((item) => errorBelongsToSelectedClients(item, selectedClientSet, empClientMap));
       const responseData = await createStoredRun({
         clientId: selectedClientIds.length === 1 ? selectedClientIds[0] : null,
+        selectedClientIds,
         billingMonth,
         billingItems: [],
         allErrors,
@@ -631,14 +698,17 @@ const billingController = {
       });
       return res.json({ success: true, data: responseData });
     }
+    const scopedErrors = [...missingAttendanceErrors, ...warningErrors]
+      .filter((item) => errorBelongsToSelectedClients(item, selectedClientSet, empClientMap));
     const responseData = await createStoredRun({
       clientId: selectedClientIds.length === 1 ? selectedClientIds[0] : null,
+      selectedClientIds,
       billingMonth,
       billingItems: result.billingItems,
-      allErrors: [...missingAttendanceErrors, ...warningErrors],
+      allErrors: scopedErrors,
       summary: {
         ...result.summary,
-        errorCount: missingAttendanceErrors.length + warningErrors.length,
+        errorCount: scopedErrors.length,
       },
     });
     await logActivity(req, {

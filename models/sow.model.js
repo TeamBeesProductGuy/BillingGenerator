@@ -101,6 +101,40 @@ function buildSowInsertPayload(sow, totalValue) {
   };
 }
 
+function parseDateValue(value) {
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  return {
+    year: Number(match[1]),
+    month: Number(match[2]),
+    day: Number(match[3]),
+  };
+}
+
+function getEffectiveMonthCount(startValue, endValue) {
+  const start = parseDateValue(startValue);
+  const end = parseDateValue(endValue);
+  if (!start || !end) return 0;
+
+  const monthDiff = ((end.year - start.year) * 12) + (end.month - start.month);
+  if (monthDiff < 0) return 0;
+  return Math.max(monthDiff + (end.day >= start.day ? 1 : 0), 1);
+}
+
+function calculateSowItemTotal(item, sow) {
+  const monthlyAmount = Number(item.amount || 0);
+  const quantity = Number(item.quantity || 1);
+  const start = item.valid_from || sow.effective_start;
+  const end = item.valid_to || sow.effective_end;
+  const months = getEffectiveMonthCount(start, end);
+  return Math.round(monthlyAmount * quantity * months * 100) / 100;
+}
+
+function calculateSowTotalValue(sow, items) {
+  const total = (items || []).reduce((sum, item) => sum + calculateSowItemTotal(item, sow), 0);
+  return Math.round(total * 100) / 100;
+}
+
 const SOWModel = {
   async findAll(clientId, status, options) {
     const includeLinked = Boolean(options && options.includeLinked && clientId);
@@ -203,7 +237,7 @@ const SOWModel = {
 
   async create(sow, items) {
     const sowNumber = sow.sow_number;
-    const totalValue = items.reduce((sum, item) => sum + item.amount, 0);
+    const totalValue = calculateSowTotalValue(sow, items);
     const baseSowNumber = sow.base_sow_number || sowNumber;
     const versionNumber = sow.version_number || 0;
     const insertPayload = buildSowInsertPayload({
@@ -262,7 +296,7 @@ const SOWModel = {
     if (!existing) throw new Error('SOW not found');
 
     if (existing.base_sow_number === undefined || existing.version_number === undefined || existing.is_latest === undefined) {
-      const totalValue = items.reduce((sum, item) => sum + item.amount, 0);
+      const totalValue = calculateSowTotalValue(sow, items);
 
       const { error: sErr } = await supabase
         .from('sows')

@@ -116,10 +116,23 @@ const BillingModel = {
   async addErrors(runId, errors) {
     const rows = errors.map((err) => ({
       billing_run_id: runId,
+      client_id: err.client_id || null,
+      client_name: err.client_name || null,
+      client_abbreviation: err.client_abbreviation || err.abbreviation || null,
       emp_code: err.emp_code || null,
       error_message: err.error_message,
     }));
-    const { error } = await supabase.from('billing_errors').insert(rows);
+    let { error } = await supabase.from('billing_errors').insert(rows);
+    if (isMissingColumnError(error, 'client_id')
+      || isMissingColumnError(error, 'client_name')
+      || isMissingColumnError(error, 'client_abbreviation')) {
+      const legacyRows = rows.map((row) => ({
+        billing_run_id: row.billing_run_id,
+        emp_code: row.emp_code,
+        error_message: row.error_message,
+      }));
+      ({ error } = await supabase.from('billing_errors').insert(legacyRows));
+    }
     if (error) throw new Error(error.message);
   },
 

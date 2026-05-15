@@ -231,12 +231,16 @@ CREATE INDEX IF NOT EXISTS idx_billing_items_run ON billing_items(billing_run_id
 CREATE TABLE IF NOT EXISTS billing_errors (
     id              SERIAL PRIMARY KEY,
     billing_run_id  INTEGER NOT NULL REFERENCES billing_runs(id) ON DELETE CASCADE,
+    client_id       INTEGER REFERENCES clients(id),
+    client_name     TEXT,
+    client_abbreviation TEXT,
     emp_code        TEXT,
     error_message   TEXT NOT NULL,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_billing_errors_run ON billing_errors(billing_run_id);
+CREATE INDEX IF NOT EXISTS idx_billing_errors_client ON billing_errors(client_id);
 
 CREATE TABLE IF NOT EXISTS quotes (
     id              SERIAL PRIMARY KEY,
@@ -453,6 +457,9 @@ ALTER TABLE billing_items ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
 ALTER TABLE billing_items ADD COLUMN IF NOT EXISTS approved_by_manager TEXT;
 ALTER TABLE billing_items ADD COLUMN IF NOT EXISTS po_consumed_at TIMESTAMPTZ;
 ALTER TABLE billing_errors ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
+ALTER TABLE billing_errors ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES clients(id);
+ALTER TABLE billing_errors ADD COLUMN IF NOT EXISTS client_name TEXT;
+ALTER TABLE billing_errors ADD COLUMN IF NOT EXISTS client_abbreviation TEXT;
 ALTER TABLE quotes ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
 ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
 ALTER TABLE sows ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();

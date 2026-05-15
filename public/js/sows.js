@@ -86,6 +86,22 @@
     return ((end.getFullYear() - start.getFullYear()) * 12) + (end.getMonth() - start.getMonth()) + 1;
   }
 
+  function getEffectiveMonthCount(startValue, endValue) {
+    var start = parseDateInput(startValue);
+    var end = parseDateInput(endValue);
+    if (!start || !end || end < start) return 0;
+    var monthDiff = ((end.getFullYear() - start.getFullYear()) * 12) + (end.getMonth() - start.getMonth());
+    return Math.max(monthDiff + (end.getDate() >= start.getDate() ? 1 : 0), 1);
+  }
+
+  function calculateSowItemTotal(row) {
+    if (!row) return 0;
+    var monthlyAmount = parseFloat(row.querySelector('.si-amt').value) || 0;
+    var quantity = parseInt(row.querySelector('.si-qty').value, 10) || 1;
+    var months = getEffectiveMonthCount(row.querySelector('.si-valid-from').value, row.querySelector('.si-valid-to').value);
+    return Math.round(monthlyAmount * quantity * months * 100) / 100;
+  }
+
   var sowDateSyncState = {
     updating: false,
   };
@@ -559,21 +575,31 @@
       '<td><input type="text" class="si-role" value="' + (item ? escapeHtml(item.role_position) : '') + '" required></td>' +
       '<td><input type="number" class="si-qty" value="' + (item ? item.quantity : 1) + '" min="1"></td>' +
       '<td><input type="number" class="si-amt" value="' + (item ? item.amount : '') + '" step="0.01" min="0"></td>' +
+      '<td class="text-right"><span class="si-total table-amount-pill">' + formatCurrency(0) + '</span></td>' +
       '<td><div class="sow-duration-grid"><label><span>From</span><input type="date" class="si-valid-from" value="' + escapeHtml(defaultFrom) + '" min="' + escapeHtml(sowStart) + '" max="' + escapeHtml(sowEnd) + '" required></label><label><span>Till</span><input type="date" class="si-valid-to" value="' + escapeHtml(defaultTo) + '" min="' + escapeHtml(defaultFrom || sowStart) + '" max="' + escapeHtml(sowEnd) + '" required></label></div></td>' +
       '<td><button type="button" class="btn-danger btn-sm inline-flex items-center" onclick="this.closest(\'tr\').remove();recalcSOW()"><span class="material-symbols-outlined text-base">close</span></button></td>';
     tbody.appendChild(row);
 
     row.querySelector('.si-amt').addEventListener('input', recalcSOW);
+    row.querySelector('.si-qty').addEventListener('input', recalcSOW);
     row.querySelector('.si-valid-from').addEventListener('change', function () {
       var till = row.querySelector('.si-valid-to');
       till.min = this.value || sowStart;
       if (till.value && this.value && till.value < this.value) till.value = this.value;
+      recalcSOW();
     });
+    row.querySelector('.si-valid-to').addEventListener('change', recalcSOW);
+    recalcSOW();
   }
 
   window.recalcSOW = function () {
     var total = 0;
-    document.querySelectorAll('.si-amt').forEach(function (el) { total += parseFloat(el.value) || 0; });
+    document.querySelectorAll('#sowItemsBody tr').forEach(function (row) {
+      var lineTotal = calculateSowItemTotal(row);
+      var totalEl = row.querySelector('.si-total');
+      if (totalEl) totalEl.textContent = formatCurrency(lineTotal);
+      total += lineTotal;
+    });
     document.getElementById('sowTotal').textContent = formatCurrency(total);
   };
 
@@ -644,10 +670,11 @@
         html += '<div class="text-sm"><span class="text-on-surface-variant">Notes:</span> ' + escapeHtml(s.notes) + '</div>';
       }
       html += '<h6 class="text-sm font-bold uppercase tracking-[0.2em] text-on-surface-variant pt-2">Line Items</h6>';
-      html += '<table class="stitch-table"><thead><tr><th>Role / Position</th><th class="text-center">Qty</th><th class="text-right">Amount</th><th>Duration</th></tr></thead><tbody>';
+      html += '<table class="stitch-table"><thead><tr><th>Role / Position</th><th class="text-center">Qty</th><th class="text-right">Monthly Amount</th><th class="text-right">Total</th><th>Duration</th></tr></thead><tbody>';
       s.items.forEach(function (item) {
         var duration = (item.valid_from || item.valid_to) ? (formatDate(item.valid_from) + ' to ' + formatDate(item.valid_to)) : 'Full SOW duration';
-        html += '<tr><td>' + escapeHtml(item.role_position) + '</td><td class="text-center">' + item.quantity + '</td><td class="text-right">' + formatCurrency(item.amount) + '</td><td>' + escapeHtml(duration) + '</td></tr>';
+        var itemTotal = Math.round((Number(item.amount || 0) * Number(item.quantity || 1) * getEffectiveMonthCount(item.valid_from || s.effective_start, item.valid_to || s.effective_end)) * 100) / 100;
+        html += '<tr><td>' + escapeHtml(item.role_position) + '</td><td class="text-center">' + item.quantity + '</td><td class="text-right">' + formatCurrency(item.amount) + '</td><td class="text-right">' + formatCurrency(itemTotal) + '</td><td>' + escapeHtml(duration) + '</td></tr>';
       });
       html += '</tbody></table>';
       html += '</div>';
@@ -735,10 +762,12 @@
 
   document.getElementById('sowStart').addEventListener('input', function () {
     syncSowMonthsFromEnd();
+    recalcSOW();
   });
 
   document.getElementById('sowEnd').addEventListener('input', function () {
     syncSowMonthsFromEnd();
+    recalcSOW();
   });
 
   document.getElementById('sowDocumentUploadForm').addEventListener('submit', async function (e) {
