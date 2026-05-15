@@ -221,12 +221,17 @@ CREATE INDEX IF NOT EXISTS idx_billing_items_run ON billing_items(billing_run_id
 CREATE TABLE IF NOT EXISTS billing_errors (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     billing_run_id  INTEGER NOT NULL REFERENCES billing_runs(id) ON DELETE CASCADE,
+    client_id       INTEGER REFERENCES clients(id),
+    client_name     TEXT,
+    client_abbreviation TEXT,
     emp_code        TEXT,
+    emp_name        TEXT,
     error_message   TEXT NOT NULL,
     created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_billing_errors_run ON billing_errors(billing_run_id);
+CREATE INDEX IF NOT EXISTS idx_billing_errors_client ON billing_errors(client_id);
 
 CREATE TABLE IF NOT EXISTS quotes (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,

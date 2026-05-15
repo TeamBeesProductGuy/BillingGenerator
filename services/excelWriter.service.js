@@ -21,6 +21,55 @@ function normalizeBillingItemsForExport(billingItems) {
   }));
 }
 
+function cleanErrorMessage(message) {
+  const text = String(message || '').trim();
+  const isWarning = /^WARNING:/i.test(text);
+  let clean = text.replace(/^WARNING:\s*/i, '').trim();
+
+  if (/found in Rate Card but missing in Attendance/i.test(clean) || /No attendance record found/i.test(clean)) {
+    clean = 'Attendance not found';
+  } else if (/found in Attendance but missing in Rate Card/i.test(clean)) {
+    clean = 'Rate card not found';
+  } else if (/has no PO assignment/i.test(clean)) {
+    clean = 'PO not assigned';
+  } else if (/charging date .* after billing month/i.test(clean)) {
+    clean = 'Charging date after service month';
+  } else if (/SOW role duration is not active/i.test(clean)) {
+    clean = 'SOW role inactive for service month';
+  } else if (/Missing sow_number/i.test(clean)) {
+    clean = 'SOW missing';
+  } else if (/Invalid monthly_rate/i.test(clean)) {
+    clean = 'Invalid monthly rate';
+  } else if (/Invalid leaves_allowed/i.test(clean)) {
+    clean = 'Invalid allowed leaves';
+  } else if (/Missing emp_code/i.test(clean)) {
+    clean = 'Employee code missing';
+  }
+
+  return isWarning && !clean.startsWith('WARNING:') ? `WARNING: ${clean}` : clean;
+}
+
+function getErrorEmpName(errorItem) {
+  if (!errorItem) return '-';
+  if (errorItem.emp_name) return errorItem.emp_name;
+  const match = String(errorItem.error_message || '').match(/\(([^)]+)\)/);
+  return match ? match[1] : '-';
+}
+
+function getErrorClient(errorItem) {
+  if (!errorItem) return '-';
+  return errorItem.client_abbreviation || errorItem.abbreviation || errorItem.client_name || '-';
+}
+
+function normalizeErrorsForExport(errors) {
+  return (errors || []).map((err) => ({
+    ...err,
+    emp_name: getErrorEmpName(err),
+    client_label: getErrorClient(err),
+    error_message: cleanErrorMessage(err.error_message),
+  }));
+}
+
 function billingMonthDate(billingMonth) {
   const raw = String(billingMonth || '');
   const year = parseInt(raw.substring(0, 4), 10);
@@ -60,6 +109,7 @@ function managerKey(value) {
 
 function populateBillingWorkbook(workbook, billingItems, errors, options = {}) {
   const normalizedItems = normalizeBillingItemsForExport(billingItems);
+  const normalizedErrors = normalizeErrorsForExport(errors);
   const billingMonth = options.billingMonth || (normalizedItems[0] && normalizedItems[0].billing_month);
   const forMonth = billingMonthDate(billingMonth);
   const toDate = monthEndDate(forMonth);
@@ -235,17 +285,19 @@ function populateBillingWorkbook(workbook, billingItems, errors, options = {}) {
   const errorSheet = workbook.addWorksheet('Error Report');
   errorSheet.columns = [
     { header: 'Emp Code', key: 'emp_code', width: 15 },
-    { header: 'Error Message', key: 'error_message', width: 60 },
+    { header: 'Emp Name', key: 'emp_name', width: 24 },
+    { header: 'Client', key: 'client_label', width: 18 },
+    { header: 'Error Msg', key: 'error_message', width: 42 },
   ];
 
   styleHeader(errorSheet.getRow(1), 'FFC00000');
 
-  for (const err of errors) {
+  for (const err of normalizedErrors) {
     errorSheet.addRow(err);
   }
 
-  if (errors.length === 0) {
-    errorSheet.addRow({ emp_code: '-', error_message: 'No errors found' });
+  if (normalizedErrors.length === 0) {
+    errorSheet.addRow({ emp_code: '-', emp_name: '-', client_label: '-', error_message: 'No errors found' });
   }
   }
 }

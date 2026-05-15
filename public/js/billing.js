@@ -7,6 +7,7 @@
   var currentBillingMonth = '';
   var managerEditSyncBaseDays = 0;
   var managerEditSyncing = false;
+  var billingClientMap = {};
 
   window.switchBillingTab = function (tabId) {
     document.querySelectorAll('.billing-tab').forEach(function (btn) {
@@ -230,21 +231,83 @@
     });
   }
 
-  function deriveClientLabel(summary, items) {
+  function deriveClientLabel(summary, items, errors, runClientId) {
     var fromSummary = summary && (summary.clientLabel || summary.client_label);
     if (fromSummary) return fromSummary;
     var summaryList = summary && (summary.clientAbbreviations || summary.client_abbreviations);
     if (summaryList && summaryList.length) return summaryList.join(', ');
     var seen = {};
     var labels = [];
-    (items || []).forEach(function (item) {
+    (items || []).concat(errors || []).forEach(function (item) {
       var label = String(item.client_abbreviation || '').trim();
       var key = label.toLowerCase();
       if (!label || seen[key]) return;
       seen[key] = true;
       labels.push(label);
     });
+    if (labels.length) return labels.join(', ');
+    var client = runClientId ? billingClientMap[String(runClientId)] : null;
+    if (client) return client.abbreviation || getClientDisplayName(client);
     return labels.length ? labels.join(', ') : '-';
+  }
+
+  function formatDateWithTime(value) {
+    if (!value) return '-';
+    var date = new Date(value);
+    if (Number.isNaN(date.getTime())) return escapeHtml(String(value));
+    var datePart = formatDate(value);
+    var timePart = date.toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+    return '<div class="leading-relaxed"><div>' + escapeHtml(datePart) + '</div><div class="table-cell-secondary">' + escapeHtml(timePart) + '</div></div>';
+  }
+
+  function getErrorEmpName(errorItem) {
+    if (!errorItem) return '-';
+    if (errorItem.emp_name) return errorItem.emp_name;
+    var match = String(errorItem.error_message || '').match(/\(([^)]+)\)/);
+    return match ? match[1] : '-';
+  }
+
+  function getErrorClient(errorItem) {
+    if (!errorItem) return '-';
+    if (errorItem.client_abbreviation) return errorItem.client_abbreviation;
+    if (errorItem.abbreviation) return errorItem.abbreviation;
+    if (errorItem.client_name) return errorItem.client_name;
+    if (errorItem.client_id && billingClientMap[String(errorItem.client_id)]) {
+      var client = billingClientMap[String(errorItem.client_id)];
+      return client.abbreviation || getClientDisplayName(client);
+    }
+    return '-';
+  }
+
+  function cleanErrorMessage(message) {
+    var text = String(message || '').trim();
+    var isWarning = /^WARNING:/i.test(text);
+    var clean = text.replace(/^WARNING:\s*/i, '').trim();
+    if (/found in Rate Card but missing in Attendance/i.test(clean) || /No attendance record found/i.test(clean)) {
+      clean = 'Attendance not found';
+    } else if (/found in Attendance but missing in Rate Card/i.test(clean)) {
+      clean = 'Rate card not found';
+    } else if (/has no PO assignment/i.test(clean)) {
+      clean = 'PO not assigned';
+    } else if (/charging date .* after billing month/i.test(clean)) {
+      clean = 'Charging date after service month';
+    } else if (/SOW role duration is not active/i.test(clean)) {
+      clean = 'SOW role inactive for service month';
+    } else if (/Missing sow_number/i.test(clean)) {
+      clean = 'SOW missing';
+    } else if (/Invalid monthly_rate/i.test(clean)) {
+      clean = 'Invalid monthly rate';
+    } else if (/Invalid leaves_allowed/i.test(clean)) {
+      clean = 'Invalid allowed leaves';
+    } else if (/Missing emp_code/i.test(clean)) {
+      clean = 'Employee code missing';
+    }
+    return isWarning && clean.indexOf('WARNING:') !== 0 ? 'WARNING: ' + clean : clean;
   }
 
   function managerKey(value) {
@@ -435,8 +498,9 @@
     setDownloadLinks(currentRunId, data.downloadUrl);
 
     var items = normalizeItems(data.billingItems || data.items || []);
+    var errors = data.errors || [];
     currentBillingItems = items;
-    var clientLabel = deriveClientLabel(data.summary, items);
+    var clientLabel = deriveClientLabel(data.summary, items, errors, data.client_id || data.clientId || null);
     document.getElementById('resClients').textContent = clientLabel;
     document.getElementById('resClients').title = clientLabel;
     var itemsBody = document.getElementById('billingItemsBody');
@@ -464,14 +528,12 @@
       }).join('');
     }
 
-    var errors = data.errors || [];
     var errorsCard = document.getElementById('errorsCard');
     var errorsBody = document.getElementById('errorsBody');
     if (errors.length > 0) {
       errorsCard.classList.remove('hidden');
       errorsBody.innerHTML = errors.map(function (e) {
-        var client = e.client_abbreviation || e.abbreviation || '-';
-        return '<tr><td>' + escapeHtml(client) + '</td><td>' + escapeHtml(e.emp_code || '-') + '</td><td>' + escapeHtml(e.error_message) + '</td></tr>';
+        return '<tr><td>' + escapeHtml(e.emp_code || '-') + '</td><td>' + escapeHtml(getErrorEmpName(e)) + '</td><td>' + escapeHtml(getErrorClient(e)) + '</td><td>' + escapeHtml(cleanErrorMessage(e.error_message)) + '</td></tr>';
       }).join('');
     } else {
       errorsCard.classList.add('hidden');
@@ -510,6 +572,10 @@
   async function loadClients() {
     try {
       var res = await apiCall('GET', '/api/clients');
+      billingClientMap = {};
+      (res.data || []).forEach(function (client) {
+        billingClientMap[String(client.id)] = client;
+      });
       renderClientCheckboxPicker(res.data || []);
     } catch (e) { /* ignore */ }
   }
@@ -521,11 +587,13 @@
       showResults({
         id: run.id,
         billingRunId: run.id,
+        client_id: run.client_id || null,
         summary: {
           totalEmployees: run.total_employees,
           totalAmount: run.total_amount,
           errorCount: run.error_count,
-          daysInMonth: run.items && run.items.length > 0 ? run.items[0].days_in_month : 0
+          daysInMonth: run.items && run.items.length > 0 ? run.items[0].days_in_month : 0,
+          clientLabel: run.clientLabel || run.client_label || ''
         },
         errors: run.errors || [],
         billingItems: run.items || [],
@@ -565,7 +633,7 @@
             '<td class="text-right">' + formatCurrency(r.total_amount) + '</td>' +
             '<td class="text-center">' + (r.error_count > 0 ? '<span class="badge-error">' + r.error_count + '</span>' : '<span class="badge-success">0</span>') + '</td>' +
             '<td>' + statusBadge(r.request_status || 'Pending') + '</td>' +
-            '<td>' + formatDate(r.created_at) + '</td>' +
+            '<td>' + formatDateWithTime(r.created_at) + '</td>' +
             '<td>' + actions + '</td>' +
             '</tr>';
         }).join('');

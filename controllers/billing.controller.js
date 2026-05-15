@@ -62,6 +62,23 @@ async function enrichSummaryWithClients(summary, billingItems, selectedClientIds
   };
 }
 
+async function deriveRunClientLabel(run) {
+  if (!run) return '';
+  const seen = new Set();
+  const labels = [];
+  (run.items || []).concat(run.errors || []).forEach((row) => {
+    const label = String(row.client_abbreviation || '').trim();
+    const key = label.toLowerCase();
+    if (!label || seen.has(key)) return;
+    seen.add(key);
+    labels.push(label);
+  });
+  if (labels.length > 0) return labels.join(', ');
+  if (!run.client_id) return '';
+  const fallback = await getClientAbbreviationsByIds([run.client_id]);
+  return fallback.join(', ');
+}
+
 function errorBelongsToSelectedClients(errorItem, selectedClientSet, empClientMap) {
   if (!selectedClientSet || selectedClientSet.size === 0) return true;
   if (errorItem.client_id) return selectedClientSet.has(Number(errorItem.client_id));
@@ -476,7 +493,7 @@ const billingController = {
       // Warn about rate cards without PO linkage
       for (const rc of rateCardResult.records) {
         if (!rc.po_id) {
-          warningErrors.push({ emp_code: rc.emp_code, error_message: `WARNING: ${rc.emp_code} (${rc.emp_name}) has no PO assignment. Billing will not consume from any PO.` });
+          warningErrors.push({ emp_code: rc.emp_code, emp_name: rc.emp_name || null, error_message: 'WARNING: PO not assigned' });
         }
       }
 
@@ -619,7 +636,8 @@ const billingController = {
           client_name: rc.client_name || null,
           client_abbreviation: rc.client_abbreviation || rc.abbreviation || null,
           emp_code: rc.emp_code,
-          error_message: `Employee ${rc.emp_code} (${rc.emp_name}) found in Rate Card but missing in Attendance`,
+          emp_name: rc.emp_name || null,
+          error_message: 'Attendance not found',
         });
       }
     }
@@ -632,7 +650,8 @@ const billingController = {
           client_name: rc.client_name || null,
           client_abbreviation: rc.client_abbreviation || rc.abbreviation || null,
           emp_code: rc.emp_code,
-          error_message: `WARNING: ${rc.emp_code} (${rc.emp_name}) has no PO assignment. Billing will not consume from any PO.`,
+          emp_name: rc.emp_name || null,
+          error_message: 'WARNING: PO not assigned',
         });
       }
     }
@@ -740,6 +759,7 @@ const billingController = {
       success: true,
       data: {
         ...run,
+        clientLabel: await deriveRunClientLabel(run),
         poCandidatesByEmp: await buildPoCandidates(run.items || []),
       },
     });

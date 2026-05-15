@@ -1,6 +1,6 @@
 function validateBillingMonth(billingMonth) {
   if (!billingMonth || !/^\d{6}$/.test(billingMonth)) {
-    return 'Billing month must be in YYYYMM format (e.g., 202602)';
+    return 'Service month must be in YYYYMM format (e.g., 202602)';
   }
   const year = parseInt(billingMonth.substring(0, 4), 10);
   const month = parseInt(billingMonth.substring(4, 6), 10);
@@ -18,7 +18,8 @@ function crossValidate(rateCards, attendanceRecords) {
     if (!attendanceEmpCodes.has(rc.emp_code)) {
       errors.push({
         emp_code: rc.emp_code,
-        error_message: `Employee ${rc.emp_code} (${rc.emp_name}) found in Rate Card but missing in Attendance`,
+        emp_name: rc.emp_name || null,
+        error_message: 'Attendance not found',
       });
     }
   }
@@ -27,7 +28,8 @@ function crossValidate(rateCards, attendanceRecords) {
     if (!rateCardEmpCodes.has(att.emp_code)) {
       errors.push({
         emp_code: att.emp_code,
-        error_message: `Employee ${att.emp_code} (${att.emp_name}) found in Attendance but missing in Rate Card`,
+        emp_name: att.emp_name || null,
+        error_message: 'Rate card not found',
       });
     }
   }

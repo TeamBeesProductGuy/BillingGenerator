@@ -235,6 +235,7 @@ CREATE TABLE IF NOT EXISTS billing_errors (
     client_name     TEXT,
     client_abbreviation TEXT,
     emp_code        TEXT,
+    emp_name        TEXT,
     error_message   TEXT NOT NULL,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -460,6 +461,7 @@ ALTER TABLE billing_errors ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL 
 ALTER TABLE billing_errors ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES clients(id);
 ALTER TABLE billing_errors ADD COLUMN IF NOT EXISTS client_name TEXT;
 ALTER TABLE billing_errors ADD COLUMN IF NOT EXISTS client_abbreviation TEXT;
+ALTER TABLE billing_errors ADD COLUMN IF NOT EXISTS emp_name TEXT;
 ALTER TABLE quotes ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
 ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();
 ALTER TABLE sows ADD COLUMN IF NOT EXISTS owner_user_id UUID NOT NULL DEFAULT auth.uid();

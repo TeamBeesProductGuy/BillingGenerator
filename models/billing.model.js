@@ -120,12 +120,14 @@ const BillingModel = {
       client_name: err.client_name || null,
       client_abbreviation: err.client_abbreviation || err.abbreviation || null,
       emp_code: err.emp_code || null,
+      emp_name: err.emp_name || null,
       error_message: err.error_message,
     }));
     let { error } = await supabase.from('billing_errors').insert(rows);
     if (isMissingColumnError(error, 'client_id')
       || isMissingColumnError(error, 'client_name')
-      || isMissingColumnError(error, 'client_abbreviation')) {
+      || isMissingColumnError(error, 'client_abbreviation')
+      || isMissingColumnError(error, 'emp_name')) {
       const legacyRows = rows.map((row) => ({
         billing_run_id: row.billing_run_id,
         emp_code: row.emp_code,

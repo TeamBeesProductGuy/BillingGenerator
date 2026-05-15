@@ -128,7 +128,7 @@ async function parseRateCard(filePath) {
   const worksheet = workbook.getWorksheet(1);
 
   if (!worksheet || worksheet.rowCount === 0) {
-    return { records: [], errors: [{ emp_code: 'N/A', error_message: 'Rate Card file is empty or has no sheets' }] };
+    return { records: [], errors: [{ emp_code: 'N/A', emp_name: null, error_message: 'Rate card file is empty' }] };
   }
 
   const headerRow = worksheet.getRow(1);
@@ -148,7 +148,8 @@ async function parseRateCard(filePath) {
   if (missingFields.length > 0) {
     errors.push({
       emp_code: 'N/A',
-      error_message: `Rate Card missing required columns: ${missingFields.join(', ')}`,
+      emp_name: null,
+      error_message: `Missing rate card columns: ${missingFields.join(', ')}`,
     });
     return { records: [], errors };
   }
@@ -172,25 +173,25 @@ async function parseRateCard(filePath) {
 
     const empCodeStr = String(empCode || '').trim();
     if (!empCodeStr) {
-      errors.push({ emp_code: `Row ${rowNum}`, error_message: 'Missing emp_code' });
+      errors.push({ emp_code: `Row ${rowNum}`, emp_name: String(getValue('emp_name') || '').trim() || null, error_message: 'Employee code missing' });
       continue;
     }
 
     const monthlyRate = parseFloat(getValue('monthly_rate'));
     if (isNaN(monthlyRate) || monthlyRate < 0) {
-      errors.push({ emp_code: empCodeStr, error_message: `Invalid monthly_rate: ${getValue('monthly_rate')}` });
+      errors.push({ emp_code: empCodeStr, emp_name: String(getValue('emp_name') || '').trim() || null, error_message: 'Invalid monthly rate' });
       continue;
     }
 
     const leavesAllowed = parseInt(getValue('leaves_allowed'), 10);
     if (isNaN(leavesAllowed) || leavesAllowed < 0) {
-      errors.push({ emp_code: empCodeStr, error_message: `Invalid leaves_allowed: ${getValue('leaves_allowed')}` });
+      errors.push({ emp_code: empCodeStr, emp_name: String(getValue('emp_name') || '').trim() || null, error_message: 'Invalid allowed leaves' });
       continue;
     }
 
     const sowNumber = String(getValue('sow_number') || '').trim();
     if (!sowNumber) {
-      errors.push({ emp_code: empCodeStr, error_message: 'Missing sow_number. A SOW is required for every employee.' });
+      errors.push({ emp_code: empCodeStr, emp_name: String(getValue('emp_name') || '').trim() || null, error_message: 'SOW missing' });
       continue;
     }
     const poNumber = String(getValue('po_number') || '').trim();
@@ -201,7 +202,7 @@ async function parseRateCard(filePath) {
       serviceDescription.toUpperCase(),
     ].join('|');
     if (rateCardKeys.has(duplicateKey)) {
-      errors.push({ emp_code: empCodeStr, error_message: `Duplicate rate card row for emp_code, SOW, and service at row ${rowNum}` });
+      errors.push({ emp_code: empCodeStr, emp_name: String(getValue('emp_name') || '').trim() || null, error_message: `Duplicate rate card row at row ${rowNum}` });
       continue;
     }
     rateCardKeys.add(duplicateKey);
@@ -249,7 +250,7 @@ async function parseAttendance(filePath, billingMonth, options = {}) {
   const worksheet = workbook.getWorksheet(1);
 
   if (!worksheet || worksheet.rowCount === 0) {
-    return { records: [], errors: [{ emp_code: 'N/A', error_message: 'Attendance file is empty or has no sheets' }] };
+    return { records: [], errors: [{ emp_code: 'N/A', emp_name: null, error_message: 'Attendance file is empty' }] };
   }
 
   const daysInMonth = getDaysInMonth(billingMonth);
@@ -277,7 +278,7 @@ async function parseAttendance(filePath, billingMonth, options = {}) {
   });
 
   if (!columnMap.emp_code && !columnMap.emp_name) {
-    errors.push({ emp_code: 'N/A', error_message: 'Attendance missing required column: emp_code or employee_name' });
+    errors.push({ emp_code: 'N/A', emp_name: null, error_message: 'Attendance employee column missing' });
     return { records: [], errors };
   }
 
@@ -308,7 +309,7 @@ async function parseAttendance(filePath, billingMonth, options = {}) {
       const key = normalizeEmployeeName(empNameStr);
       const match = key ? nameLookup.get(key) : null;
       if (!match) {
-        errors.push({ emp_code: `Row ${rowNum}`, error_message: `Unable to resolve emp_code for "${empNameStr}". Add emp_code column or ensure unique name in rate card upload.` });
+        errors.push({ emp_code: `Row ${rowNum}`, emp_name: empNameStr || null, error_message: 'Employee code not found' });
         continue;
       }
       empCodeStr = match.emp_code;
@@ -317,7 +318,7 @@ async function parseAttendance(filePath, billingMonth, options = {}) {
     }
 
     if (empCodes.has(empCodeStr)) {
-      errors.push({ emp_code: empCodeStr, error_message: `Duplicate emp_code in Attendance at row ${rowNum}` });
+      errors.push({ emp_code: empCodeStr, emp_name: resolvedName || null, error_message: `Duplicate attendance row at row ${rowNum}` });
       continue;
     }
     empCodes.add(empCodeStr);

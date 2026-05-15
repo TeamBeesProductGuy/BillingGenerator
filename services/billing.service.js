@@ -140,7 +140,8 @@ function calculateBilling(rateCards, attendanceRecords, billingMonth) {
         client_name: rc.client_name || null,
         client_abbreviation: rc.client_abbreviation || rc.abbreviation || null,
         emp_code: rc.emp_code,
-        error_message: `No attendance record found for ${rc.emp_code} (${rc.emp_name})`,
+        emp_name: rc.emp_name || null,
+        error_message: 'Attendance not found',
       });
       continue;
     }
@@ -157,7 +158,8 @@ function calculateBilling(rateCards, attendanceRecords, billingMonth) {
           client_name: rc.client_name || null,
           client_abbreviation: rc.client_abbreviation || rc.abbreviation || null,
           emp_code: rc.emp_code,
-          error_message: `WARNING: ${rc.emp_code} (${rc.emp_name}) charging date is ${rc.charging_date}, which is after billing month ${billingMonth}. Skipped.`,
+          emp_name: rc.emp_name || null,
+          error_message: `WARNING: Charging date ${rc.charging_date} is after service month ${billingMonth}`,
         });
         continue;
       }
@@ -176,7 +178,8 @@ function calculateBilling(rateCards, attendanceRecords, billingMonth) {
         client_name: rc.client_name || null,
         client_abbreviation: rc.client_abbreviation || rc.abbreviation || null,
         emp_code: rc.emp_code,
-        error_message: `WARNING: ${rc.emp_code} (${rc.emp_name}) skipped because SOW role duration is not active for billing month ${billingMonth}.`,
+        emp_name: rc.emp_name || null,
+        error_message: `WARNING: SOW role inactive for service month ${billingMonth}`,
       });
       continue;
     }
