@@ -8,6 +8,24 @@ function normalizeClientName(value) {
   return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
 
+function normalizeEmpCode(value) {
+  return String(value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function normalizeEmpName(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ').replace(/[^a-z0-9 ]/g, '');
+}
+
+function addUniqueMapEntry(map, duplicates, key, value) {
+  if (!key) return;
+  if (map.has(key)) {
+    duplicates.add(key);
+    map.delete(key);
+    return;
+  }
+  if (!duplicates.has(key)) map.set(key, value);
+}
+
 function isSgtcHourlyProratedClient(rateCard) {
   const clientKey = normalizeClientName(`${rateCard.client_name || ''} ${rateCard.client_abbreviation || ''} ${rateCard.abbreviation || ''}`);
   const isSgtcClient = clientKey.includes('SGTC')
@@ -116,9 +134,13 @@ function calculateBilling(rateCards, attendanceRecords, billingMonth) {
   const billingMon = parseInt(billingMonth.substring(4, 6), 10);
   const billingMonthEnd = new Date(billingYear, billingMon, 0); // last day of billing month
   const attendanceMap = new Map();
+  const attendanceNameMap = new Map();
+  const duplicateAttendanceNames = new Set();
 
   for (const att of attendanceRecords) {
-    attendanceMap.set(att.emp_code, att);
+    const codeKey = normalizeEmpCode(att.emp_code);
+    if (codeKey) attendanceMap.set(codeKey, att);
+    addUniqueMapEntry(attendanceNameMap, duplicateAttendanceNames, normalizeEmpName(att.emp_name), att);
   }
 
   const billingItems = [];
@@ -133,7 +155,7 @@ function calculateBilling(rateCards, attendanceRecords, billingMonth) {
       continue;
     }
 
-    const attendance = attendanceMap.get(rc.emp_code);
+    const attendance = attendanceMap.get(normalizeEmpCode(rc.emp_code)) || attendanceNameMap.get(normalizeEmpName(rc.emp_name));
     if (!attendance) {
       errors.push({
         client_id: rc.client_id || null,

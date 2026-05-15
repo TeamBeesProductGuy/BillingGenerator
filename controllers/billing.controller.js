@@ -22,6 +22,24 @@ function isRateCardBillableByLinkedStatus(rc) {
   return rc.sow_status !== 'Inactive' && rc.po_status !== 'Inactive';
 }
 
+function normalizeEmpCode(value) {
+  return String(value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function normalizeEmpName(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ').replace(/[^a-z0-9 ]/g, '');
+}
+
+function buildUniqueNameSet(rows) {
+  const counts = new Map();
+  (rows || []).forEach((row) => {
+    const key = normalizeEmpName(row.emp_name);
+    if (!key) return;
+    counts.set(key, (counts.get(key) || 0) + 1);
+  });
+  return new Set(Array.from(counts.entries()).filter((entry) => entry[1] === 1).map((entry) => entry[0]));
+}
+
 async function getClientAbbreviationsByIds(clientIds) {
   const ids = Array.from(new Set((clientIds || []).map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0)));
   if (ids.length === 0) return [];
@@ -606,11 +624,12 @@ const billingController = {
     await resolvePoFromSow(rateCards);
 
     const billableRateCards = rateCards.filter((rc) => isRateCardBillableByLinkedStatus(rc) && !(rc.no_invoice || rc.billing_active === false));
-    const allowedEmpCodes = new Set(billableRateCards.map((rc) => String(rc.emp_code || '').trim()));
-    const attendanceSummary = await AttendanceModel.getDetailedByMonth(billingMonth, Array.from(allowedEmpCodes));
+    const allowedEmpCodes = new Set(billableRateCards.map((rc) => normalizeEmpCode(rc.emp_code)).filter(Boolean));
+    const allowedEmpNames = buildUniqueNameSet(billableRateCards);
+    const attendanceSummary = await AttendanceModel.getDetailedByMonth(billingMonth);
 
     const attendanceRecords = attendanceSummary
-      .filter((a) => allowedEmpCodes.has(String(a.emp_code || '').trim()))
+      .filter((a) => allowedEmpCodes.has(normalizeEmpCode(a.emp_code)) || allowedEmpNames.has(normalizeEmpName(a.emp_name)))
       .map((a) => ({
         emp_code: a.emp_code,
         emp_name: a.emp_name,
@@ -625,12 +644,14 @@ const billingController = {
     const warningErrors = [];
     const fatalErrors = [];
     const missingAttendanceErrors = [];
-    const attendanceEmpCodes = new Set(attendanceRecords.map((a) => String(a.emp_code || '').trim()));
-    const calculableRateCards = billableRateCards.filter((rc) => attendanceEmpCodes.has(String(rc.emp_code || '').trim()));
+    const attendanceEmpCodes = new Set(attendanceRecords.map((a) => normalizeEmpCode(a.emp_code)).filter(Boolean));
+    const attendanceEmpNames = buildUniqueNameSet(attendanceRecords);
+    const hasAttendance = (rc) => attendanceEmpCodes.has(normalizeEmpCode(rc.emp_code)) || attendanceEmpNames.has(normalizeEmpName(rc.emp_name));
+    const calculableRateCards = billableRateCards.filter(hasAttendance);
 
     // Keep missing attendance in the error report, but still generate for employees that can be calculated.
     for (const rc of billableRateCards) {
-      if (!attendanceEmpCodes.has(String(rc.emp_code || '').trim())) {
+      if (!hasAttendance(rc)) {
         missingAttendanceErrors.push({
           client_id: rc.client_id || null,
           client_name: rc.client_name || null,
