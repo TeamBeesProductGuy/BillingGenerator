@@ -2,6 +2,8 @@
   // openModal / closeModal provided by app.js (with scroll lock + Escape + backdrop)
   var rateCardClientMap = {};
   var rateCardRowMap = {};
+  var rateCardPoList = [];
+  var rateCardSowMap = {};
   var currentSowDetail = null;
   var rcDojEditedByUser = false;
   var pendingRateCardSave = null;
@@ -195,25 +197,86 @@
   }
 
   async function loadPOsForClient(clientId) {
-    var sel = document.getElementById('rcPO');
-    sel.innerHTML = '<option value="">PO to be added</option>';
+    rateCardPoList = [];
+    renderPOOptionsForSow('');
     if (!clientId) return;
     try {
       var res = await apiCall('GET', '/api/purchase-orders?clientId=' + clientId + '&status=Active');
-      res.data.forEach(function (po) {
-        sel.innerHTML += '<option value="' + po.id + '">' + escapeHtml(po.po_number) + '</option>';
-      });
+      rateCardPoList = res.data || [];
+      renderPOOptionsForSow(document.getElementById('rcSOW').value || '');
     } catch (e) { /* ignore */ }
+  }
+
+  function setPOLoadingState() {
+    var sel = document.getElementById('rcPO');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Loading linked PO...</option>';
+    sel.value = '';
+    sel.disabled = true;
+  }
+
+  function renderPOOptionsForSow(sowId, preferredPoId) {
+    var sel = document.getElementById('rcPO');
+    if (!sel) return;
+    sel.disabled = false;
+    var selectedSowId = String(sowId || '');
+    var selectedSow = rateCardSowMap[selectedSowId] || currentSowDetail || null;
+    var selectedSowNumber = normalizeComparableText(selectedSow && selectedSow.sow_number);
+    var matchingPOs = selectedSowId
+      ? rateCardPoList.filter(function (po) {
+        return String(po.sow_id || '') === selectedSowId
+          || (selectedSowNumber && normalizeComparableText(po.sow_number) === selectedSowNumber);
+      })
+      : rateCardPoList.slice();
+    var previousValue = preferredPoId !== undefined ? String(preferredPoId || '') : String(sel.value || '');
+
+    sel.innerHTML = '<option value="">PO to be added</option>';
+    matchingPOs.forEach(function (po) {
+      sel.innerHTML += '<option value="' + po.id + '" data-sow-id="' + escapeHtml(po.sow_id || '') + '">' + escapeHtml(po.po_number) + '</option>';
+    });
+
+    if (previousValue && matchingPOs.some(function (po) { return String(po.id) === previousValue; })) {
+      sel.value = previousValue;
+    } else if (selectedSowId && matchingPOs.length > 0) {
+      sel.value = String(matchingPOs[0].id);
+    } else {
+      sel.value = '';
+    }
+  }
+
+  async function autofillPOForSelectedSow(sowId, preferredPoId) {
+    var clientId = document.getElementById('rcClient').value;
+    rateCardPoList = [];
+    setPOLoadingState();
+    if (!clientId || !sowId) {
+      renderPOOptionsForSow('');
+      return;
+    }
+    try {
+      var res = await apiCall('GET', '/api/purchase-orders?clientId=' + clientId + '&status=Active&sowId=' + sowId);
+      rateCardPoList = res.data || [];
+      if (rateCardPoList.length === 0) {
+        var fallback = await apiCall('GET', '/api/purchase-orders?status=Active&sowId=' + sowId);
+        rateCardPoList = (fallback.data || []).filter(function (po) {
+          return String(po.client_id || '') === String(clientId || '');
+        });
+      }
+      renderPOOptionsForSow(sowId, preferredPoId);
+    } catch (e) {
+      renderPOOptionsForSow('');
+    }
   }
 
   async function loadSOWsForClient(clientId) {
     var sel = document.getElementById('rcSOW');
+    rateCardSowMap = {};
     sel.innerHTML = '<option value="">Select SOW</option>';
     if (!clientId) return;
     try {
-      var res = await apiCall('GET', '/api/sows?clientId=' + clientId);
+      var res = await apiCall('GET', '/api/sows?clientId=' + clientId + '&includeLinked=1');
       res.data.forEach(function (sow) {
         if (sow.status === 'Expired' || sow.status === 'Terminated' || sow.status === 'Inactive') return;
+        rateCardSowMap[String(sow.id)] = sow;
         sel.innerHTML += '<option value="' + sow.id + '">' + escapeHtml(sow.sow_number) + ' (' + escapeHtml(sow.status) + ')</option>';
       });
     } catch (e) { /* ignore */ }
@@ -649,9 +712,8 @@
       document.getElementById('rcId').value = r.id;
       document.getElementById('rcClient').value = r.client_id;
       await loadSOWsForClient(r.client_id);
-      await loadPOsForClient(r.client_id);
       document.getElementById('rcSOW').value = r.sow_id || '';
-      document.getElementById('rcPO').value = r.po_id || '';
+      await autofillPOForSelectedSow(r.sow_id || '', r.po_id || '');
       document.getElementById('rcEmpCode').value = r.emp_code;
       document.getElementById('rcEmpName').value = r.emp_name;
       document.getElementById('rcDoj').value = r.doj || '';
@@ -703,6 +765,7 @@
     try {
       var res = await apiCall('GET', '/api/purchase-orders?clientId=' + row.client_id + '&status=Active');
       (res.data || []).forEach(function (po) {
+        if (row.sow_id && String(po.sow_id || '') !== String(row.sow_id)) return;
         sel.innerHTML += '<option value="' + po.id + '">' + escapeHtml(po.po_number) + '</option>';
       });
       if (row.po_id) sel.value = String(row.po_id);
@@ -856,9 +919,10 @@
     updateRateModeAvailability();
   });
 
-  document.getElementById('rcSOW').addEventListener('change', function () {
+  document.getElementById('rcSOW').addEventListener('change', async function () {
     currentSowDetail = null;
     resetSowServiceOptions();
+    await autofillPOForSelectedSow(this.value);
     renderSowRoleCapacityPreview();
     renderSowPreview(this.value);
   });

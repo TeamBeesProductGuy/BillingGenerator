@@ -53,24 +53,14 @@ const rateCardController = {
       disable_from_date,
     } = payload;
 
-    const sow = await SOWModel.findById(sow_id);
-    if (!sow) throw new AppError(404, 'SOW not found');
-    if (sow.client_id !== client_id) throw new AppError(400, 'SOW belongs to a different client');
-    if (!isSelectableSowStatus(sow.status)) {
-      throw new AppError(400, 'SOW must be Draft, Amendment Draft, or Signed before creating a Rate Card');
-    }
+    const sow = await validateSowForRateCardClient(client_id, sow_id, 'creating a Rate Card');
     validateRateCardDates(doj, charging_date);
     validateBillingWindowDates(payload);
     const sowItem = validateSowServiceDescription(sow, service_description, sow_item_id);
     await validateEmployeeSowWindow(payload, sow, sowItem, null);
     await validateSowCapacity(sow, service_description, monthly_rate, no_invoice || disable_billing, null, sowItem);
 
-    if (po_id) {
-      const po = await POModel.findById(po_id);
-      if (!po) throw new AppError(404, 'Purchase order not found');
-      if (po.client_id !== client_id) throw new AppError(400, 'Purchase order belongs to a different client');
-      if (po.status !== 'Active') throw new AppError(400, 'Purchase order must be Active to assign employees. Current status: ' + po.status);
-    }
+    if (po_id) await validatePurchaseOrderForSow(po_id, client_id, sow_id);
 
     try {
       const id = await RateCardModel.create({
@@ -111,12 +101,7 @@ const rateCardController = {
 
     const clientId = payload.client_id || existing.client_id;
     const sowId = payload.sow_id || existing.sow_id;
-    const sow = await SOWModel.findById(sowId);
-    if (!sow) throw new AppError(404, 'SOW not found');
-    if (sow.client_id !== clientId) throw new AppError(400, 'SOW belongs to a different client');
-    if (!isSelectableSowStatus(sow.status)) {
-      throw new AppError(400, 'SOW must be Draft, Amendment Draft, or Signed before linking a Rate Card');
-    }
+    const sow = await validateSowForRateCardClient(clientId, sowId, 'linking a Rate Card');
     validateRateCardDates(payload.doj, payload.charging_date);
     validateBillingWindowDates(payload);
     const serviceDescription = payload.service_description || existing.service_description;
@@ -133,13 +118,8 @@ const rateCardController = {
     );
     payload.sow_item_id = sowItem ? sowItem.id : null;
 
-    // Validate PO if provided
-    if (payload.po_id) {
-      const po = await POModel.findById(payload.po_id);
-      if (!po) throw new AppError(404, 'Purchase order not found');
-      if (po.client_id !== clientId) throw new AppError(400, 'Purchase order belongs to a different client');
-      if (po.status !== 'Active') throw new AppError(400, 'Purchase order must be Active. Current status: ' + po.status);
-    }
+    const effectivePoId = payload.po_id !== undefined ? payload.po_id : existing.po_id;
+    if (effectivePoId) await validatePurchaseOrderForSow(effectivePoId, clientId, sowId);
 
     try {
       await RateCardModel.update(id, payload);
@@ -179,11 +159,11 @@ const rateCardController = {
     try {
       const { records, errors } = await parseRateCard(req.file.path);
 
-      const sowList = await SOWModel.findAll(clientId, null);
+      const sowList = await SOWModel.findAll(clientId, null, { includeLinked: true });
       const sowMap = new Map(sowList.map((sow) => [sow.sow_number, sow.id]));
       const sowById = new Map(sowList.map((sow) => [sow.id, sow]));
       const poList = await POModel.findAll(clientId, 'Active');
-      const poMap = new Map(poList.map((po) => [po.po_number, po.id]));
+      const poMap = new Map(poList.map((po) => [po.po_number, po]));
       const validRecords = [];
       for (const r of records) {
         const sowId = sowMap.get(r.sow_number);
@@ -209,12 +189,16 @@ const rateCardController = {
         }
 
         if (r.po_number) {
-          const poId = poMap.get(r.po_number);
-          if (!poId) {
+          const po = poMap.get(r.po_number);
+          if (!po) {
             errors.push({ emp_code: r.emp_code, error_message: `PO number "${r.po_number}" not found or not Active for this client` });
             continue;
           }
-          r.po_id = poId;
+          if (Number(po.sow_id) !== Number(r.sow_id)) {
+            errors.push({ emp_code: r.emp_code, error_message: `PO number "${r.po_number}" is not linked to SOW "${r.sow_number}"` });
+            continue;
+          }
+          r.po_id = po.id;
         }
         validRecords.push(r);
         if (r.po_number && !r.po_id) {
@@ -293,6 +277,35 @@ function validateBillingWindowDates(payload) {
   if (payload.disable_billing && !payload.disable_from_date) {
     throw new AppError(400, 'Disable billing requires a from date');
   }
+}
+
+async function validateSowForRateCardClient(clientId, sowId, actionLabel) {
+  const sow = await SOWModel.findById(sowId);
+  if (!sow) throw new AppError(404, 'SOW not found');
+  if (!isSelectableSowStatus(sow.status)) {
+    throw new AppError(400, 'SOW must be Draft, Amendment Draft, Signed, or Active before ' + actionLabel);
+  }
+  if (Number(sow.client_id) === Number(clientId)) return sow;
+
+  const hasExistingLink = await SOWModel.hasClientLink(sowId, clientId);
+  if (hasExistingLink) return sow;
+
+  throw new AppError(400, 'SOW belongs to a different client');
+}
+
+async function validatePurchaseOrderForSow(poId, clientId, sowId) {
+  const po = await POModel.findById(poId);
+  if (!po) throw new AppError(404, 'Purchase order not found');
+  if (Number(po.client_id) !== Number(clientId)) {
+    throw new AppError(400, 'Purchase order belongs to a different client');
+  }
+  if (po.status !== 'Active') {
+    throw new AppError(400, 'Purchase order must be Active to assign employees. Current status: ' + po.status);
+  }
+  if (Number(po.sow_id) !== Number(sowId)) {
+    throw new AppError(400, 'Purchase order must be linked to the selected SOW');
+  }
+  return po;
 }
 
 function normalizeRateCardPayload(payload) {
@@ -455,7 +468,7 @@ async function validateSowCapacity(sow, serviceDescription, monthlyRate, noInvoi
   const allowedEmployees = target.allowedEmployees;
   if (!allowedEmployees) return;
 
-  const rows = await RateCardModel.findAll(sow.client_id);
+  const rows = await RateCardModel.findAll();
   const linkedRows = (rows || []).filter((row) => {
     if (Number(row.sow_id) !== Number(sow.id)) return false;
     if (excludeRateCardId && Number(row.id) === Number(excludeRateCardId)) return false;
