@@ -42,8 +42,12 @@ async function validateSowForClient(clientId, sowId, sowSourceClientId) {
 
 const poController = {
   list: catchAsync(async (req, res) => {
-    const { clientId, status } = req.query;
-    const orders = await POModel.findAll(clientId ? parseInt(clientId, 10) : null, status);
+    const { clientId, status, sowId } = req.query;
+    const orders = await POModel.findAll(
+      clientId ? parseInt(clientId, 10) : null,
+      status,
+      { sowId: sowId ? parseInt(sowId, 10) : null }
+    );
     res.json({ success: true, data: orders });
   }),
 

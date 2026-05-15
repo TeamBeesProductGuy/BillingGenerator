@@ -104,10 +104,11 @@ const POModel = {
     return `PO-${today}-${seq}`;
   },
 
-  async findAll(clientId, status) {
+  async findAll(clientId, status, options = {}) {
     let query = supabase.from('purchase_orders_view').select('*');
     if (clientId) query = query.eq('client_id', clientId);
     if (status) query = query.eq('status', status);
+    if (options.sowId) query = query.eq('sow_id', options.sowId);
     query = query.order('created_at', { ascending: false });
     const { data, error } = await query;
     if (error) throw new Error(error.message);
