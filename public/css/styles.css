@@ -1594,6 +1594,105 @@ input[type="file"]::file-selector-button:hover {
     opacity: 0.25;
 }
 
+/* --- Admin Dashboard --- */
+.admin-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(170px, 1fr)) minmax(300px, 1.4fr);
+    gap: 1rem;
+    align-items: stretch;
+}
+.admin-metric-card,
+.admin-tracker-card {
+    border-width: 1px;
+    border-color: rgba(var(--color-border-rgb), 0.95);
+    border-radius: 0.75rem;
+    min-height: 132px;
+    padding: 1.15rem !important;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08), 0 3px 10px rgba(15, 23, 42, 0.05);
+}
+.admin-metric-card:hover,
+.admin-tracker-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.10), 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+.admin-metric-topline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.15rem;
+}
+.admin-metric-icon {
+    width: 2.35rem;
+    height: 2.35rem;
+    border-radius: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+}
+.admin-metric-label {
+    color: var(--color-text-muted);
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin: 0 0 0.35rem;
+}
+.admin-metric-value {
+    color: var(--color-text-primary);
+    font-family: "Plus Jakarta Sans", sans-serif;
+    font-size: 2rem;
+    line-height: 1;
+    font-weight: 800;
+    margin: 0;
+}
+.admin-tracker-content {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 1rem;
+    align-items: center;
+    min-height: 100%;
+}
+.admin-tracker-title {
+    color: var(--color-text-primary);
+    font-family: "Plus Jakarta Sans", sans-serif;
+    font-size: 1rem;
+    font-weight: 800;
+    margin: 0;
+}
+.admin-tracker-copy {
+    color: var(--color-text-muted);
+    font-size: 0.78rem;
+    line-height: 1.45;
+    margin: 0.3rem 0 0;
+}
+.admin-tracker-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    min-width: 128px;
+    white-space: nowrap;
+}
+
+@media (max-width: 1180px) {
+    .admin-summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+@media (max-width: 640px) {
+    .admin-summary-grid {
+        grid-template-columns: 1fr;
+    }
+    .admin-tracker-content {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+    .admin-tracker-button {
+        grid-column: 1 / -1;
+        width: 100%;
+    }
+}
+
 /* --- Quick Action Cards --- */
 .action-card {
     background: rgba(var(--color-bg-rgb), 0.9);

@@ -221,6 +221,74 @@ async function sendPaymentReminderEmail(reminders) {
   return { accepted: true };
 }
 
+async function sendMailMessage(options) {
+  ensureConfigured();
+  const token = await getAccessToken();
+  const payload = {
+    message: {
+      subject: options.subject,
+      body: {
+        contentType: 'HTML',
+        content: options.htmlBody,
+      },
+      toRecipients: recipientObjects(splitRecipients(options.to)),
+      ccRecipients: recipientObjects(splitRecipients(options.cc || '')),
+    },
+    saveToSentItems: env.reminderSaveToSentItems,
+  };
+
+  const response = await globalThis.fetch(`${GRAPH_BASE_URL}/users/${encodeURIComponent(env.msSenderUpn)}/sendMail`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    let errorMessage = 'Microsoft Graph sendMail failed';
+    try {
+      const data = await response.json();
+      errorMessage = data.error && data.error.message ? data.error.message : errorMessage;
+    } catch {
+      // Ignore JSON parse failure and use default error.
+    }
+    throw new Error(errorMessage);
+  }
+
+  return { accepted: true };
+}
+
+async function sendUserCredentialsEmail(options) {
+  const loginUrl = options.loginUrl || '';
+  const htmlBody = `
+    <div style="margin:0;padding:24px;background:#fffaf0;font-family:Segoe UI,Arial,sans-serif;color:#222;">
+      <div style="max-width:640px;margin:0 auto;background:#fff;border:1px solid #eadfcb;border-radius:14px;overflow:hidden;box-shadow:0 14px 38px rgba(15,23,42,0.08);">
+        <div style="padding:22px 26px;background:#f6aa2f;color:#111;">
+          <h2 style="margin:0;font-size:21px;font-weight:800;">TeamBees account created</h2>
+        </div>
+        <div style="padding:26px;line-height:1.6;">
+          <p style="margin:0 0 16px;">Hi ${escapeHtml(options.name || 'there')},</p>
+          <p style="margin:0 0 18px;">Your TeamBees Service Request Engine account has been created.</p>
+          <div style="background:#f8f8f8;border:1px solid #e5e5e5;border-radius:10px;padding:16px;margin:0 0 18px;">
+            <p style="margin:0 0 8px;"><strong>Email:</strong> ${escapeHtml(options.email)}</p>
+            <p style="margin:0;"><strong>Temporary password:</strong> ${escapeHtml(options.password)}</p>
+          </div>
+          ${loginUrl ? `<p style="margin:0 0 18px;"><a href="${escapeHtml(loginUrl)}" style="display:inline-block;background:#f6aa2f;color:#111;text-decoration:none;font-weight:700;padding:11px 16px;border-radius:9px;">Open TeamBees</a></p>` : ''}
+          <p style="margin:0;color:#666;font-size:13px;">Please sign in and change this password if prompted. This is an automated email.</p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  return sendMailMessage({
+    to: options.email,
+    subject: 'Your TeamBees account credentials',
+    htmlBody,
+  });
+}
+
 function buildManagerSummaryTable(rows, billingMonth) {
   const border = '#1f2937';
   const headerBg = '#F4B740';
@@ -334,5 +402,6 @@ async function createManagerApprovalDraft(options) {
 module.exports = {
   getAccessToken,
   sendPaymentReminderEmail,
+  sendUserCredentialsEmail,
   createManagerApprovalDraft,
 };

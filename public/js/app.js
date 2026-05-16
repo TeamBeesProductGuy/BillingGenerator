@@ -43,14 +43,15 @@
     // -----------------------------------------------------------
     //  Routes & State
     // -----------------------------------------------------------
-    var ROUTES = ["dashboard", "billing", "rate-cards", "attendance", "quotes", "sows", "purchase-orders", "clients", "orders", "reminders", "activity-logs"];
-    var DEFAULT_ROUTE = "dashboard";
+    var ADMIN_EMAIL = "jatinder@teambeescorp.com";
+    var ROUTES = ["admin", "billing", "rate-cards", "attendance", "quotes", "sows", "purchase-orders", "clients", "orders", "reminders", "activity-logs"];
+    var DEFAULT_ROUTE = "billing";
     var SIGNIN_PATH = "/signin";
     var currentPage = null;
     var pageCache = {};
 
     var PAGE_TITLES = {
-        "dashboard": "Dashboard",
+        "admin": "Admin",
         "billing": "Service Requests",
         "clients": "Clients",
         "rate-cards": "Rate Cards",
@@ -122,14 +123,33 @@
         if (emailEl && currentSession && currentSession.user) {
             emailEl.textContent = currentSession.user.email;
         }
+        updateRoleBasedNavigation();
+    }
+
+    function isCurrentUserAdmin() {
+        return Boolean(currentSession && currentSession.user && String(currentSession.user.email || "").toLowerCase() === ADMIN_EMAIL);
+    }
+
+    function getDefaultRoute() {
+        return isCurrentUserAdmin() ? "admin" : DEFAULT_ROUTE;
+    }
+
+    function updateRoleBasedNavigation() {
+        var isAdmin = isCurrentUserAdmin();
+        document.querySelectorAll('[data-admin-only="true"]').forEach(function (el) {
+            el.classList.toggle("hidden", !isAdmin);
+        });
+        document.querySelectorAll('[data-temporary-hidden="true"]').forEach(function (el) {
+            el.classList.add("hidden");
+        });
     }
 
     window.onAuthSuccess = function (session) {
         currentSession = session;
         if (location.pathname === SIGNIN_PATH || location.pathname !== "/") {
-            history.replaceState(null, "", "/#" + DEFAULT_ROUTE);
+            history.replaceState(null, "", "/#" + getDefaultRoute());
         } else if (!location.hash) {
-            history.replaceState(null, "", "/#" + DEFAULT_ROUTE);
+            history.replaceState(null, "", "/#" + getDefaultRoute());
         }
         hideLoginPage();
         showApp();
@@ -173,8 +193,16 @@
         }
 
         var hash = (location.hash || "").replace(/^#\/?/, "").toLowerCase();
+        if (hash === "dashboard") {
+            hash = getDefaultRoute();
+            history.replaceState(null, "", "/#" + hash);
+        }
+        if (hash === "admin" && !isCurrentUserAdmin()) {
+            hash = getDefaultRoute();
+            history.replaceState(null, "", "/#" + hash);
+        }
         if (!hash || !ROUTES.includes(hash)) {
-            hash = DEFAULT_ROUTE;
+            hash = getDefaultRoute();
             history.replaceState(null, "", "/#" + hash);
         }
         if (hash === currentPage) return;
@@ -452,6 +480,38 @@
     }
 
     window.showAlert = function (message, type) { window.showToast(message, type); };
+
+    window.handleApprovalResponse = function handleApprovalResponse(response, reloadFn) {
+        if (response && response.approvalRequired) {
+            confirmAction(
+                "Request Sent for Admin Approval",
+                "Your request has been sent to the admin for approval. This action will only be performed after confirmation."
+            );
+            if (typeof reloadFn === "function") reloadFn();
+            return true;
+        }
+        return false;
+    };
+
+    window.getCurrentUserIsAdmin = isCurrentUserAdmin;
+
+    window.loadMyPendingApprovalMap = async function loadMyPendingApprovalMap(moduleName) {
+        var map = {};
+        try {
+            var url = "/api/admin/approvals/mine?status=Pending";
+            var res = await apiCall("GET", url);
+            (res.data || []).forEach(function (row) {
+                if (moduleName && row.module !== moduleName) return;
+                map[String(row.entity_type) + ":" + String(row.entity_id)] = row;
+            });
+        } catch (_err) {}
+        return map;
+    };
+
+    window.adminApprovalAwaitedBadge = function adminApprovalAwaitedBadge(request) {
+        if (!request) return "";
+        return '<span class="badge-warning" title="' + escapeHtml(request.permission_message || "Admin Approval Awaited") + '">Admin Approval Awaited</span>';
+    };
 
     // -----------------------------------------------------------
     //  Confirm Dialog (with Escape support)

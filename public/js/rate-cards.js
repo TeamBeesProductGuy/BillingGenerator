@@ -661,6 +661,7 @@
       var clientId = document.getElementById('rcFilterClient').value;
       var url = clientId ? '/api/rate-cards?clientId=' + clientId : '/api/rate-cards';
       var res = await apiCall('GET', url);
+      var approvalMap = await loadMyPendingApprovalMap('rate_cards');
       updateRateCardSummary(res.data || []);
       if (res.data.length === 0) {
         tbody.innerHTML = '<tr><td colspan="14" class="text-center text-on-surface-variant py-8">No rate cards found</td></tr>';
@@ -674,6 +675,7 @@
           var billingDisabled = r.no_invoice || r.billing_active === false || r.disable_billing;
           var billingLabel = billingDisabled ? 'Disabled' : (billingPaused ? 'Paused' : 'Active');
           var billingClass = billingDisabled ? 'badge-warning' : (billingPaused ? 'badge-warning' : 'badge-success');
+          var approvalBadge = adminApprovalAwaitedBadge(approvalMap['rate_card:' + r.id]);
           var serviceDuration = (r.sow_item_valid_from || r.sow_item_valid_to)
             ? (formatDate(r.sow_item_valid_from) + ' to ' + formatDate(r.sow_item_valid_to))
             : 'Full SOW duration';
@@ -690,7 +692,7 @@
             '<td><div class="table-cell-box"><span class="table-date-chip" title="' + escapeHtml(serviceDuration) + '">' + escapeHtml(serviceDuration) + '</span></div></td>' +
             '<td><div class="table-cell-box"><span class="table-date-chip">' + (r.charging_date ? formatDate(r.charging_date) : 'Pending') + '</span></div></td>' +
             '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(r.po_number || 'PO to be added') + '">' + escapeHtml(r.po_number || 'PO to be added') + '</span></div></td>' +
-            '<td class="text-center"><div class="table-cell-box table-cell-center"><span class="' + billingClass + '">' + billingLabel + '</span></div></td>' +
+            '<td class="text-center"><div class="table-cell-box table-cell-center flex-col gap-1"><span class="' + billingClass + '">' + billingLabel + '</span>' + approvalBadge + '</div></td>' +
             '<td class="text-center"><div class="table-cell-box table-cell-center"><div class="table-action-group">' +
               '<button class="btn-secondary btn-sm inline-flex items-center" onclick="openRCLinkPO(' + r.id + ')" title="Link PO"><span class="material-symbols-outlined text-base">add_link</span></button>' +
               '<button class="btn-secondary btn-sm inline-flex items-center" onclick="editRC(' + r.id + ')" title="Edit"><span class="material-symbols-outlined text-base">edit</span></button>' +
@@ -785,7 +787,8 @@
     var confirmed = await confirmAction('Delete Rate Card', 'Are you sure you want to delete this rate card? This cannot be undone.');
     if (!confirmed) return;
     try {
-      await apiCall('DELETE', '/api/rate-cards/' + id);
+      var res = await apiCall('DELETE', '/api/rate-cards/' + id);
+      if (handleApprovalResponse(res, loadRateCards)) return;
       showToast('Rate card deleted', 'success');
       loadRateCards();
     } catch (err) { showToast(err.message, 'danger'); }

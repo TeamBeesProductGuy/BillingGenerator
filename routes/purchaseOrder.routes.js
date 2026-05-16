@@ -13,5 +13,6 @@ router.put('/:id', validate(updatePO), poController.update);
 router.patch('/:id/status', validate(updatePOStatus), poController.updateStatus);
 router.patch('/:id/consume', validate(recordConsumption), poController.recordConsumption);
 router.patch('/:id/renew', validate(renewPO), poController.renew);
+router.delete('/:id', poController.remove);
 
 module.exports = router;

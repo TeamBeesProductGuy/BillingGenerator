@@ -9,6 +9,11 @@ const { generateQuoteDocxBuffer } = require('../services/quoteDocx.service');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
 const { logActivity } = require('../services/activityLog.service');
+const {
+  requireAdminApproval,
+  buildSowDeleteRequest,
+  buildSowStatusRequest,
+} = require('../services/adminApproval.service');
 
 function isEditableStatus(status) {
   return status === 'Draft' || status === 'Amendment Draft' || status === 'Signed' || status === 'Active';
@@ -673,6 +678,9 @@ const sowController = {
     if (!isAllowedSowStatusChange(existing.status, status)) {
       throw new AppError(400, `Cannot change status from "${existing.status}" to "${status}".`);
     }
+    if (status === 'Active' || status === 'Inactive') {
+      if (await requireAdminApproval(req, res, await buildSowStatusRequest(req, existing, status))) return;
+    }
 
     await SOWModel.updateStatus(id, status);
     await logActivity(req, {
@@ -699,6 +707,7 @@ const sowController = {
     const existing = await SOWModel.findById(id);
     if (!existing) throw new AppError(404, 'SOW not found');
     if (!isDeletableStatus(existing.status)) throw new AppError(400, 'Only Draft or Amendment Draft SOWs can be deleted');
+    if (await requireAdminApproval(req, res, await buildSowDeleteRequest(req, existing))) return;
     await SOWModel.delete(id);
     await logActivity(req, {
       module: 'sows',

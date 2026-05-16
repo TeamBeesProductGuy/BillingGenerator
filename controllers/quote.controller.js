@@ -9,6 +9,10 @@ const { generateQuoteDocxBuffer } = require('../services/quoteDocx.service');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
 const { logActivity } = require('../services/activityLog.service');
+const {
+  requireAdminApproval,
+  buildQuoteDeleteRequest,
+} = require('../services/adminApproval.service');
 
 const logoPath = path.join(__dirname, '..', 'public', 'images', 'TeamBeesLOgo.png');
 const robotoRegularPath = path.join(__dirname, '..', 'public', 'fonts', 'Roboto-Regular.ttf');
@@ -549,6 +553,7 @@ const quoteController = {
     const existing = await QuoteModel.findById(id);
     if (!existing) throw new AppError(404, 'Quote not found');
     if (existing.status !== 'Draft') throw new AppError(400, 'Only draft quotes can be deleted');
+    if (await requireAdminApproval(req, res, await buildQuoteDeleteRequest(req, existing))) return;
     await QuoteModel.delete(id);
     await logActivity(req, {
       module: 'quotes',

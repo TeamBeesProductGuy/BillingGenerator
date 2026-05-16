@@ -4,6 +4,12 @@ const SOWModel = require('../models/sow.model');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
 const { logActivity } = require('../services/activityLog.service');
+const {
+  requireAdminApproval,
+  buildPoStatusRequest,
+  buildPoRenewRequest,
+  buildPoDeleteRequest,
+} = require('../services/adminApproval.service');
 
 function isLinkableSowStatus(status) {
   return status === 'Draft' || status === 'Amendment Draft' || status === 'Signed' || status === 'Active';
@@ -146,6 +152,9 @@ const poController = {
     if (!po) throw new AppError(404, 'Purchase order not found');
 
     const { po_number, po_date, start_date, end_date, po_value, alert_threshold, notes } = req.body;
+    if (await requireAdminApproval(req, res, await buildPoRenewRequest(req, po, {
+      po_number, po_date, start_date, end_date, po_value, alert_threshold, notes,
+    }))) return;
 
     const newPoId = await POModel.renew(id, {
       po_number, client_id: po.client_id, po_date, start_date, end_date,
@@ -179,6 +188,9 @@ const poController = {
     if (!(allowed[po.status] || []).includes(status)) {
       throw new AppError(400, `Cannot change PO status from "${po.status}" to "${status}".`);
     }
+    if (status === 'Active' || status === 'Inactive') {
+      if (await requireAdminApproval(req, res, await buildPoStatusRequest(req, po, status))) return;
+    }
 
     await POModel.updateStatus(id, status);
     await logActivity(req, {
@@ -190,6 +202,23 @@ const poController = {
       details: { summary: 'Changed purchase order status to ' + status, from: po.status, to: status },
     });
     res.json({ success: true, data: { id, status } });
+  }),
+
+  remove: catchAsync(async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    const po = await POModel.findById(id);
+    if (!po) throw new AppError(404, 'Purchase order not found');
+    if (await requireAdminApproval(req, res, await buildPoDeleteRequest(req, po))) return;
+    await POModel.delete(id);
+    await logActivity(req, {
+      module: 'purchase_orders',
+      action: 'delete',
+      entityType: 'purchase_order',
+      entityId: id,
+      entityLabel: po.po_number,
+      details: { summary: 'Deleted purchase order ' + po.po_number },
+    });
+    res.json({ success: true, data: { message: 'Purchase order deleted' } });
   }),
 
   getAssociations: catchAsync(async (req, res) => {

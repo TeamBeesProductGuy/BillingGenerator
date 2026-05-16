@@ -435,6 +435,7 @@
       if (status) query.push('status=' + encodeURIComponent(status));
       var suffix = query.length ? ('?' + query.join('&')) : '';
       var quotesResponse = await apiCall('GET', '/api/quotes' + suffix);
+      var approvalMap = await loadMyPendingApprovalMap('quotes');
       var quotes = quotesResponse.data || [];
       updateQuotesSummary(quotes);
       quoteActionMap = {};
@@ -452,7 +453,7 @@
             '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(q.quote_date) + '</span></div></td>' +
             '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(q.valid_until) + '</span></div></td>' +
             '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(q.total_amount) + '</span></div></td>' +
-            '<td><div class="table-cell-box">' + renderQuoteStatus(q) + '</div></td>' +
+            '<td><div class="table-cell-box flex-col gap-1">' + renderQuoteStatus(q) + adminApprovalAwaitedBadge(approvalMap['quote:' + q.id]) + '</div></td>' +
             '<td class="text-center"><div class="table-cell-box table-cell-center">' + actionsHtml + '</div></td>' +
             '</tr>';
         }).join('');
@@ -703,7 +704,8 @@
     var confirmed = await confirmAction('Delete Quote', 'Are you sure you want to delete this quote? This cannot be undone.');
     if (!confirmed) return;
     try {
-      await apiCall('DELETE', '/api/quotes/' + id);
+      var res = await apiCall('DELETE', '/api/quotes/' + id);
+      if (handleApprovalResponse(res, loadQuotes)) return;
       showToast('Quote deleted', 'success');
       loadQuotes();
     } catch (err) { showToast(err.message, 'danger'); }

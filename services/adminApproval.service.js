@@ -1,0 +1,330 @@
+const AdminApprovalModel = require('../models/adminApproval.model');
+const RateCardModel = require('../models/rateCard.model');
+const QuoteModel = require('../models/quote.model');
+const SOWModel = require('../models/sow.model');
+const POModel = require('../models/purchaseOrder.model');
+const ClientModel = require('../models/client.model');
+const { AppError } = require('../middleware/errorHandler');
+const { adminSupabase, runWithRequestClient } = require('../config/database');
+const { logActivity } = require('./activityLog.service');
+
+const ADMIN_EMAIL = 'jatinder@teambeescorp.com';
+
+function isAdminUser(user) {
+  return String(user && user.email ? user.email : '').trim().toLowerCase() === ADMIN_EMAIL;
+}
+
+function requesterName(user) {
+  if (!user) return '';
+  const meta = user.user_metadata || {};
+  return meta.full_name || meta.name || meta.display_name || user.email || '';
+}
+
+function approvalResponse(res, request) {
+  return res.status(202).json({
+    success: true,
+    approvalRequired: true,
+    data: {
+      request,
+      message: 'Your request has been sent to the admin for approval. This action will only be performed after confirmation.',
+      status: 'Admin Approval Awaited',
+    },
+  });
+}
+
+async function createPendingRequest(req, res, entry) {
+  const payload = {
+    ...entry,
+    requester_user_id: req.user.id,
+    requester_email: req.user.email || null,
+    requester_name: requesterName(req.user),
+    status: 'Pending',
+  };
+
+  const existing = await AdminApprovalModel.findPendingDuplicate(payload);
+  const request = existing || await AdminApprovalModel.create(payload);
+  return approvalResponse(res, request);
+}
+
+async function requireAdminApproval(req, res, entry) {
+  if (isAdminUser(req.user)) return false;
+  await createPendingRequest(req, res, entry);
+  return true;
+}
+
+async function getClientName(clientId) {
+  if (!clientId) return null;
+  const client = await ClientModel.findById(clientId);
+  return client ? (client.abbreviation || client.client_name || null) : null;
+}
+
+function buildMessage(user, actionText, moduleText, label) {
+  const who = requesterName(user) || 'User';
+  return `${who} requested ${actionText} action for ${moduleText} ${label}`;
+}
+
+function joinDescriptions(values) {
+  const seen = new Set();
+  return (values || [])
+    .map((value) => String(value || '').trim())
+    .filter((value) => {
+      const key = value.toLowerCase();
+      if (!value || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .join(', ');
+}
+
+async function buildRateCardDeleteRequest(req, rateCard) {
+  const label = rateCard.emp_code || rateCard.emp_name || `#${rateCard.id}`;
+  const clientName = rateCard.client_name || await getClientName(rateCard.client_id);
+  return {
+    module: 'rate_cards',
+    action_key: 'rate_card.delete',
+    action_label: 'Delete Rate Card',
+    entity_type: 'rate_card',
+    entity_id: rateCard.id,
+    entity_label: label,
+    client_id: rateCard.client_id,
+    client_name: clientName,
+    role_description: rateCard.service_description || rateCard.sow_item_role_position || null,
+    permission_message: buildMessage(req.user, 'DELETE', 'Rate Card', `#${label}`),
+    request_payload: { id: rateCard.id },
+  };
+}
+
+async function buildQuoteDeleteRequest(req, quote) {
+  const clientName = quote.client_name || await getClientName(quote.client_id);
+  return {
+    module: 'quotes',
+    action_key: 'quote.delete',
+    action_label: 'Delete Quote',
+    entity_type: 'quote',
+    entity_id: quote.id,
+    entity_label: quote.quote_number,
+    client_id: quote.client_id,
+    client_name: clientName,
+    role_description: joinDescriptions((quote.items || []).map((item) => item.description)),
+    permission_message: buildMessage(req.user, 'DELETE', 'Quote', `#${quote.quote_number}`),
+    request_payload: { id: quote.id },
+  };
+}
+
+async function buildSowDeleteRequest(req, sow) {
+  const clientName = sow.client_name || await getClientName(sow.client_id);
+  return {
+    module: 'sows',
+    action_key: 'sow.delete',
+    action_label: 'Delete SOW',
+    entity_type: 'sow',
+    entity_id: sow.id,
+    entity_label: sow.sow_number,
+    client_id: sow.client_id,
+    client_name: clientName,
+    role_description: joinDescriptions((sow.items || []).map((item) => item.role_position)) || sow.role_summary || null,
+    permission_message: buildMessage(req.user, 'DELETE', 'SOW', `#${sow.sow_number}`),
+    request_payload: { id: sow.id },
+  };
+}
+
+async function buildSowStatusRequest(req, sow, status) {
+  const clientName = sow.client_name || await getClientName(sow.client_id);
+  return {
+    module: 'sows',
+    action_key: 'sow.status',
+    action_label: `Mark SOW ${status}`,
+    entity_type: 'sow',
+    entity_id: sow.id,
+    entity_label: sow.sow_number,
+    client_id: sow.client_id,
+    client_name: clientName,
+    role_description: joinDescriptions((sow.items || []).map((item) => item.role_position)) || sow.role_summary || null,
+    permission_message: buildMessage(req.user, status.toUpperCase() + ' status change', 'SOW', `#${sow.sow_number}`),
+    request_payload: { id: sow.id, status, from_status: sow.status },
+  };
+}
+
+async function buildPoStatusRequest(req, po, status) {
+  const clientName = po.client_name || await getClientName(po.client_id);
+  return {
+    module: 'purchase_orders',
+    action_key: 'po.status',
+    action_label: `Mark PO ${status}`,
+    entity_type: 'purchase_order',
+    entity_id: po.id,
+    entity_label: po.po_number,
+    client_id: po.client_id,
+    client_name: clientName,
+    role_description: po.role_summary || po.candidate_name || null,
+    permission_message: buildMessage(req.user, status.toUpperCase() + ' status change', 'PO', `#${po.po_number}`),
+    request_payload: { id: po.id, status, from_status: po.status },
+  };
+}
+
+async function buildPoRenewRequest(req, po, payload) {
+  const clientName = po.client_name || await getClientName(po.client_id);
+  return {
+    module: 'purchase_orders',
+    action_key: 'po.renew',
+    action_label: 'Renew PO',
+    entity_type: 'purchase_order',
+    entity_id: po.id,
+    entity_label: po.po_number,
+    client_id: po.client_id,
+    client_name: clientName,
+    role_description: po.role_summary || po.candidate_name || null,
+    permission_message: buildMessage(req.user, 'RENEW', 'PO', `#${po.po_number}`),
+    request_payload: { id: po.id, ...payload },
+  };
+}
+
+async function buildPoDeleteRequest(req, po) {
+  const clientName = po.client_name || await getClientName(po.client_id);
+  return {
+    module: 'purchase_orders',
+    action_key: 'po.delete',
+    action_label: 'Delete PO',
+    entity_type: 'purchase_order',
+    entity_id: po.id,
+    entity_label: po.po_number,
+    client_id: po.client_id,
+    client_name: clientName,
+    role_description: po.role_summary || po.candidate_name || null,
+    permission_message: buildMessage(req.user, 'DELETE', 'PO', `#${po.po_number}`),
+    request_payload: { id: po.id },
+  };
+}
+
+async function executeApprovedRequest(req, request) {
+  return runWithRequestClient(adminSupabase, async () => {
+    const payload = request.request_payload || {};
+
+    if (request.action_key === 'rate_card.delete') {
+      const existing = await RateCardModel.findById(Number(request.entity_id));
+      if (!existing) throw new AppError(404, 'Rate card not found');
+      await RateCardModel.softDelete(Number(request.entity_id));
+      await logActivity(req, {
+        module: 'rate_cards',
+        action: 'delete',
+        entityType: 'rate_card',
+        entityId: request.entity_id,
+        entityLabel: request.entity_label,
+        details: { summary: 'Admin approved and deleted rate card ' + request.entity_label, approval_request_id: request.id },
+      });
+      return { message: 'Rate card deleted' };
+    }
+
+    if (request.action_key === 'quote.delete') {
+      const existing = await QuoteModel.findById(Number(request.entity_id));
+      if (!existing) throw new AppError(404, 'Quote not found');
+      await QuoteModel.delete(Number(request.entity_id));
+      await logActivity(req, {
+        module: 'quotes',
+        action: 'delete',
+        entityType: 'quote',
+        entityId: request.entity_id,
+        entityLabel: request.entity_label,
+        details: { summary: 'Admin approved and deleted quote ' + request.entity_label, approval_request_id: request.id },
+      });
+      return { message: 'Quote deleted' };
+    }
+
+    if (request.action_key === 'sow.delete') {
+      const existing = await SOWModel.findById(Number(request.entity_id));
+      if (!existing) throw new AppError(404, 'SOW not found');
+      await SOWModel.delete(Number(request.entity_id));
+      await logActivity(req, {
+        module: 'sows',
+        action: 'delete',
+        entityType: 'sow',
+        entityId: request.entity_id,
+        entityLabel: request.entity_label,
+        details: { summary: 'Admin approved and deleted SOW ' + request.entity_label, approval_request_id: request.id },
+      });
+      return { message: 'SOW deleted' };
+    }
+
+    if (request.action_key === 'sow.status') {
+      await SOWModel.updateStatus(Number(request.entity_id), payload.status);
+      await logActivity(req, {
+        module: 'sows',
+        action: 'status_change',
+        entityType: 'sow',
+        entityId: request.entity_id,
+        entityLabel: request.entity_label,
+        details: { summary: 'Admin approved SOW status change to ' + payload.status, approval_request_id: request.id },
+      });
+      return { id: request.entity_id, status: payload.status };
+    }
+
+    if (request.action_key === 'po.status') {
+      await POModel.updateStatus(Number(request.entity_id), payload.status);
+      await logActivity(req, {
+        module: 'purchase_orders',
+        action: 'status_change',
+        entityType: 'purchase_order',
+        entityId: request.entity_id,
+        entityLabel: request.entity_label,
+        details: { summary: 'Admin approved PO status change to ' + payload.status, approval_request_id: request.id },
+      });
+      return { id: request.entity_id, status: payload.status };
+    }
+
+    if (request.action_key === 'po.delete') {
+      const po = await POModel.findById(Number(request.entity_id));
+      if (!po) throw new AppError(404, 'Purchase order not found');
+      await POModel.delete(Number(request.entity_id));
+      await logActivity(req, {
+        module: 'purchase_orders',
+        action: 'delete',
+        entityType: 'purchase_order',
+        entityId: request.entity_id,
+        entityLabel: request.entity_label,
+        details: { summary: 'Admin approved and deleted PO ' + request.entity_label, approval_request_id: request.id },
+      });
+      return { message: 'Purchase order deleted' };
+    }
+
+    if (request.action_key === 'po.renew') {
+      const po = await POModel.findById(Number(request.entity_id));
+      if (!po) throw new AppError(404, 'Purchase order not found');
+      const newPoId = await POModel.renew(Number(request.entity_id), {
+        po_number: payload.po_number,
+        client_id: po.client_id,
+        po_date: payload.po_date,
+        start_date: payload.start_date,
+        end_date: payload.end_date,
+        po_value: payload.po_value,
+        alert_threshold: payload.alert_threshold,
+        notes: payload.notes,
+        sow_id: po.sow_id,
+      });
+      await logActivity(req, {
+        module: 'purchase_orders',
+        action: 'renew',
+        entityType: 'purchase_order',
+        entityId: newPoId,
+        entityLabel: payload.po_number,
+        details: { summary: 'Admin approved PO renewal ' + request.entity_label + ' as ' + payload.po_number, approval_request_id: request.id },
+      });
+      return { oldPoId: request.entity_id, newPoId, po_number: payload.po_number };
+    }
+
+    throw new AppError(400, 'Unsupported approval action: ' + request.action_key);
+  });
+}
+
+module.exports = {
+  ADMIN_EMAIL,
+  isAdminUser,
+  requireAdminApproval,
+  buildRateCardDeleteRequest,
+  buildQuoteDeleteRequest,
+  buildSowDeleteRequest,
+  buildSowStatusRequest,
+  buildPoStatusRequest,
+  buildPoRenewRequest,
+  buildPoDeleteRequest,
+  executeApprovedRequest,
+};

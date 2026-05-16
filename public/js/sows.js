@@ -411,6 +411,7 @@
       if (cid) url += 'clientId=' + cid + '&';
       if (status) url += 'status=' + status;
       var res = await apiCall('GET', url);
+      var approvalMap = await loadMyPendingApprovalMap('sows');
       updateSowsSummary(res.data || []);
       if (res.data.length === 0) {
         tbody.innerHTML = '<tr><td colspan="9" class="text-center text-on-surface-variant py-8">No SOWs found</td></tr>';
@@ -422,6 +423,7 @@
           var clientFullName = client ? (client.client_name || clientDisplay) : (s.client_name || clientDisplay);
           var VALID_TRANSITIONS = { Draft: ['Signed'], 'Amendment Draft': ['Signed'], Signed: ['Inactive'], Active: ['Inactive'], Inactive: ['Active'], Expired: [], Terminated: [] };
           var allowed = VALID_TRANSITIONS[s.status] || [];
+          var approvalBadge = adminApprovalAwaitedBadge(approvalMap['sow:' + s.id]);
           sowActionMap[s.id] = {
             id: s.id,
             clientId: s.client_id,
@@ -449,7 +451,7 @@
             '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(s.effective_start) + '</span></div></td>' +
             '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(s.effective_end) + '</span></div></td>' +
             '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(s.total_value) + '</span></div></td>' +
-            '<td><div class="table-cell-box">' + statusBadge(s.status) + '</div></td>' +
+            '<td><div class="table-cell-box flex-col gap-1">' + statusBadge(s.status) + approvalBadge + '</div></td>' +
             '<td class="text-center"><div class="table-cell-box table-cell-center">' + actionsHtml + '</div></td>' +
             '</tr>';
         }).join('');
@@ -685,7 +687,8 @@
 
   window.changeSOWStatus = async function (id, status) {
     try {
-      await apiCall('PATCH', '/api/sows/' + id + '/status', { status: status });
+      var res = await apiCall('PATCH', '/api/sows/' + id + '/status', { status: status });
+      if (handleApprovalResponse(res, loadSOWs)) return;
       showToast('SOW status updated to ' + status, 'success');
       loadSOWs();
     } catch (err) { showToast(err.message, 'danger'); }
@@ -695,7 +698,8 @@
     var confirmed = await confirmAction('Delete SOW', 'Are you sure you want to delete this SOW? This cannot be undone.');
     if (!confirmed) return;
     try {
-      await apiCall('DELETE', '/api/sows/' + id);
+      var res = await apiCall('DELETE', '/api/sows/' + id);
+      if (handleApprovalResponse(res, loadSOWs)) return;
       showToast('SOW deleted', 'success');
       loadSOWs();
     } catch (err) { showToast(err.message, 'danger'); }

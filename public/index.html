@@ -82,9 +82,13 @@
     <!-- Navigation -->
     <nav class="flex-1 px-3 pt-5 overflow-y-auto styled-scrollbar space-y-0.5">
         <div class="sidebar-section-label">Overview</div>
-        <a href="#dashboard" data-page="dashboard" class="sidebar-link flex items-center px-3 py-2.5 rounded-lg transition-all cursor-pointer no-underline active">
+        <a href="#dashboard" data-page="dashboard" data-temporary-hidden="true" class="sidebar-link flex items-center px-3 py-2.5 rounded-lg transition-all cursor-pointer no-underline active hidden">
             <span class="material-symbols-outlined mr-3 text-[20px]">space_dashboard</span>
             <span class="font-medium text-[13px]">Dashboard</span>
+        </a>
+        <a href="#admin" data-page="admin" data-admin-only="true" class="sidebar-link flex items-center px-3 py-2.5 rounded-lg transition-all cursor-pointer no-underline hidden">
+            <span class="material-symbols-outlined mr-3 text-[20px]">admin_panel_settings</span>
+            <span class="font-medium text-[13px]">Admin</span>
         </a>
         <a href="#billing" data-page="billing" class="sidebar-link flex items-center px-3 py-2.5 rounded-lg transition-all cursor-pointer no-underline">
             <span class="material-symbols-outlined mr-3 text-[20px]">receipt_long</span>

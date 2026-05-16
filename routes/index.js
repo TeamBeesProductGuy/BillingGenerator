@@ -15,6 +15,7 @@ router.use('/permanent/clients', require('./permanentClient.routes'));
 router.use('/permanent/orders', require('./permanentOrder.routes'));
 router.use('/permanent/reminders', require('./permanentReminder.routes'));
 router.use('/activity-logs', require('./activityLog.routes'));
+router.use('/admin', require('./admin.routes'));
 router.use('/clients/permanent', require('./permanentClient.routes'));
 router.use('/orders/permanent', require('./permanentOrder.routes'));
 router.use('/reminders/permanent', require('./permanentReminder.routes'));

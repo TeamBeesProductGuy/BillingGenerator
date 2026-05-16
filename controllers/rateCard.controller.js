@@ -7,6 +7,10 @@ const SOWModel = require('../models/sow.model');
 const { parseRateCard } = require('../services/excelParser.service');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
+const {
+  requireAdminApproval,
+  buildRateCardDeleteRequest,
+} = require('../services/adminApproval.service');
 
 function isSelectableSowStatus(status) {
   return ['Draft', 'Amendment Draft', 'Signed', 'Active'].includes(status);
@@ -136,6 +140,7 @@ const rateCardController = {
     const id = parseInt(req.params.id, 10);
     const existing = await RateCardModel.findById(id);
     if (!existing) throw new AppError(404, 'Rate card not found');
+    if (await requireAdminApproval(req, res, await buildRateCardDeleteRequest(req, existing))) return;
     await RateCardModel.softDelete(id);
     res.json({ success: true, data: { message: 'Rate card deleted' } });
   }),

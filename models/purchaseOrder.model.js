@@ -288,6 +288,14 @@ const POModel = {
     if (error) throw new Error(error.message);
   },
 
+  async delete(id) {
+    const { error } = await supabase
+      .from('purchase_orders')
+      .delete()
+      .eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+
   async getAssociations(id) {
     const [poResult, rateCardResult] = await Promise.all([
       supabase

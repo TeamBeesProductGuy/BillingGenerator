@@ -282,6 +282,7 @@
       if (cid) url += 'clientId=' + cid + '&';
       if (status) url += 'status=' + status;
       var res = await apiCall('GET', url);
+      var approvalMap = await loadMyPendingApprovalMap('purchase_orders');
       updatePOSummary(res.data || []);
       if (res.data.length === 0) {
         tbody.innerHTML = '<tr><td colspan="12" class="text-center text-on-surface-variant py-8">No purchase orders found</td></tr>';
@@ -295,6 +296,7 @@
 
           var clientDisplay = po.client_abbreviation || po.client_name || '-';
           var roleDisplay = po.role_summary || '-';
+          var approvalBadge = adminApprovalAwaitedBadge(approvalMap['purchase_order:' + po.id]);
 
           return '<tr>' +
             '<td><div class="table-cell-box"><span class="entity-pill entity-pill-strong">' + escapeHtml(po.po_number) + '</span></div></td>' +
@@ -306,7 +308,7 @@
             '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(po.po_value) + '</span></div></td>' +
             '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(po.consumed_value) + '</span></div></td>' +
             '<td class="po-progress-cell"><div class="table-cell-box">' + progressBar(po.consumption_pct || 0) + '</div></td>' +
-            '<td><div class="table-cell-box">' + statusBadge(po.status) + '</div></td>' +
+            '<td><div class="table-cell-box flex-col gap-1">' + statusBadge(po.status) + approvalBadge + '</div></td>' +
             '<td class="text-center"><div class="table-cell-box table-cell-center"><span class="table-count-badge">' + (po.linked_employees || 0) + '</span></div></td>' +
             '<td class="text-center"><div class="table-cell-box table-cell-center"><button class="btn-secondary btn-sm table-action-trigger inline-flex items-center justify-center" title="Open purchase order actions" aria-label="Open purchase order actions" onclick="openPOActions(' + po.id + ')"><span class="material-symbols-outlined text-base">more_horiz</span></button></div></td>' +
             '</tr>';
@@ -337,6 +339,7 @@
     if (['Active', 'Expired', 'Exhausted'].indexOf(actionState.status) !== -1) {
       container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runPOActionRenew(' + id + ')"><span class="material-symbols-outlined">autorenew</span><span><strong>Renew purchase order</strong><small>Create a new renewed PO for this engagement</small></span></button>';
     }
+    container.innerHTML += '<button type="button" class="action-sheet-btn action-sheet-btn-danger" onclick="runPOActionDelete(' + id + ')"><span class="material-symbols-outlined">delete</span><span><strong>Delete purchase order</strong><small>Remove this purchase order from the register</small></span></button>';
     openModal('poActionModal');
   };
 
@@ -374,8 +377,22 @@
       if (!activateOk) return;
     }
     try {
-      await apiCall('PATCH', '/api/purchase-orders/' + id + '/status', { status: status });
+      var res = await apiCall('PATCH', '/api/purchase-orders/' + id + '/status', { status: status });
+      if (handleApprovalResponse(res, function () { loadPOs(); loadAlerts(); })) return;
       showToast('PO status updated to ' + status, 'success');
+      loadPOs();
+      loadAlerts();
+    } catch (err) { showToast(err.message, 'danger'); }
+  };
+
+  window.runPOActionDelete = async function (id) {
+    closePOActions();
+    var confirmed = await confirmAction('Delete PO', 'Are you sure you want to delete this purchase order? This cannot be undone.');
+    if (!confirmed) return;
+    try {
+      var res = await apiCall('DELETE', '/api/purchase-orders/' + id);
+      if (handleApprovalResponse(res, function () { loadPOs(); loadAlerts(); })) return;
+      showToast('PO deleted', 'success');
       loadPOs();
       loadAlerts();
     } catch (err) { showToast(err.message, 'danger'); }
@@ -542,7 +559,7 @@
     var poId = document.getElementById('renewPoId').value;
     if (!validateDateRange('renewStartDate', 'renewEndDate')) return;
     try {
-      await apiCall('PATCH', '/api/purchase-orders/' + poId + '/renew', {
+      var res = await apiCall('PATCH', '/api/purchase-orders/' + poId + '/renew', {
         po_number: document.getElementById('renewPoNumber').value.trim(),
         po_date: document.getElementById('renewPoDate').value,
         start_date: document.getElementById('renewStartDate').value,
@@ -550,6 +567,7 @@
         po_value: parseFloat(document.getElementById('renewPoValue').value),
         alert_threshold: parseFloat(document.getElementById('renewThreshold').value) || 80,
       });
+      if (handleApprovalResponse(res, function () { closeRenewModal(); loadPOs(); loadAlerts(); })) return;
       showToast('PO renewed', 'success');
       closeRenewModal();
       loadPOs();

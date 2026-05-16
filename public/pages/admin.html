@@ -1,0 +1,147 @@
+<div class="p-5 sm:p-8 space-y-8 max-w-7xl mx-auto w-full fade-in">
+    <section class="admin-summary-grid stagger-in">
+        <div class="stat-card admin-metric-card">
+            <div class="stat-glow bg-primary"></div>
+            <div class="admin-metric-topline">
+                <div class="admin-metric-icon bg-primary/12">
+                    <span class="material-symbols-outlined text-accent text-lg">apartment</span>
+                </div>
+            </div>
+            <p class="admin-metric-label">Total Clients</p>
+            <h3 id="adminTotalClients" class="admin-metric-value count-up">--</h3>
+        </div>
+
+        <div class="stat-card admin-metric-card">
+            <div class="stat-glow bg-accent"></div>
+            <div class="admin-metric-topline">
+                <div class="admin-metric-icon bg-accent/12">
+                    <span class="material-symbols-outlined text-accent text-lg">badge</span>
+                </div>
+            </div>
+            <p class="admin-metric-label">Total Employees</p>
+            <h3 id="adminTotalEmployees" class="admin-metric-value count-up">--</h3>
+        </div>
+
+        <div class="stat-card admin-metric-card">
+            <div class="stat-glow bg-success"></div>
+            <div class="admin-metric-topline">
+                <div class="admin-metric-icon bg-success/12">
+                    <span class="material-symbols-outlined text-success text-lg">manage_accounts</span>
+                </div>
+            </div>
+            <p class="admin-metric-label">Total Users</p>
+            <h3 id="adminTotalUsers" class="admin-metric-value count-up">--</h3>
+        </div>
+
+        <div class="stat-card admin-tracker-card">
+            <div class="stat-glow bg-primary"></div>
+            <div class="admin-tracker-content">
+                <div class="admin-metric-icon bg-primary/12">
+                    <span class="material-symbols-outlined text-primary text-lg">table_view</span>
+                </div>
+                <div class="min-w-0">
+                    <h3 class="admin-tracker-title">Tracker</h3>
+                    <p class="admin-tracker-copy">Live order tracker from SOW, Rate Card, PO, and Client data.</p>
+                </div>
+                <button id="adminDownloadTracker" class="btn-primary admin-tracker-button">
+                    <span class="material-symbols-outlined text-base">download</span>Download
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <section class="stat-card !p-0 overflow-hidden">
+        <div class="px-6 py-4 border-b border-outline-variant/8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-success text-lg">manage_accounts</span>
+                <h4 class="font-headline font-semibold text-sm text-on-surface">Users</h4>
+            </div>
+            <button id="adminOpenUserModal" class="btn-primary inline-flex items-center gap-2 self-start sm:self-auto">
+                <span class="material-symbols-outlined text-base">person_add</span>Add User
+            </button>
+        </div>
+        <div class="overflow-x-auto max-h-[340px] styled-scrollbar">
+            <table id="adminUsersTable" class="stitch-table">
+                <thead class="sticky top-0 z-10">
+                    <tr>
+                        <th>User</th>
+                        <th>Created</th>
+                        <th>Last Sign In</th>
+                        <th>Email Status</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="adminUsersBody">
+                    <tr><td colspan="5" class="text-center text-on-surface-variant py-8">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="stat-card !p-0 overflow-hidden">
+        <div class="px-6 py-4 border-b border-outline-variant/8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-warning text-lg">approval_delegation</span>
+                <h4 class="font-headline font-semibold text-sm text-on-surface">Pending Approval Requests</h4>
+            </div>
+            <button id="adminRefreshApprovals" class="px-3 py-1.5 bg-surface-container text-xs font-semibold rounded-lg hover:bg-surface-container-highest transition-all flex items-center gap-1.5 text-on-surface-variant self-start sm:self-auto">
+                <span class="material-symbols-outlined text-sm">refresh</span>Refresh
+            </button>
+        </div>
+        <div class="overflow-x-auto max-h-[62vh] styled-scrollbar">
+            <table id="adminApprovalsTable" class="stitch-table">
+                <thead class="sticky top-0 z-10">
+                    <tr>
+                        <th>User</th>
+                        <th>Role / Description</th>
+                        <th>Client</th>
+                        <th>Permission Message</th>
+                        <th class="sortable" data-sort-key="4" data-sort-type="date">Request Date/Time</th>
+                        <th>Status</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="adminApprovalsBody">
+                    <tr><td colspan="7" class="text-center text-on-surface-variant py-8">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<div id="adminUserModal" class="fixed inset-0 z-[160] hidden items-center justify-center bg-black/55 backdrop-blur-sm">
+    <div class="bg-surface rounded-2xl border border-border shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+        <form id="adminUserForm">
+            <div class="px-6 py-4 border-b border-border flex items-center justify-between">
+                <h3 class="font-headline font-bold text-lg text-on-surface">Create User</h3>
+                <button type="button" id="adminCloseUserModal" class="text-on-surface-variant hover:text-error transition-colors">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-[11px] text-on-surface-variant mb-1 uppercase tracking-[0.14em] font-semibold">Name</label>
+                    <input id="adminUserName" type="text" data-no-uppercase placeholder="Full name">
+                </div>
+                <div>
+                    <label class="block text-[11px] text-on-surface-variant mb-1 uppercase tracking-[0.14em] font-semibold">Email *</label>
+                    <input id="adminUserEmail" type="email" data-no-uppercase required placeholder="user@company.com">
+                </div>
+                <div>
+                    <label class="block text-[11px] text-on-surface-variant mb-1 uppercase tracking-[0.14em] font-semibold">Temporary Password</label>
+                    <input id="adminUserPassword" type="text" data-no-uppercase placeholder="Leave blank to auto-generate">
+                </div>
+                <label class="flex items-center gap-3 text-sm text-on-surface">
+                    <input id="adminSendCredentials" type="checkbox" checked class="h-4 w-4 accent-black">
+                    Email credentials using Microsoft Graph
+                </label>
+            </div>
+            <div class="px-6 py-4 border-t border-border flex justify-end gap-3">
+                <button type="button" id="adminCancelUserModal" class="btn-secondary">Cancel</button>
+                <button type="submit" class="btn-primary inline-flex items-center gap-2">
+                    <span class="material-symbols-outlined text-base">person_add</span>Create User
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
