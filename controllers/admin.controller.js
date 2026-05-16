@@ -59,6 +59,21 @@ function getLoginUrl(req) {
   return host ? `${proto}://${host}/signin` : '';
 }
 
+async function resolveClientAbbreviation(request) {
+  if (!request.client_id) return request.client_name || '';
+  try {
+    const { data, error } = await adminSupabase
+      .from('clients')
+      .select('abbreviation, client_name')
+      .eq('id', request.client_id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data ? (data.abbreviation || data.client_name || request.client_name || '') : (request.client_name || '');
+  } catch (_err) {
+    return request.client_name || '';
+  }
+}
+
 function joinDescriptions(values) {
   const seen = new Set();
   return (values || [])
@@ -137,6 +152,7 @@ async function resolveRoleDescription(request) {
 async function enrichApprovalRoleDescriptions(requests) {
   return Promise.all((requests || []).map(async (request) => ({
     ...request,
+    client_name: await resolveClientAbbreviation(request),
     role_description: request.role_description || await resolveRoleDescription(request),
   })));
 }

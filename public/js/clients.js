@@ -621,6 +621,9 @@
           leaves_allowed: parseInt(document.getElementById('clientLeavesAllowed').value, 10) || 0,
         };
 
+        if (!contractualPayload.client_name) throw new Error('Client name is required');
+        if (!contractualPayload.abbreviation) throw new Error('Client abbreviation is required');
+
         if (window.clientEdit) {
           await apiCall('PUT', '/api/clients/' + window.clientEdit, contractualPayload);
           showToast('Client updated', 'success');

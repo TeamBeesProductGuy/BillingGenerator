@@ -52,7 +52,7 @@ async function requireAdminApproval(req, res, entry) {
   return true;
 }
 
-async function getClientName(clientId) {
+async function getClientAbbreviation(clientId) {
   if (!clientId) return null;
   const client = await ClientModel.findById(clientId);
   return client ? (client.abbreviation || client.client_name || null) : null;
@@ -78,7 +78,7 @@ function joinDescriptions(values) {
 
 async function buildRateCardDeleteRequest(req, rateCard) {
   const label = rateCard.emp_code || rateCard.emp_name || `#${rateCard.id}`;
-  const clientName = rateCard.client_name || await getClientName(rateCard.client_id);
+  const clientName = await getClientAbbreviation(rateCard.client_id) || rateCard.client_name || null;
   return {
     module: 'rate_cards',
     action_key: 'rate_card.delete',
@@ -95,7 +95,7 @@ async function buildRateCardDeleteRequest(req, rateCard) {
 }
 
 async function buildQuoteDeleteRequest(req, quote) {
-  const clientName = quote.client_name || await getClientName(quote.client_id);
+  const clientName = await getClientAbbreviation(quote.client_id) || quote.client_name || null;
   return {
     module: 'quotes',
     action_key: 'quote.delete',
@@ -112,7 +112,7 @@ async function buildQuoteDeleteRequest(req, quote) {
 }
 
 async function buildSowDeleteRequest(req, sow) {
-  const clientName = sow.client_name || await getClientName(sow.client_id);
+  const clientName = await getClientAbbreviation(sow.client_id) || sow.client_name || null;
   return {
     module: 'sows',
     action_key: 'sow.delete',
@@ -129,7 +129,7 @@ async function buildSowDeleteRequest(req, sow) {
 }
 
 async function buildSowStatusRequest(req, sow, status) {
-  const clientName = sow.client_name || await getClientName(sow.client_id);
+  const clientName = await getClientAbbreviation(sow.client_id) || sow.client_name || null;
   return {
     module: 'sows',
     action_key: 'sow.status',
@@ -146,7 +146,7 @@ async function buildSowStatusRequest(req, sow, status) {
 }
 
 async function buildPoStatusRequest(req, po, status) {
-  const clientName = po.client_name || await getClientName(po.client_id);
+  const clientName = await getClientAbbreviation(po.client_id) || po.client_abbreviation || po.client_name || null;
   return {
     module: 'purchase_orders',
     action_key: 'po.status',
@@ -163,7 +163,7 @@ async function buildPoStatusRequest(req, po, status) {
 }
 
 async function buildPoRenewRequest(req, po, payload) {
-  const clientName = po.client_name || await getClientName(po.client_id);
+  const clientName = await getClientAbbreviation(po.client_id) || po.client_abbreviation || po.client_name || null;
   return {
     module: 'purchase_orders',
     action_key: 'po.renew',
@@ -180,7 +180,7 @@ async function buildPoRenewRequest(req, po, payload) {
 }
 
 async function buildPoDeleteRequest(req, po) {
-  const clientName = po.client_name || await getClientName(po.client_id);
+  const clientName = await getClientAbbreviation(po.client_id) || po.client_abbreviation || po.client_name || null;
   return {
     module: 'purchase_orders',
     action_key: 'po.delete',

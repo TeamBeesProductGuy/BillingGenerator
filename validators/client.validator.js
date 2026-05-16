@@ -33,8 +33,9 @@ const createClient = Joi.object({
 
   abbreviation: Joi.string()
     .trim()
+    .min(1)
     .max(50)
-    .allow('', null),
+    .required(),
 
   contact_person: Joi.string()
     .trim()
