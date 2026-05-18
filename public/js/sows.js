@@ -431,17 +431,7 @@
             allowed: allowed.slice()
           };
 
-          var actionsHtml = '<div class="table-action-group">';
-          if (s.status === 'Draft' || s.status === 'Amendment Draft' || s.status === 'Signed' || s.status === 'Active') {
-            actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="editSOW(' + s.id + ')" title="Edit"><span class="material-symbols-outlined text-base">edit</span></button>';
-          }
-          actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="viewSOW(' + s.id + ')" title="View"><span class="material-symbols-outlined text-base">visibility</span></button>';
-
-          // Status menu
-          if (allowed.length > 0 || s.status === 'Draft' || s.status === 'Amendment Draft' || s.status === 'Signed' || s.status === 'Inactive') {
-            actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="openSOWActions(' + s.id + ')" title="More"><span class="material-symbols-outlined text-base">more_vert</span></button>';
-          }
-          actionsHtml += '</div>';
+          var actionsHtml = '<button class="btn-secondary btn-sm table-action-trigger inline-flex items-center justify-center" title="Open SOW actions" aria-label="Open SOW actions" onclick="openSOWActions(' + s.id + ')"><span class="material-symbols-outlined text-base">more_horiz</span></button>';
 
           return '<tr>' +
             '<td><div class="table-cell-box table-cell-stack"><span class="entity-pill entity-pill-strong">' + escapeHtml(s.sow_number) + '</span></div></td>' +
@@ -490,18 +480,24 @@
 
     title.textContent = 'SOW Actions';
     container.innerHTML = '';
+    container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runSOWActionView(' + actionState.id + ')"><span class="material-symbols-outlined">visibility</span><span><strong>View details</strong><small>Open SOW summary, line items, and notes</small></span></button>';
+
+    if (actionState.status === 'Draft' || actionState.status === 'Amendment Draft' || actionState.status === 'Signed' || actionState.status === 'Active') {
+      container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runSOWActionEdit(' + actionState.id + ')"><span class="material-symbols-outlined">edit</span><span><strong>Edit SOW</strong><small>Update dates, role items, value, and notes</small></span></button>';
+    }
 
     actionState.allowed.forEach(function (st) {
-      container.innerHTML += '<button type="button" class="w-full text-left rounded-xl px-4 py-3 text-sm font-medium text-on-surface bg-surface hover:bg-surface-container-highest transition-colors" onclick="runSOWActionStatus(' + actionState.id + ', \'' + st + '\')">' + (STATUS_LABELS[st] || st) + '</button>';
+      var icon = st === 'Inactive' ? 'pause_circle' : (st === 'Active' ? 'play_circle' : 'task_alt');
+      container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runSOWActionStatus(' + actionState.id + ', \'' + st + '\')"><span class="material-symbols-outlined">' + icon + '</span><span><strong>' + (STATUS_LABELS[st] || st) + '</strong><small>Change the lifecycle status for this SOW</small></span></button>';
     });
 
     if (actionState.status === 'Signed' || actionState.status === 'Active') {
-      container.innerHTML += '<button type="button" class="w-full text-left rounded-xl px-4 py-3 text-sm font-medium text-on-surface bg-surface hover:bg-surface-container-highest transition-colors" onclick="runSOWActionLinkPO(' + actionState.id + ', ' + actionState.clientId + ')">Link to PO</button>';
-      container.innerHTML += '<button type="button" class="w-full text-left rounded-xl px-4 py-3 text-sm font-medium text-on-surface bg-surface hover:bg-surface-container-highest transition-colors" onclick="runSOWActionAmendment(' + actionState.id + ')">Make Amendment</button>';
+      container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runSOWActionLinkPO(' + actionState.id + ', ' + actionState.clientId + ')"><span class="material-symbols-outlined">receipt_long</span><span><strong>Link to PO</strong><small>Start a purchase order linked to this SOW</small></span></button>';
+      container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runSOWActionAmendment(' + actionState.id + ')"><span class="material-symbols-outlined">edit_document</span><span><strong>Make amendment</strong><small>Create an amendment draft from this SOW</small></span></button>';
     }
 
     if (actionState.status === 'Draft' || actionState.status === 'Amendment Draft') {
-      container.innerHTML += '<button type="button" class="w-full text-left rounded-xl px-4 py-3 text-sm font-medium text-error bg-surface hover:bg-surface-container-highest transition-colors" onclick="runSOWActionDelete(' + actionState.id + ')">Delete</button>';
+      container.innerHTML += '<button type="button" class="action-sheet-btn action-sheet-btn-danger" onclick="runSOWActionDelete(' + actionState.id + ')"><span class="material-symbols-outlined">delete</span><span><strong>Delete SOW</strong><small>Remove this draft SOW from the register</small></span></button>';
     }
 
     openModal('sowActionModal');
@@ -509,6 +505,16 @@
 
   window.closeSOWActions = function () {
     closeModal('sowActionModal');
+  };
+
+  window.runSOWActionView = function (id) {
+    closeSOWActions();
+    viewSOW(id);
+  };
+
+  window.runSOWActionEdit = function (id) {
+    closeSOWActions();
+    editSOW(id);
   };
 
   window.runSOWActionStatus = async function (id, status) {

@@ -369,17 +369,7 @@
   }
 
   function buildQuoteActions(q) {
-    var actionsHtml = '<div class="table-action-group">';
     var isActionable = q.is_latest !== false;
-    if (isActionable && q.status === 'Draft') {
-      actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="editQuote(' + q.id + ')" title="Edit"><span class="material-symbols-outlined text-base">edit</span></button>';
-    }
-    if (isActionable && q.status === 'Sent') {
-      actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="amendQuote(' + q.id + ')" title="Amend Quote"><span class="material-symbols-outlined text-base">edit_document</span></button>';
-    }
-    actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="viewQuote(' + q.id + ')" title="View"><span class="material-symbols-outlined text-base">visibility</span></button>';
-    actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="downloadFile(\'/api/quotes/' + q.id + '/download\')" title="Download DOCX"><span class="material-symbols-outlined text-base">description</span></button>';
-    actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="downloadFile(\'/api/quotes/' + q.id + '/pdf\')" title="Download PDF"><span class="material-symbols-outlined text-base">picture_as_pdf</span></button>';
     var VALID_TRANSITIONS = {
       Draft: ['Sent'],
       Sent: ['Accepted', 'Rejected'],
@@ -393,11 +383,7 @@
       allowed: isActionable ? (VALID_TRANSITIONS[q.status] || []).slice() : [],
       isActionable: isActionable,
     };
-    if (isActionable) {
-      actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="openQuoteActions(' + q.id + ')" title="More"><span class="material-symbols-outlined text-base">more_vert</span></button>';
-    }
-    actionsHtml += '</div>';
-    return actionsHtml;
+    return '<button class="btn-secondary btn-sm table-action-trigger inline-flex items-center justify-center" title="Open quote actions" aria-label="Open quote actions" onclick="openQuoteActions(' + q.id + ')"><span class="material-symbols-outlined text-base">more_horiz</span></button>';
   }
 
   function updateQuotesSummary(rows) {
@@ -477,18 +463,30 @@
 
     title.textContent = 'Quote Actions';
     container.innerHTML = '';
+    container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runQuoteActionView(' + actionState.id + ')"><span class="material-symbols-outlined">visibility</span><span><strong>View details</strong><small>Open the full quote summary and line items</small></span></button>';
+    container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runQuoteActionDownloadDocx(' + actionState.id + ')"><span class="material-symbols-outlined">description</span><span><strong>Download DOCX</strong><small>Export the quote as an editable document</small></span></button>';
+    container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runQuoteActionDownloadPdf(' + actionState.id + ')"><span class="material-symbols-outlined">picture_as_pdf</span><span><strong>Download PDF</strong><small>Export the quote as a PDF file</small></span></button>';
 
-    actionState.allowed.forEach(function (status) {
-      container.innerHTML += '<button type="button" class="w-full text-left rounded-xl px-4 py-3 text-sm font-medium text-on-surface bg-surface hover:bg-surface-container-highest transition-colors" onclick="runQuoteActionStatus(' + actionState.id + ', \'' + status + '\')">' + (STATUS_LABELS[status] || status) + '</button>';
-    });
-
-    if (actionState.status === 'Accepted') {
-      container.innerHTML += '<button type="button" class="w-full text-left rounded-xl px-4 py-3 text-sm font-medium text-on-surface bg-surface hover:bg-surface-container-highest transition-colors" onclick="runQuoteActionConvertToSow(' + actionState.id + ')">Link to SOW</button>';
-      container.innerHTML += '<button type="button" class="w-full text-left rounded-xl px-4 py-3 text-sm font-medium text-error bg-surface hover:bg-surface-container-highest transition-colors" onclick="runQuoteActionTerminate(' + actionState.id + ')">Terminate</button>';
+    if (actionState.isActionable && actionState.status === 'Draft') {
+      container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runQuoteActionEdit(' + actionState.id + ')"><span class="material-symbols-outlined">edit</span><span><strong>Edit quote</strong><small>Update commercial details and line items</small></span></button>';
     }
 
-    if (actionState.status === 'Draft') {
-      container.innerHTML += '<button type="button" class="w-full text-left rounded-xl px-4 py-3 text-sm font-medium text-error bg-surface hover:bg-surface-container-highest transition-colors" onclick="runQuoteActionDelete(' + actionState.id + ')">Delete</button>';
+    if (actionState.isActionable && actionState.status === 'Sent') {
+      container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runQuoteActionAmend(' + actionState.id + ')"><span class="material-symbols-outlined">edit_document</span><span><strong>Amend quote</strong><small>Create a new amendment version</small></span></button>';
+    }
+
+    actionState.allowed.forEach(function (status) {
+      var icon = status === 'Accepted' ? 'check_circle' : (status === 'Rejected' ? 'cancel' : 'send');
+      container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runQuoteActionStatus(' + actionState.id + ', \'' + status + '\')"><span class="material-symbols-outlined">' + icon + '</span><span><strong>' + (STATUS_LABELS[status] || status) + '</strong><small>Change the approval status for this quote</small></span></button>';
+    });
+
+    if (actionState.isActionable && actionState.status === 'Accepted') {
+      container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runQuoteActionConvertToSow(' + actionState.id + ')"><span class="material-symbols-outlined">contract_edit</span><span><strong>Link to SOW</strong><small>Create or connect the accepted quote to a SOW</small></span></button>';
+      container.innerHTML += '<button type="button" class="action-sheet-btn action-sheet-btn-danger" onclick="runQuoteActionTerminate(' + actionState.id + ')"><span class="material-symbols-outlined">block</span><span><strong>Terminate</strong><small>Expire this accepted quote</small></span></button>';
+    }
+
+    if (actionState.isActionable && actionState.status === 'Draft') {
+      container.innerHTML += '<button type="button" class="action-sheet-btn action-sheet-btn-danger" onclick="runQuoteActionDelete(' + actionState.id + ')"><span class="material-symbols-outlined">delete</span><span><strong>Delete quote</strong><small>Remove this draft quote from the register</small></span></button>';
     }
 
     openModal('quoteActionModal');
@@ -496,6 +494,31 @@
 
   window.closeQuoteActions = function () {
     closeModal('quoteActionModal');
+  };
+
+  window.runQuoteActionView = function (id) {
+    closeQuoteActions();
+    viewQuote(id);
+  };
+
+  window.runQuoteActionDownloadDocx = function (id) {
+    closeQuoteActions();
+    downloadFile('/api/quotes/' + id + '/download');
+  };
+
+  window.runQuoteActionDownloadPdf = function (id) {
+    closeQuoteActions();
+    downloadFile('/api/quotes/' + id + '/pdf');
+  };
+
+  window.runQuoteActionEdit = function (id) {
+    closeQuoteActions();
+    editQuote(id);
+  };
+
+  window.runQuoteActionAmend = function (id) {
+    closeQuoteActions();
+    amendQuote(id);
   };
 
   window.runQuoteActionStatus = function (id, status) {
