@@ -83,7 +83,7 @@
     var end = parseDateInput(endValue);
     if (!start || !end) return '';
     if (end < start) return '';
-    return ((end.getFullYear() - start.getFullYear()) * 12) + (end.getMonth() - start.getMonth()) + 1;
+    return getEffectiveMonthCount(startValue, endValue);
   }
 
   function getEffectiveMonthCount(startValue, endValue) {
@@ -91,7 +91,7 @@
     var end = parseDateInput(endValue);
     if (!start || !end || end < start) return 0;
     var monthDiff = ((end.getFullYear() - start.getFullYear()) * 12) + (end.getMonth() - start.getMonth());
-    return Math.max(monthDiff + (end.getDate() >= start.getDate() ? 1 : 0), 1);
+    return Math.max(monthDiff + (end.getDate() > start.getDate() ? 1 : 0), 1);
   }
 
   function calculateSowItemTotal(row) {

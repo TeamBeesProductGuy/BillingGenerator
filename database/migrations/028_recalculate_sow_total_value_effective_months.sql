@@ -1,6 +1,6 @@
--- Recalculate existing SOW total values from line-item monthly amounts.
--- amount remains the monthly amount for the role; sows.total_value becomes
--- monthly amount * quantity * effective months for each line item.
+-- Recalculate existing SOW totals with the corrected effective-month rule.
+-- A date range ending on or before the monthly anniversary does not add an extra month;
+-- only dates after the anniversary round up to the next effective month.
 
 UPDATE sows s
 SET total_value = COALESCE(t.total_value, 0),

@@ -118,7 +118,7 @@ function getEffectiveMonthCount(startValue, endValue) {
 
   const monthDiff = ((end.year - start.year) * 12) + (end.month - start.month);
   if (monthDiff < 0) return 0;
-  return Math.max(monthDiff + (end.day >= start.day ? 1 : 0), 1);
+  return Math.max(monthDiff + (end.day > start.day ? 1 : 0), 1);
 }
 
 function calculateSowItemTotal(item, sow) {
