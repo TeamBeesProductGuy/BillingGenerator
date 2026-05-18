@@ -66,6 +66,14 @@ function isMissingRelationError(error, relationName) {
   );
 }
 
+function shouldUpdateSowInPlace(existing) {
+  if (!existing) return false;
+  if (existing.base_sow_number === undefined || existing.version_number === undefined || existing.is_latest === undefined) {
+    return true;
+  }
+  return existing.status === 'Draft' || existing.status === 'Amendment Draft';
+}
+
 async function getNextRevisionNumber(baseSowNumber) {
   const { data, error } = await supabase
     .from('sows')
@@ -295,7 +303,7 @@ const SOWModel = {
     const existing = await SOWModel.findById(id);
     if (!existing) throw new Error('SOW not found');
 
-    if (existing.base_sow_number === undefined || existing.version_number === undefined || existing.is_latest === undefined) {
+    if (shouldUpdateSowInPlace(existing)) {
       const totalValue = calculateSowTotalValue(sow, items);
 
       const { error: sErr } = await supabase

@@ -639,16 +639,23 @@ const sowController = {
     if (!existing) throw new AppError(404, 'SOW not found');
     if (!isEditableStatus(existing.status)) throw new AppError(400, 'Only Draft, Amendment Draft, Signed, or Active SOWs can be edited');
     const { sow_number, client_id, quote_id, sow_date, effective_start, effective_end, notes, items } = req.body;
-    const result = await SOWModel.update(id, { sow_number, client_id, quote_id, sow_date, effective_start, effective_end, notes }, items || []);
-    await logActivity(req, {
-      module: 'sows',
-      action: 'update',
-      entityType: 'sow',
-      entityId: result.id,
-      entityLabel: result.sow_number,
-      details: { summary: 'Updated SOW ' + result.sow_number },
-    });
-    res.json({ success: true, data: { id: result.id, sow_number: result.sow_number, replaced_sow_id: id } });
+    try {
+      const result = await SOWModel.update(id, { sow_number, client_id, quote_id, sow_date, effective_start, effective_end, notes }, items || []);
+      await logActivity(req, {
+        module: 'sows',
+        action: 'update',
+        entityType: 'sow',
+        entityId: result.id,
+        entityLabel: result.sow_number,
+        details: { summary: 'Updated SOW ' + result.sow_number },
+      });
+      res.json({ success: true, data: { id: result.id, sow_number: result.sow_number, replaced_sow_id: result.id === id ? null : id } });
+    } catch (err) {
+      if (isDuplicateKeyError(err)) {
+        throw new AppError(409, 'This SOW version already exists. Refresh the SOW list and try editing the latest version.');
+      }
+      throw err;
+    }
   }),
 
   amend: catchAsync(async (req, res) => {
@@ -658,16 +665,23 @@ const sowController = {
     if (existing.status !== 'Signed' && existing.status !== 'Active') throw new AppError(400, 'Only signed or active SOWs can be amended');
 
     const { client_id, quote_id, sow_date, effective_start, effective_end, notes, items } = req.body;
-    const result = await SOWModel.createAmendment(id, { client_id, quote_id, sow_date, effective_start, effective_end, notes }, items || []);
-    await logActivity(req, {
-      module: 'sows',
-      action: 'amend',
-      entityType: 'sow',
-      entityId: result.id,
-      entityLabel: result.sow_number,
-      details: { summary: 'Created SOW amendment ' + result.sow_number },
-    });
-    res.status(201).json({ success: true, data: { id: result.id, sow_number: result.sow_number, amended_from_sow_id: id, status: 'Amendment Draft' } });
+    try {
+      const result = await SOWModel.createAmendment(id, { client_id, quote_id, sow_date, effective_start, effective_end, notes }, items || []);
+      await logActivity(req, {
+        module: 'sows',
+        action: 'amend',
+        entityType: 'sow',
+        entityId: result.id,
+        entityLabel: result.sow_number,
+        details: { summary: 'Created SOW amendment ' + result.sow_number },
+      });
+      res.status(201).json({ success: true, data: { id: result.id, sow_number: result.sow_number, amended_from_sow_id: id, status: 'Amendment Draft' } });
+    } catch (err) {
+      if (isDuplicateKeyError(err)) {
+        throw new AppError(409, 'This SOW amendment already exists. Refresh the SOW list and continue from the latest version.');
+      }
+      throw err;
+    }
   }),
 
   updateStatus: catchAsync(async (req, res) => {
