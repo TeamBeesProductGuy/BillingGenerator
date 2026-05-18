@@ -379,6 +379,7 @@
     }
     actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="viewQuote(' + q.id + ')" title="View"><span class="material-symbols-outlined text-base">visibility</span></button>';
     actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="downloadFile(\'/api/quotes/' + q.id + '/download\')" title="Download DOCX"><span class="material-symbols-outlined text-base">description</span></button>';
+    actionsHtml += '<button class="btn-secondary btn-sm inline-flex items-center" onclick="downloadFile(\'/api/quotes/' + q.id + '/pdf\')" title="Download PDF"><span class="material-symbols-outlined text-base">picture_as_pdf</span></button>';
     var VALID_TRANSITIONS = {
       Draft: ['Sent'],
       Sent: ['Accepted', 'Rejected'],

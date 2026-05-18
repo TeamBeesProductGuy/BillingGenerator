@@ -695,18 +695,21 @@ function buildQuoteDocumentXml(quote, client) {
       content.push(makeParagraph(`3. Location: ${location || '-'}`, { spacingAfter: 90, font: DEFAULT_FONT, color: '000000', size: BODY_FONT_SIZE }));
       return;
     }
-    var spacingBefore = /^Kindly issue the Purchase Order/i.test(trimmed) ? 120 : 0;
-    content.push(makeParagraph(trimmed, { spacingBefore, spacingAfter: 90, font: DEFAULT_FONT, color: '000000', size: BODY_FONT_SIZE }));
+    if (/^Kindly issue the Purchase Order/i.test(trimmed)) {
+      content.push(makeParagraph('', { spacingAfter: 90 }));
+    }
+    content.push(makeParagraph(trimmed, { spacingAfter: 90, font: DEFAULT_FONT, color: '000000', size: BODY_FONT_SIZE }));
   });
 
   if (regards) {
+    content.push(makeParagraph('', { spacingAfter: 90 }));
     content.push(makeParagraph('Regards,', {
-      spacingBefore: 120,
-      spacingAfter: 120,
+      spacingAfter: 0,
       font: DEFAULT_FONT,
       color: '000000',
       size: BODY_FONT_SIZE,
     }));
+    content.push(makeParagraph('', { spacingAfter: 90 }));
     content.push(makeParagraph(regards, {
       spacingAfter: designation ? 20 : 90,
       font: DEFAULT_FONT,

@@ -1,4 +1,3 @@
-const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 const QuoteModel = require('../models/quote.model');
@@ -6,6 +5,7 @@ const ClientModel = require('../models/client.model');
 const SOWModel = require('../models/sow.model');
 const env = require('../config/env');
 const { generateQuoteDocxBuffer } = require('../services/quoteDocx.service');
+const { convertDocxBufferToPdf } = require('../services/docxToPdf.service');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
 const { logActivity } = require('../services/activityLog.service');
@@ -582,13 +582,30 @@ const quoteController = {
     const quote = await QuoteModel.findById(parseInt(req.params.id, 10));
     if (!quote) throw new AppError(404, 'Quote not found');
     const client = await ClientModel.findById(quote.client_id);
+    const baseName = buildQuoteDocumentBaseName(quote, client);
+    const docxBuffer = await generateQuoteDocxBuffer(quote, client);
+    let pdfBuffer;
 
-    const doc = new PDFDocument({ margin: 50 });
+    try {
+      pdfBuffer = await convertDocxBufferToPdf(docxBuffer, baseName);
+    } catch (err) {
+      if (err.code === 'DOCX_TO_PDF_UNAVAILABLE') {
+        throw new AppError(500, 'PDF conversion requires LibreOffice to be installed on the server');
+      }
+      if (err.code === 'DOCX_TO_PDF_CONVERSION_FAILED') {
+        const causeMessage = err.cause && err.cause.message ? `: ${err.cause.message}` : '';
+        throw new AppError(500, `PDF conversion failed${causeMessage}`);
+      }
+      throw new AppError(500, 'PDF conversion failed');
+    }
+
+    const pdfOutputDir = path.join(env.outputDir, 'quote-pdfs');
+    fs.mkdirSync(pdfOutputDir, { recursive: true });
+    fs.writeFileSync(path.join(pdfOutputDir, `${baseName}.pdf`), pdfBuffer);
+
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=Quote_${quote.quote_number}.pdf`);
-    doc.pipe(res);
-    drawQuotePdf(doc, quote, client);
-    doc.end();
+    res.setHeader('Content-Disposition', `attachment; filename=${baseName}.pdf`);
+    res.send(pdfBuffer);
   }),
 
   convertToSOW: catchAsync(async (req, res) => {
