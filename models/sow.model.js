@@ -143,6 +143,21 @@ function calculateSowTotalValue(sow, items) {
   return Math.round(total * 100) / 100;
 }
 
+function buildSowItemPayload(item, sow) {
+  return {
+    role_position: item.role_position,
+    quantity: item.quantity,
+    amount: item.amount,
+    valid_from: item.valid_from || sow.effective_start,
+    valid_to: item.valid_to || sow.effective_end,
+  };
+}
+
+function isForeignKeyReferenceError(error) {
+  const message = String(error && error.message ? error.message : '').toLowerCase();
+  return Boolean(error && (error.code === '23503' || message.includes('foreign key constraint')));
+}
+
 const SOWModel = {
   async findAll(clientId, status, options) {
     const includeLinked = Boolean(options && options.includeLinked && clientId);
@@ -322,20 +337,48 @@ const SOWModel = {
         .eq('id', id);
       if (sErr) throw new Error(sErr.message);
 
-      const { error: dErr } = await supabase.from('sow_items').delete().eq('sow_id', id);
-      if (dErr) throw new Error(dErr.message);
+      const existingItems = Array.isArray(existing.items) ? existing.items : [];
+      const usedExistingIds = new Set();
 
-      if (items.length > 0) {
-        const itemRows = items.map((item) => ({
-          sow_id: id,
-          role_position: item.role_position,
-          quantity: item.quantity,
-          amount: item.amount,
-          valid_from: item.valid_from || sow.effective_start,
-          valid_to: item.valid_to || sow.effective_end,
-        }));
-        const { error: iErr } = await supabase.from('sow_items').insert(itemRows);
-        if (iErr) throw new Error(iErr.message);
+      for (let index = 0; index < items.length; index += 1) {
+        const item = items[index];
+        const requestedId = item.id ? Number(item.id) : null;
+        const matchingExisting = requestedId
+          ? existingItems.find((existingItem) => Number(existingItem.id) === requestedId)
+          : existingItems[index];
+
+        if (matchingExisting && matchingExisting.id) {
+          usedExistingIds.add(Number(matchingExisting.id));
+          const { error: uErr } = await supabase
+            .from('sow_items')
+            .update(buildSowItemPayload(item, sow))
+            .eq('id', matchingExisting.id)
+            .eq('sow_id', id);
+          if (uErr) throw new Error(uErr.message);
+        } else {
+          const { error: iErr } = await supabase
+            .from('sow_items')
+            .insert({
+              sow_id: id,
+              ...buildSowItemPayload(item, sow),
+            });
+          if (iErr) throw new Error(iErr.message);
+        }
+      }
+
+      const removedIds = existingItems
+        .map((item) => Number(item.id))
+        .filter((itemId) => itemId && !usedExistingIds.has(itemId));
+      if (removedIds.length > 0) {
+        const { error: dErr } = await supabase
+          .from('sow_items')
+          .delete()
+          .eq('sow_id', id)
+          .in('id', removedIds);
+        if (isForeignKeyReferenceError(dErr)) {
+          throw new Error('This SOW has line items linked to rate cards. Edit the existing lines instead of removing them.');
+        }
+        if (dErr) throw new Error(dErr.message);
       }
 
       return { id, sow_number: sow.sow_number || existing.sow_number };

@@ -575,6 +575,7 @@
   function addSowItemRow(item) {
     var tbody = document.getElementById('sowItemsBody');
     var row = document.createElement('tr');
+    if (item && item.id) row.setAttribute('data-sow-item-id', item.id);
     var defaultFrom = (item && item.valid_from) || document.getElementById('sowStart').value || '';
     var defaultTo = (item && item.valid_to) || document.getElementById('sowEnd').value || '';
     var sowStart = document.getElementById('sowStart').value || '';
@@ -720,7 +721,9 @@
     }
     var items = [];
     document.querySelectorAll('#sowItemsBody tr').forEach(function (row) {
+      var itemId = parseInt(row.getAttribute('data-sow-item-id'), 10);
       items.push({
+        id: Number.isFinite(itemId) ? itemId : undefined,
         role_position: row.querySelector('.si-role').value.trim(),
         quantity: parseInt(row.querySelector('.si-qty').value, 10) || 1,
         amount: parseFloat(row.querySelector('.si-amt').value) || 0,

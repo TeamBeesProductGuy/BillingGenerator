@@ -1,6 +1,11 @@
 const Joi = require('joi');
 
 const sowItem = Joi.object({
+  id: Joi.number()
+    .integer()
+    .positive()
+    .optional(),
+
   role_position: Joi.string()
     .trim()
     .min(1)

@@ -25,7 +25,13 @@ function normalizeUnexpectedError(err) {
     return new AppError(403, 'You do not have permission to change this record.');
   }
 
-  if (message.includes('violates check constraint') || message.includes('invalid input syntax') || message.includes('null value in column')) {
+  if (
+    message.includes('violates check constraint') ||
+    message.includes('invalid input syntax') ||
+    message.includes('null value in column') ||
+    message.includes('foreign key constraint') ||
+    message.includes('linked to rate cards')
+  ) {
     return new AppError(400, rawMessage);
   }
 
