@@ -1,0 +1,84 @@
+<div class="p-5 sm:p-8 space-y-6 max-w-5xl mx-auto w-full fade-in">
+    <section class="stat-card !p-0 overflow-hidden">
+        <div class="px-6 py-5 border-b border-outline-variant/8 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                <span class="material-symbols-outlined">manage_accounts</span>
+            </div>
+            <div>
+                <h3 class="font-headline font-bold text-lg text-on-surface">Account Settings</h3>
+                <p class="text-sm text-on-surface-variant">Manage your profile details and password.</p>
+            </div>
+        </div>
+        <div class="p-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <form id="settingsNameForm" class="space-y-5">
+                <div>
+                    <label class="block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant mb-1.5">User Name</label>
+                    <input id="settingsName" type="text" data-no-uppercase placeholder="Your name">
+                </div>
+                <div id="settingsProfileNotice" class="text-xs text-on-surface-variant leading-relaxed">
+                    User name changes are sent for admin approval.
+                </div>
+                <button type="submit" class="btn-primary inline-flex items-center gap-2">
+                    <span class="material-symbols-outlined text-base">badge</span><span id="settingsNameButtonLabel">Request Name Update</span>
+                </button>
+            </form>
+
+            <form id="settingsEmailForm" class="space-y-5">
+                <div>
+                    <label class="block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant mb-1.5">Email ID</label>
+                    <input id="settingsEmail" type="email" data-no-uppercase placeholder="name@company.com">
+                </div>
+                <div id="settingsEmailNotice" class="text-xs text-on-surface-variant leading-relaxed">
+                    Email changes are sent for admin approval.
+                </div>
+                <button type="submit" class="btn-primary inline-flex items-center gap-2">
+                    <span class="material-symbols-outlined text-base">alternate_email</span><span id="settingsEmailButtonLabel">Request Email Update</span>
+                </button>
+            </form>
+
+            <form id="settingsPasswordForm" class="space-y-5">
+                <div>
+                    <label class="block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant mb-1.5">New Password</label>
+                    <input id="settingsPassword" type="password" data-no-uppercase minlength="8" autocomplete="new-password" placeholder="At least 8 characters">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant mb-1.5">Confirm Password</label>
+                    <input id="settingsConfirmPassword" type="password" data-no-uppercase minlength="8" autocomplete="new-password" placeholder="Re-enter password">
+                </div>
+                <div id="settingsPasswordNotice" class="text-xs text-on-surface-variant leading-relaxed">
+                    Your first password change is applied immediately. Later password changes require admin approval.
+                </div>
+                <button type="submit" class="btn-primary inline-flex items-center gap-2">
+                    <span class="material-symbols-outlined text-base">lock_reset</span>Change Password
+                </button>
+            </form>
+        </div>
+    </section>
+
+    <section id="settingsPendingRequestsSection" class="stat-card !p-0 overflow-hidden">
+        <div class="px-6 py-4 border-b border-outline-variant/8 flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-warning text-lg">pending_actions</span>
+                <h4 class="font-headline font-semibold text-sm text-on-surface">My Pending Requests</h4>
+            </div>
+            <button id="settingsRefreshApprovals" type="button" class="btn-secondary btn-sm inline-flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-sm">refresh</span>Refresh
+            </button>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="stitch-table">
+                <thead>
+                    <tr>
+                        <th>Action</th>
+                        <th>Message</th>
+                        <th>Requested</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="settingsApprovalsBody">
+                    <tr><td colspan="4" class="text-center text-on-surface-variant py-8">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>

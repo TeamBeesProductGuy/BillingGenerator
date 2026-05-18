@@ -8,10 +8,11 @@ const { AppError } = require('../middleware/errorHandler');
 const { adminSupabase, runWithRequestClient } = require('../config/database');
 const { logActivity } = require('./activityLog.service');
 
-const ADMIN_EMAIL = 'jatinder@teambeescorp.com';
+const ADMIN_EMAILS = ['jatinder@teambeescorp.com', 'jatinder@teambeescrop.com'];
+const ADMIN_EMAIL = ADMIN_EMAILS[0];
 
 function isAdminUser(user) {
-  return String(user && user.email ? user.email : '').trim().toLowerCase() === ADMIN_EMAIL;
+  return ADMIN_EMAILS.includes(String(user && user.email ? user.email : '').trim().toLowerCase());
 }
 
 function requesterName(user) {
@@ -61,6 +62,35 @@ async function getClientAbbreviation(clientId) {
 function buildMessage(user, actionText, moduleText, label) {
   const who = requesterName(user) || 'User';
   return `${who} requested ${actionText} action for ${moduleText} ${label}`;
+}
+
+function buildProfileChangeRequest(req, changes) {
+  const payload = changes || {};
+  const labels = [];
+  if (payload.name !== undefined) labels.push('name');
+  if (payload.email !== undefined) labels.push('email');
+  if (payload.password !== undefined) labels.push('password');
+  const actionLabel = labels.length ? `Change ${labels.join(', ')}` : 'Change Profile';
+  const actionKey = payload.password !== undefined && labels.length === 1
+    ? 'profile.password'
+    : 'profile.update';
+  return {
+    module: 'profile',
+    action_key: actionKey,
+    action_label: actionLabel,
+    entity_type: 'user_profile',
+    entity_id: req.user.id,
+    entity_label: req.user.email || req.user.id,
+    client_id: null,
+    client_name: 'Account',
+    role_description: 'User profile',
+    permission_message: buildMessage(req.user, actionLabel.toUpperCase(), 'User Profile', req.user.email || req.user.id),
+    request_payload: {
+      user_id: req.user.id,
+      current_email: req.user.email || null,
+      ...payload,
+    },
+  };
 }
 
 function joinDescriptions(values) {
@@ -311,6 +341,43 @@ async function executeApprovedRequest(req, request) {
       return { oldPoId: request.entity_id, newPoId, po_number: payload.po_number };
     }
 
+    if (request.action_key === 'profile.update' || request.action_key === 'profile.password') {
+      const userId = payload.user_id || request.entity_id;
+      const { data: existing, error: existingError } = await adminSupabase.auth.admin.getUserById(userId);
+      if (existingError) throw new Error(existingError.message);
+      if (!existing || !existing.user) throw new AppError(404, 'User not found');
+
+      const currentMeta = existing.user.user_metadata || {};
+      const nextMeta = { ...currentMeta };
+      const update = {};
+      if (payload.name !== undefined) {
+        nextMeta.full_name = String(payload.name || '').trim();
+        nextMeta.name = nextMeta.full_name;
+        update.user_metadata = nextMeta;
+      }
+      if (payload.email !== undefined) {
+        update.email = String(payload.email || '').trim().toLowerCase();
+        update.email_confirm = true;
+      }
+      if (payload.password !== undefined) {
+        update.password = String(payload.password || '');
+        nextMeta.password_changed_once = true;
+        update.user_metadata = nextMeta;
+      }
+
+      const { data, error } = await adminSupabase.auth.admin.updateUserById(userId, update);
+      if (error) throw new Error(error.message);
+      await logActivity(req, {
+        module: 'profile',
+        action: 'update',
+        entityType: 'user_profile',
+        entityId: userId,
+        entityLabel: payload.email || payload.current_email || request.entity_label,
+        details: { summary: 'Admin approved profile update for ' + (payload.current_email || request.entity_label), approval_request_id: request.id },
+      });
+      return { user: data.user ? { id: data.user.id, email: data.user.email } : null };
+    }
+
     throw new AppError(400, 'Unsupported approval action: ' + request.action_key);
   });
 }
@@ -326,5 +393,6 @@ module.exports = {
   buildPoStatusRequest,
   buildPoRenewRequest,
   buildPoDeleteRequest,
+  buildProfileChangeRequest,
   executeApprovedRequest,
 };

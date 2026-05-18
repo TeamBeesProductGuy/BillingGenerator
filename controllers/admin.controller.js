@@ -47,10 +47,26 @@ function normalizeUser(user) {
     id: user.id,
     email: user.email,
     name: meta.full_name || meta.name || '',
+    password_changed_once: Boolean(meta.password_changed_once),
     created_at: user.created_at,
     last_sign_in_at: user.last_sign_in_at,
     email_confirmed_at: user.email_confirmed_at,
   };
+}
+
+function redactApprovalPayload(request) {
+  if (!request || !request.request_payload || request.action_key !== 'profile.password') return request;
+  return {
+    ...request,
+    request_payload: {
+      ...request.request_payload,
+      password: request.request_payload.password ? '[redacted]' : request.request_payload.password,
+    },
+  };
+}
+
+function redactApprovalPayloads(requests) {
+  return (requests || []).map(redactApprovalPayload);
 }
 
 function getLoginUrl(req) {
@@ -174,7 +190,7 @@ const adminController = {
       status: req.query.status,
       module: req.query.module,
     });
-    res.json({ success: true, data: await enrichApprovalRoleDescriptions(requests) });
+    res.json({ success: true, data: redactApprovalPayloads(await enrichApprovalRoleDescriptions(requests)) });
   }),
 
   listUsers: catchAsync(async (req, res) => {
@@ -209,6 +225,8 @@ const adminController = {
       email_confirm: true,
       user_metadata: {
         full_name: name,
+        name,
+        password_changed_once: false,
       },
     });
     if (error) throw new Error(error.message);
@@ -257,7 +275,7 @@ const adminController = {
       userId: req.user.id,
       status: req.query.status,
     });
-    res.json({ success: true, data: requests });
+    res.json({ success: true, data: redactApprovalPayloads(requests) });
   }),
 
   approve: catchAsync(async (req, res) => {
@@ -269,7 +287,7 @@ const adminController = {
 
     const result = await executeApprovedRequest(req, request);
     const updated = await AdminApprovalModel.updateStatus(id, 'Approved', req.user);
-    res.json({ success: true, data: { request: updated, result } });
+    res.json({ success: true, data: { request: redactApprovalPayload(updated), result } });
   }),
 
   reject: catchAsync(async (req, res) => {
@@ -280,7 +298,7 @@ const adminController = {
     if (request.status !== 'Pending') throw new AppError(400, 'Only pending requests can be rejected');
 
     const updated = await AdminApprovalModel.updateStatus(id, 'Rejected', req.user);
-    res.json({ success: true, data: { request: updated } });
+    res.json({ success: true, data: { request: redactApprovalPayload(updated) } });
   }),
 };
 

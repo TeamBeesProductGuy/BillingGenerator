@@ -43,8 +43,8 @@
     // -----------------------------------------------------------
     //  Routes & State
     // -----------------------------------------------------------
-    var ADMIN_EMAIL = "jatinder@teambeescorp.com";
-    var ROUTES = ["admin", "billing", "rate-cards", "attendance", "quotes", "sows", "purchase-orders", "clients", "orders", "reminders", "activity-logs"];
+    var ADMIN_EMAILS = ["jatinder@teambeescorp.com", "jatinder@teambeescrop.com"];
+    var ROUTES = ["admin", "billing", "rate-cards", "attendance", "quotes", "sows", "purchase-orders", "clients", "orders", "reminders", "activity-logs", "settings"];
     var DEFAULT_ROUTE = "billing";
     var SIGNIN_PATH = "/signin";
     var currentPage = null;
@@ -61,7 +61,8 @@
         "purchase-orders": "Purchase Orders",
         "orders": "Orders",
         "reminders": "Reminders",
-        "activity-logs": "Activity Logs"
+        "activity-logs": "Activity Logs",
+        "settings": "Settings"
     };
 
     // -----------------------------------------------------------
@@ -127,7 +128,7 @@
     }
 
     function isCurrentUserAdmin() {
-        return Boolean(currentSession && currentSession.user && String(currentSession.user.email || "").toLowerCase() === ADMIN_EMAIL);
+        return Boolean(currentSession && currentSession.user && ADMIN_EMAILS.includes(String(currentSession.user.email || "").toLowerCase()));
     }
 
     function getDefaultRoute() {
@@ -158,6 +159,8 @@
     };
 
     window.handleLogout = async function () {
+        var confirmed = await confirmAction("Log out?", "Are you sure you want to log out?", { okLabel: "Yes", cancelLabel: "Cancel" });
+        if (!confirmed) return;
         if (supabaseClient) {
             await supabaseClient.auth.signOut();
         }
@@ -516,15 +519,20 @@
     // -----------------------------------------------------------
     //  Confirm Dialog (with Escape support)
     // -----------------------------------------------------------
-    window.confirmAction = function confirmAction(titleOrMessage, message) {
+    window.confirmAction = function confirmAction(titleOrMessage, message, options) {
         var title, body;
         if (message === undefined) { title = "Confirm"; body = titleOrMessage; }
         else { title = titleOrMessage; body = message; }
+        options = options || {};
 
         return new Promise(function (resolve) {
             var modal = document.getElementById("confirmModal");
             document.getElementById("confirmTitle").textContent = title;
             document.getElementById("confirmBody").textContent = body;
+            var okBtn = document.getElementById("confirmOkBtn");
+            var cancelBtn = document.getElementById("confirmCancelBtn");
+            okBtn.textContent = options.okLabel || "Confirm";
+            cancelBtn.textContent = options.cancelLabel || "Cancel";
             modal.classList.remove("hidden");
             modal.classList.add("flex");
             document.body.classList.add("modal-open");
@@ -539,14 +547,14 @@
                 okBtn.removeEventListener("click", onOk);
                 cancelBtn.removeEventListener("click", onCancel);
                 document.removeEventListener("keydown", onEscape);
+                okBtn.textContent = "Confirm";
+                cancelBtn.textContent = "Cancel";
                 resolve(resolved);
             }
             function onOk() { resolved = true; cleanup(); }
             function onCancel() { cleanup(); }
             function onEscape(e) { if (e.key === "Escape") cleanup(); }
 
-            var okBtn = document.getElementById("confirmOkBtn");
-            var cancelBtn = document.getElementById("confirmCancelBtn");
             okBtn.addEventListener("click", onOk);
             cancelBtn.addEventListener("click", onCancel);
             document.addEventListener("keydown", onEscape);

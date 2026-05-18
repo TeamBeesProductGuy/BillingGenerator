@@ -1155,6 +1155,24 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
     gap: 0.55rem;
 }
 
+#adminUsersTable .table-cell-box {
+    min-height: 2.9rem;
+}
+
+#adminUsersTable th,
+#adminUsersTable td {
+    white-space: nowrap;
+}
+
+#adminUsersTable .table-cell-stack {
+    white-space: normal;
+    min-width: 13rem;
+}
+
+#adminUsersTable .admin-password-cell {
+    min-width: 6.5rem;
+}
+
 .quote-items-stack {
     display: flex;
     flex-direction: column;

@@ -26,6 +26,12 @@
             : '<span class="badge-warning">Unconfirmed</span>';
     }
 
+    function passwordStatusBadge(user) {
+        return user.password_changed_once
+            ? '<span class="badge-success">Changed</span>'
+            : '<span class="badge-warning" title="First password change has not been completed">Pending</span>';
+    }
+
     async function loadStats() {
         try {
             var res = await apiCall("GET", "/api/admin/stats");
@@ -65,7 +71,7 @@
             var res = await apiCall("GET", "/api/admin/users");
             var rows = res.data || [];
             if (rows.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-on-surface-variant py-8">No users found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-on-surface-variant py-8">No users found</td></tr>';
                 return;
             }
             tbody.innerHTML = rows.map(function (user) {
@@ -74,12 +80,13 @@
                     '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(user.created_at) + '</span></div></td>' +
                     '<td><div class="table-cell-box"><span class="table-date-chip">' + (user.last_sign_in_at ? formatDate(user.last_sign_in_at) : 'Never') + '</span></div></td>' +
                     '<td><div class="table-cell-box">' + userStatusBadge(user) + '</div></td>' +
+                    '<td><div class="table-cell-box table-cell-center admin-password-cell">' + passwordStatusBadge(user) + '</div></td>' +
                     '<td class="text-center"><div class="table-cell-box table-cell-center">' + renderUserActions(user) + '</div></td>' +
                     '</tr>';
             }).join("");
             initTableSort("adminUsersTable");
         } catch (err) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-error py-8">' + escapeHtml(err.message) + '</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-error py-8">' + escapeHtml(err.message) + '</td></tr>';
         }
     }
 
