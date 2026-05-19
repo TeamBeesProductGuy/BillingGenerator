@@ -535,10 +535,18 @@
     };
     try {
       if (window.poEdit) {
-        await apiCall('PUT', '/api/purchase-orders/' + window.poEdit, data);
+        var updateRes = await apiCall('PUT', '/api/purchase-orders/' + window.poEdit, data);
+        if (handleApprovalResponse(updateRes, loadPOs)) {
+          closePOModal();
+          return;
+        }
         showToast('PO updated', 'success');
       } else {
-        await apiCall('POST', '/api/purchase-orders', data);
+        var createRes = await apiCall('POST', '/api/purchase-orders', data);
+        if (handleApprovalResponse(createRes, loadPOs)) {
+          closePOModal();
+          return;
+        }
         showToast('PO linked', 'success');
       }
       closePOModal();

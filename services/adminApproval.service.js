@@ -226,6 +226,33 @@ async function buildPoDeleteRequest(req, po) {
   };
 }
 
+async function buildPoCrossClientCreateRequest(req, payload, sow) {
+  const clientName = await getClientAbbreviation(payload.client_id) || null;
+  const sourceClientName = await getClientAbbreviation(sow.client_id) || null;
+  return {
+    module: 'purchase_orders',
+    action_key: 'po.cross_client_sow_create',
+    action_label: 'Create PO With Cross-Client SOW',
+    entity_type: 'purchase_order',
+    entity_id: payload.po_number || 'new',
+    entity_label: payload.po_number || 'New PO',
+    client_id: payload.client_id,
+    client_name: clientName,
+    role_description: sow.sow_number || null,
+    permission_message: buildMessage(
+      req.user,
+      'CREATE PO WITH CROSS-CLIENT SOW',
+      'PO',
+      `${payload.po_number || 'New PO'} using SOW #${sow.sow_number || sow.id} from ${sourceClientName || 'another client'}`
+    ),
+    request_payload: {
+      ...payload,
+      sow_owner_client_id: sow.client_id,
+      sow_number: sow.sow_number || null,
+    },
+  };
+}
+
 async function executeApprovedRequest(req, request) {
   return runWithRequestClient(adminSupabase, async () => {
     const payload = request.request_payload || {};
@@ -341,6 +368,32 @@ async function executeApprovedRequest(req, request) {
       return { oldPoId: request.entity_id, newPoId, po_number: payload.po_number };
     }
 
+    if (request.action_key === 'po.cross_client_sow_create') {
+      const sow = await SOWModel.findById(Number(payload.sow_id));
+      if (!sow) throw new AppError(404, 'SOW not found');
+      await SOWModel.ensureClientLink(Number(payload.sow_id), Number(payload.client_id));
+      const result = await POModel.create({
+        po_number: payload.po_number,
+        client_id: payload.client_id,
+        po_date: payload.po_date,
+        start_date: payload.start_date,
+        end_date: payload.end_date,
+        po_value: payload.po_value,
+        alert_threshold: payload.alert_threshold,
+        sow_id: payload.sow_id,
+        notes: payload.notes,
+      });
+      await logActivity(req, {
+        module: 'purchase_orders',
+        action: 'create',
+        entityType: 'purchase_order',
+        entityId: result.id,
+        entityLabel: result.po_number,
+        details: { summary: 'Admin approved cross-client SOW PO creation ' + result.po_number, approval_request_id: request.id },
+      });
+      return { id: result.id, po_number: result.po_number };
+    }
+
     if (request.action_key === 'profile.update' || request.action_key === 'profile.password') {
       const userId = payload.user_id || request.entity_id;
       const { data: existing, error: existingError } = await adminSupabase.auth.admin.getUserById(userId);
@@ -393,6 +446,7 @@ module.exports = {
   buildPoStatusRequest,
   buildPoRenewRequest,
   buildPoDeleteRequest,
+  buildPoCrossClientCreateRequest,
   buildProfileChangeRequest,
   executeApprovedRequest,
 };

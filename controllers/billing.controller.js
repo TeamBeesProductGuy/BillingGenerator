@@ -392,6 +392,63 @@ function buildManagerServiceDescription(item) {
   return `${roleLine} for\nSow no. ${normalizeSowLabel(item.sow_number)} (${candidate})`;
 }
 
+function uniqueJoined(values, separator = ', ') {
+  const seen = new Set();
+  return (values || [])
+    .map((value) => String(value || '').trim())
+    .filter((value) => {
+      const key = value.toLowerCase();
+      if (!value || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .join(separator);
+}
+
+function aggregateManagerRows(rows) {
+  const map = new Map();
+  (rows || []).forEach((item) => {
+    const key = [
+      String(item.reporting_manager || 'Unassigned').trim().toLowerCase(),
+      String(item.emp_code || '').trim().toLowerCase(),
+      String(item.emp_name || '').trim().toLowerCase(),
+    ].join('|');
+    if (!map.has(key)) {
+      map.set(key, {
+        ...item,
+        invoice_amount: 0,
+        billing_hours: item.billing_hours !== null && item.billing_hours !== undefined ? 0 : null,
+        _sowNumbers: [],
+        _serviceDescriptions: [],
+      });
+    }
+    const row = map.get(key);
+    row.invoice_amount = Math.round((Number(row.invoice_amount || 0) + Number(item.invoice_amount || 0)) * 100) / 100;
+    if (row.billing_hours !== null) {
+      row.billing_hours = Math.round((Number(row.billing_hours || 0) + Number(item.billing_hours || 0)) * 100) / 100;
+    }
+    row._sowNumbers.push(item.sow_number);
+    row._serviceDescriptions.push(item.service_description || item.role_position);
+  });
+
+  return Array.from(map.values()).map((row) => {
+    const serviceDescription = uniqueJoined(row._serviceDescriptions) || row.service_description || row.role_position;
+    const sowNumber = uniqueJoined(row._sowNumbers.map(normalizeSowLabel), ' & ');
+    return {
+      ...row,
+      service_description: serviceDescription,
+      role_position: serviceDescription,
+      sow_number: sowNumber,
+      service_description_html: buildManagerServiceDescription({
+        ...row,
+        service_description: serviceDescription,
+        role_position: serviceDescription,
+        sow_number: sowNumber,
+      }),
+    };
+  });
+}
+
 function resolveUserDisplayName(user) {
   if (!user) return '';
   const metadata = user.user_metadata || {};
@@ -951,10 +1008,7 @@ const billingController = {
       throw new AppError(404, 'No service request items found for this reporting manager');
     }
 
-    const decoratedRows = rows.map((item) => ({
-      ...item,
-      service_description_html: buildManagerServiceDescription(item),
-    }));
+    const decoratedRows = aggregateManagerRows(rows);
 
     const draft = await createManagerApprovalDraft({
       reportingManager: managerName,

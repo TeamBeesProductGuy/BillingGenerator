@@ -64,41 +64,8 @@ const profileController = {
     res.json({ success: true, data: normalizeUser({ ...user, is_admin: isAdminUser(req.user) }) });
   }),
 
-  requestUpdate: catchAsync(async (req, res) => {
-    const changes = {};
-    if (req.body.name !== undefined) {
-      changes.name = String(req.body.name || '').trim();
-      if (!changes.name) throw new AppError(400, 'Name is required');
-    }
-    if (req.body.email !== undefined) {
-      changes.email = String(req.body.email || '').trim().toLowerCase();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(changes.email)) throw new AppError(400, 'Valid email is required');
-    }
-    if (Object.keys(changes).length === 0) throw new AppError(400, 'No profile changes submitted');
-
-    if (isAdminUser(req.user)) {
-      const existing = await getFreshUser(req.user.id);
-      const meta = existing.user_metadata || {};
-      const update = {};
-      if (changes.name !== undefined) update.user_metadata = { ...meta, full_name: changes.name, name: changes.name };
-      if (changes.email !== undefined) {
-        update.email = changes.email;
-        update.email_confirm = true;
-      }
-      const { data, error } = await adminSupabase.auth.admin.updateUserById(req.user.id, update);
-      if (error) throw new Error(error.message);
-      await logActivity(req, {
-        module: 'profile',
-        action: 'update',
-        entityType: 'user_profile',
-        entityId: req.user.id,
-        entityLabel: data.user ? data.user.email : req.user.email,
-        details: { summary: 'Admin updated own profile' },
-      });
-      return res.json({ success: true, data: normalizeUser({ ...data.user, is_admin: true }) });
-    }
-
-    return createProfileApproval(req, res, changes);
+  requestUpdate: catchAsync(async (_req, _res) => {
+    throw new AppError(403, 'User name and email changes are managed by admin only');
   }),
 
   changePassword: catchAsync(async (req, res) => {

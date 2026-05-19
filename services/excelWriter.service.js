@@ -103,6 +103,57 @@ function buildServiceDescription(item) {
   return `${base} (${item.emp_name})`;
 }
 
+function uniqueJoined(values, separator = ', ') {
+  const seen = new Set();
+  return (values || [])
+    .map((value) => String(value || '').trim())
+    .filter((value) => {
+      const key = value.toLowerCase();
+      if (!value || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .join(separator);
+}
+
+function aggregateManagerRows(rows) {
+  const groups = new Map();
+  (rows || []).forEach((item) => {
+    const key = [
+      String(item.reporting_manager || '').trim().toLowerCase(),
+      String(item.emp_code || '').trim().toLowerCase(),
+      String(item.emp_name || '').trim().toLowerCase(),
+    ].join('|');
+    if (!groups.has(key)) {
+      groups.set(key, {
+        ...item,
+        invoice_amount: 0,
+        billing_hours: 0,
+        _sowNumbers: [],
+        _serviceDescriptions: [],
+      });
+    }
+    const existing = groups.get(key);
+    existing.invoice_amount += Number(item.invoice_amount || 0);
+    const billableHours = item.billing_hours !== null && item.billing_hours !== undefined
+      ? Number(item.billing_hours || 0)
+      : Math.round((Number(item.chargeable_days || 0) * 8.5) * 100) / 100;
+    existing.billing_hours += billableHours;
+    existing._sowNumbers.push(item.sow_number);
+    existing._serviceDescriptions.push(item.service_description);
+  });
+
+  return Array.from(groups.values()).map((item) => ({
+    ...item,
+    invoice_amount: Math.round(Number(item.invoice_amount || 0) * 100) / 100,
+    billing_hours: Math.round(Number(item.billing_hours || 0) * 100) / 100,
+    sow_number: uniqueJoined(item._sowNumbers, ' & ') || item.sow_number,
+    service_description: uniqueJoined(item._serviceDescriptions) || item.service_description,
+    _sowNumbers: undefined,
+    _serviceDescriptions: undefined,
+  }));
+}
+
 function managerKey(value) {
   return String(value || 'Unassigned').trim() || 'Unassigned';
 }
@@ -223,6 +274,7 @@ function populateBillingWorkbook(workbook, billingItems, errors, options = {}) {
 
   let currentRow = 1;
   [...managerGroups.entries()].sort((a, b) => a[0].localeCompare(b[0])).forEach(([manager, rows]) => {
+    const displayRows = aggregateManagerRows(rows);
     managerSheet.mergeCells(currentRow, 1, currentRow, 8);
     const titleCell = managerSheet.getCell(currentRow, 1);
     titleCell.value = manager;
@@ -244,7 +296,7 @@ function populateBillingWorkbook(workbook, billingItems, errors, options = {}) {
     styleHeader(managerSheet.getRow(currentRow), 'FF2F5496');
     currentRow += 1;
 
-    rows.forEach((item, index) => {
+    displayRows.forEach((item, index) => {
       const billableHours = item.billing_hours !== null && item.billing_hours !== undefined
         ? item.billing_hours
         : Math.round((Number(item.chargeable_days || 0) * 8.5) * 100) / 100;
@@ -261,7 +313,7 @@ function populateBillingWorkbook(workbook, billingItems, errors, options = {}) {
       currentRow += 1;
     });
 
-    const managerTotal = rows.reduce((sum, item) => sum + Number(item.invoice_amount || 0), 0);
+    const managerTotal = displayRows.reduce((sum, item) => sum + Number(item.invoice_amount || 0), 0);
     const totalRow = managerSheet.getRow(currentRow);
     totalRow.values = ['', 'TOTAL', '', '', '', Math.round(managerTotal * 100) / 100];
     totalRow.font = { bold: true };

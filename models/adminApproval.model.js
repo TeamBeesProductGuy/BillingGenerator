@@ -67,6 +67,21 @@ const AdminApprovalModel = {
     return data || [];
   },
 
+  async count(filters) {
+    const safeFilters = filters || {};
+    let query = adminSupabase
+      .from(TABLE)
+      .select('id', { count: 'exact', head: true });
+
+    if (safeFilters.status) query = query.eq('status', normalizeStatus(safeFilters.status));
+    if (safeFilters.module) query = query.eq('module', safeFilters.module);
+    if (safeFilters.mine && safeFilters.userId) query = query.eq('requester_user_id', safeFilters.userId);
+
+    const { count, error } = await query;
+    if (error) throw new Error(error.message);
+    return count || 0;
+  },
+
   async findById(id) {
     const { data, error } = await supabase
       .from(TABLE)

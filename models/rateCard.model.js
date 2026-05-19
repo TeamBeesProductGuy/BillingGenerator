@@ -1,4 +1,4 @@
-const { supabase } = require('../config/database');
+const { adminSupabase } = require('../config/database');
 
 function isMissingColumnError(error, columnName) {
   return Boolean(error && error.message && error.message.includes('column') && error.message.includes(columnName));
@@ -22,7 +22,7 @@ function throwRateCardSowItemMigrationError() {
 
 const RateCardModel = {
   async findAll(clientId) {
-    let query = supabase
+    let query = adminSupabase
       .from('rate_cards_view')
       .select('*')
       .eq('is_active', true);
@@ -38,7 +38,7 @@ const RateCardModel = {
   },
 
   async findById(id) {
-    const { data, error } = await supabase
+    const { data, error } = await adminSupabase
       .from('rate_cards_view')
       .select('*')
       .eq('id', id)
@@ -48,8 +48,7 @@ const RateCardModel = {
   },
 
   async findByEmpCode(empCode, clientId) {
-    let query = supabase
-      .from('rate_cards_view')
+    let query = adminSupabase.from('rate_cards_view')
       .select('*')
       .eq('emp_code', empCode)
       .eq('client_id', clientId)
@@ -60,8 +59,7 @@ const RateCardModel = {
   },
 
   async findMatchingByEmpCode(empCode, clientId, options = {}) {
-    let query = supabase
-      .from('rate_cards_view')
+    let query = adminSupabase.from('rate_cards_view')
       .select('*')
       .eq('emp_code', empCode)
       .eq('client_id', clientId)
@@ -74,8 +72,7 @@ const RateCardModel = {
   },
 
   async findActiveByEmpClient(empCode, clientId) {
-    const { data, error } = await supabase
-      .from('rate_cards_view')
+    const { data, error } = await adminSupabase.from('rate_cards_view')
       .select('*')
       .eq('emp_code', empCode)
       .eq('client_id', clientId)
@@ -86,8 +83,7 @@ const RateCardModel = {
   },
 
   async findActiveByEmpCode(empCode) {
-    const { data, error } = await supabase
-      .from('rate_cards_view')
+    const { data, error } = await adminSupabase.from('rate_cards_view')
       .select('id, client_id, client_name, emp_code, emp_name, reporting_manager, leaves_allowed')
       .eq('emp_code', empCode)
       .eq('is_active', true)
@@ -97,8 +93,7 @@ const RateCardModel = {
   },
 
   async create(data) {
-    let { data: row, error } = await supabase
-      .from('rate_cards')
+    let { data: row, error } = await adminSupabase.from('rate_cards')
       .insert({
         client_id: data.client_id,
         emp_code: data.emp_code,
@@ -163,8 +158,7 @@ const RateCardModel = {
       is_active: true,
       updated_at: new Date().toISOString(),
     }));
-    let result = await supabase
-      .from('rate_cards')
+    let result = await adminSupabase.from('rate_cards')
       .upsert(rows, { onConflict: 'client_id,emp_code,sow_id,sow_item_id' })
       .select('id');
 
@@ -186,8 +180,7 @@ const RateCardModel = {
   },
 
   async update(id, data) {
-    let { error } = await supabase
-      .from('rate_cards')
+    let { error } = await adminSupabase.from('rate_cards')
       .update({
         emp_code: data.emp_code,
         emp_name: data.emp_name,
@@ -227,16 +220,14 @@ const RateCardModel = {
   },
 
   async updateLeavesAllowed(id, leavesAllowed) {
-    const { error } = await supabase
-      .from('rate_cards')
+    const { error } = await adminSupabase.from('rate_cards')
       .update({ leaves_allowed: leavesAllowed, updated_at: new Date().toISOString() })
       .eq('id', id);
     if (error) throw new Error(error.message);
   },
 
   async findByPoId(poId) {
-    const { data, error } = await supabase
-      .from('rate_cards_view')
+    const { data, error } = await adminSupabase.from('rate_cards_view')
       .select('*')
       .eq('po_id', poId)
       .eq('is_active', true)
@@ -246,8 +237,7 @@ const RateCardModel = {
   },
 
   async softDelete(id) {
-    const { error } = await supabase
-      .from('rate_cards')
+    const { error } = await adminSupabase.from('rate_cards')
       .update({ is_active: false, updated_at: new Date().toISOString() })
       .eq('id', id);
     if (error) throw new Error(error.message);

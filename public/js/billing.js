@@ -341,6 +341,53 @@
     return roleLine + ' for\nSow no. ' + sowNumberLabel(item.sow_number) + ' (' + candidate + ')';
   }
 
+  function uniqueJoined(values, separator) {
+    var seen = {};
+    return (values || []).map(function (value) {
+      return String(value || '').trim();
+    }).filter(function (value) {
+      var key = value.toLowerCase();
+      if (!value || seen[key]) return false;
+      seen[key] = true;
+      return true;
+    }).join(separator || ', ');
+  }
+
+  function aggregateManagerRows(rows) {
+    var map = {};
+    (rows || []).forEach(function (item) {
+      var key = [
+        String(item.reporting_manager || 'Unassigned').trim().toLowerCase(),
+        String(item.emp_code || '').trim().toLowerCase(),
+        String(item.emp_name || '').trim().toLowerCase()
+      ].join('|');
+      if (!map[key]) {
+        map[key] = Object.assign({}, item, {
+          invoice_amount: 0,
+          billing_hours: item.billing_hours !== null && item.billing_hours !== undefined ? 0 : null,
+          _sowNumbers: [],
+          _serviceDescriptions: []
+        });
+      }
+      map[key].invoice_amount = Math.round(((parseFloat(map[key].invoice_amount) || 0) + (parseFloat(item.invoice_amount) || 0)) * 100) / 100;
+      if (map[key].billing_hours !== null) {
+        map[key].billing_hours = Math.round(((parseFloat(map[key].billing_hours) || 0) + (parseFloat(item.billing_hours) || 0)) * 100) / 100;
+      }
+      map[key]._sowNumbers.push(item.sow_number);
+      map[key]._serviceDescriptions.push(item.service_description || item.role_position);
+    });
+    return Object.keys(map).map(function (key) {
+      var item = map[key];
+      var serviceDescription = uniqueJoined(item._serviceDescriptions) || item.service_description || item.role_position;
+      var sowNumber = uniqueJoined(item._sowNumbers.map(sowNumberLabel), ' & ');
+      return Object.assign({}, item, {
+        service_description: serviceDescription,
+        role_position: serviceDescription,
+        sow_number: sowNumber
+      });
+    });
+  }
+
   function isSgtcBillingItem(item) {
     return item && item.billing_method === 'sgtc_hours';
   }
@@ -424,7 +471,7 @@
   }
 
   function openManagerView(managerName) {
-    var rows = managerGroups[managerName] || [];
+    var rows = aggregateManagerRows(managerGroups[managerName] || []);
     var showHoursColumn = rows.some(isSgtcBillingItem);
     document.getElementById('managerViewHoursHeader').classList.toggle('hidden', !showHoursColumn);
     document.getElementById('managerViewTitle').textContent = 'Manager Summary: ' + managerName;

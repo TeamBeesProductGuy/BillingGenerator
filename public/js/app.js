@@ -14,6 +14,8 @@
 
     var supabaseClient = null;
     var currentSession = null;
+    var currentPermissions = null;
+    var adminApprovalBadgeTimer = null;
 
     function applyStoredTheme() {
         var savedTheme;
@@ -131,8 +133,87 @@
         return Boolean(currentSession && currentSession.user && ADMIN_EMAILS.includes(String(currentSession.user.email || "").toLowerCase()));
     }
 
+    function pageModule(page) {
+        var map = {
+            "billing": "billing",
+            "clients": "clients",
+            "rate-cards": "rate_cards",
+            "attendance": "attendance",
+            "quotes": "quotes",
+            "sows": "sows",
+            "purchase-orders": "purchase_orders",
+            "orders": "orders",
+            "reminders": "reminders"
+        };
+        return map[page] || null;
+    }
+
+    function hasModuleAccess(moduleKey) {
+        if (!moduleKey || isCurrentUserAdmin()) return true;
+        return Boolean(currentPermissions && currentPermissions[moduleKey] === true);
+    }
+
+    function firstAllowedRoute() {
+        if (isCurrentUserAdmin()) return "admin";
+        for (var i = 0; i < ROUTES.length; i += 1) {
+            var route = ROUTES[i];
+            if (route === "admin") continue;
+            if (route === "settings") return route;
+            var moduleKey = pageModule(route);
+            if (moduleKey && hasModuleAccess(moduleKey)) return route;
+        }
+        return "settings";
+    }
+
     function getDefaultRoute() {
-        return isCurrentUserAdmin() ? "admin" : DEFAULT_ROUTE;
+        return isCurrentUserAdmin() ? "admin" : firstAllowedRoute();
+    }
+
+    async function loadCurrentPermissions() {
+        if (!currentSession || !currentSession.user || isCurrentUserAdmin()) {
+            currentPermissions = null;
+            return;
+        }
+        try {
+            var res = await apiCall("GET", "/api/admin/permissions/me");
+            currentPermissions = (res.data && res.data.permissions) || {};
+        } catch (_err) {
+            currentPermissions = {};
+        }
+    }
+
+    function setAdminApprovalBadge(count) {
+        var badge = document.getElementById("adminPendingApprovalBadge");
+        if (!badge) return;
+        var value = Number(count || 0);
+        badge.textContent = value > 99 ? "99+" : String(value);
+        badge.classList.toggle("hidden", value <= 0 || !isCurrentUserAdmin());
+    }
+
+    async function refreshAdminApprovalBadge() {
+        if (!isCurrentUserAdmin()) {
+            setAdminApprovalBadge(0);
+            return;
+        }
+        try {
+            var res = await apiCall("GET", "/api/admin/approvals/counts");
+            setAdminApprovalBadge(res.data && res.data.pending);
+        } catch (_err) {
+            setAdminApprovalBadge(0);
+        }
+    }
+
+    function startAdminApprovalBadgePolling() {
+        if (adminApprovalBadgeTimer) {
+            clearInterval(adminApprovalBadgeTimer);
+            adminApprovalBadgeTimer = null;
+        }
+        if (!isCurrentUserAdmin()) {
+            setAdminApprovalBadge(0);
+            return;
+        }
+        refreshAdminApprovalBadge();
+        adminApprovalBadgeTimer = setInterval(refreshAdminApprovalBadge, 60000);
     }
 
     function updateRoleBasedNavigation() {
@@ -140,8 +221,18 @@
         document.querySelectorAll('[data-admin-only="true"]').forEach(function (el) {
             el.classList.toggle("hidden", !isAdmin);
         });
+        document.querySelectorAll('[data-module]').forEach(function (el) {
+            el.classList.toggle("hidden", !hasModuleAccess(el.getAttribute("data-module")));
+        });
         document.querySelectorAll('[data-temporary-hidden="true"]').forEach(function (el) {
             el.classList.add("hidden");
+        });
+        setAdminApprovalBadge(document.getElementById("adminPendingApprovalBadge") ? document.getElementById("adminPendingApprovalBadge").textContent : 0);
+        document.querySelectorAll('[data-sidebar-section]').forEach(function (section) {
+            var hasVisibleLink = Array.from(section.querySelectorAll(".sidebar-link")).some(function (link) {
+                return !link.classList.contains("hidden");
+            });
+            section.classList.toggle("hidden", !hasVisibleLink);
         });
     }
 
@@ -155,7 +246,11 @@
         hideLoginPage();
         showApp();
         updateUserDisplay();
-        navigate();
+        loadCurrentPermissions().then(function () {
+            updateRoleBasedNavigation();
+            startAdminApprovalBadgePolling();
+            navigate();
+        });
     };
 
     window.handleLogout = async function () {
@@ -166,6 +261,9 @@
         }
         currentSession = null;
         currentPage = null;
+        if (adminApprovalBadgeTimer) clearInterval(adminApprovalBadgeTimer);
+        adminApprovalBadgeTimer = null;
+        setAdminApprovalBadge(0);
         showLoginPage();
     };
 
@@ -194,6 +292,8 @@
             await showLoginPage();
             return;
         }
+        await loadCurrentPermissions();
+        updateRoleBasedNavigation();
 
         var hash = (location.hash || "").replace(/^#\/?/, "").toLowerCase();
         if (hash === "dashboard") {
@@ -205,6 +305,10 @@
             history.replaceState(null, "", "/#" + hash);
         }
         if (!hash || !ROUTES.includes(hash)) {
+            hash = getDefaultRoute();
+            history.replaceState(null, "", "/#" + hash);
+        }
+        if (!hasModuleAccess(pageModule(hash))) {
             hash = getDefaultRoute();
             history.replaceState(null, "", "/#" + hash);
         }
@@ -516,6 +620,8 @@
         return '<span class="badge-warning" title="' + escapeHtml(request.permission_message || "Admin Approval Awaited") + '">Admin Approval Awaited</span>';
     };
 
+    window.refreshAdminApprovalBadge = refreshAdminApprovalBadge;
+
     // -----------------------------------------------------------
     //  Confirm Dialog (with Escape support)
     // -----------------------------------------------------------
@@ -763,6 +869,9 @@
         if (session) {
             showApp();
             updateUserDisplay();
+            await loadCurrentPermissions();
+            updateRoleBasedNavigation();
+            startAdminApprovalBadgePolling();
             navigate();
         } else {
             showLoginPage();

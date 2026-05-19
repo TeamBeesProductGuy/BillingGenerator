@@ -1,8 +1,10 @@
 const router = require('express').Router();
 const { requireAuth } = require('../middleware/auth');
+const { requireModuleAccess } = require('../middleware/modulePermission');
 
 // Apply auth middleware to all API routes
 router.use(requireAuth);
+router.use(requireModuleAccess);
 
 router.use('/billing', require('./billing.routes'));
 router.use('/clients', require('./client.routes'));

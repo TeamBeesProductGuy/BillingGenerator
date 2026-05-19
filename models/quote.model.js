@@ -1,4 +1,4 @@
-const { supabase } = require('../config/database');
+const { adminSupabase } = require('../config/database');
 
 const QUOTE_NUMBER_SEQUENCE_OFFSETS = {
   2627: 100,
@@ -80,7 +80,7 @@ async function attachQuoteItemSummaries(quotes) {
   const quoteIds = Array.from(new Set(quotes.map((quote) => quote.id).filter(Boolean)));
   if (quoteIds.length === 0) return quotes;
 
-  const { data: items, error } = await supabase
+  const { data: items, error } = await adminSupabase
     .from('quote_items')
     .select('quote_id, description')
     .in('quote_id', quoteIds)
@@ -102,15 +102,17 @@ async function attachQuoteItemSummaries(quotes) {
 
 const QuoteModel = {
   async findAll(clientId, status) {
-    let query = supabase.from('quotes_view').select('*');
-    if (clientId) query = query.eq('client_id', clientId);
+    let query = adminSupabase.from('quotes_view').select('*');
+    if (Array.isArray(clientId) && clientId.length > 0) query = query.in('client_id', clientId);
+    else if (clientId) query = query.eq('client_id', clientId);
     if (status) query = query.eq('status', status);
     query = query.order('created_at', { ascending: false });
     let { data, error } = await query;
 
     if (isMissingColumnError(error, 'is_latest')) {
-      let fallbackQuery = supabase.from('quotes_view').select('*');
-      if (clientId) fallbackQuery = fallbackQuery.eq('client_id', clientId);
+      let fallbackQuery = adminSupabase.from('quotes_view').select('*');
+      if (Array.isArray(clientId) && clientId.length > 0) fallbackQuery = fallbackQuery.in('client_id', clientId);
+      else if (clientId) fallbackQuery = fallbackQuery.eq('client_id', clientId);
       if (status) fallbackQuery = fallbackQuery.eq('status', status);
       fallbackQuery = fallbackQuery.order('created_at', { ascending: false });
       const fallback = await fallbackQuery;
@@ -123,8 +125,9 @@ const QuoteModel = {
   },
 
   async findRegister(clientId, status) {
-    let query = supabase.from('quotes_view').select('*').eq('version_number', 0);
-    if (clientId) query = query.eq('client_id', clientId);
+    let query = adminSupabase.from('quotes_view').select('*').eq('version_number', 0);
+    if (Array.isArray(clientId) && clientId.length > 0) query = query.in('client_id', clientId);
+    else if (clientId) query = query.eq('client_id', clientId);
     if (status) query = query.eq('status', status);
     query = query.order('created_at', { ascending: false });
     let { data, error } = await query;
@@ -138,8 +141,9 @@ const QuoteModel = {
   },
 
   async findAmendments(clientId, status) {
-    let query = supabase.from('quotes_view').select('*').gt('version_number', 0);
-    if (clientId) query = query.eq('client_id', clientId);
+    let query = adminSupabase.from('quotes_view').select('*').gt('version_number', 0);
+    if (Array.isArray(clientId) && clientId.length > 0) query = query.in('client_id', clientId);
+    else if (clientId) query = query.eq('client_id', clientId);
     if (status) query = query.eq('status', status);
     query = query.order('created_at', { ascending: false });
     let { data, error } = await query;
@@ -151,7 +155,7 @@ const QuoteModel = {
   },
 
   async findById(id) {
-    const { data: quote, error: qErr } = await supabase
+    const { data: quote, error: qErr } = await adminSupabase
       .from('quotes_view')
       .select('*')
       .eq('id', id)
@@ -159,7 +163,7 @@ const QuoteModel = {
     if (qErr) throw new Error(qErr.message);
     if (!quote) return null;
 
-    const { data: items, error: iErr } = await supabase
+    const { data: items, error: iErr } = await adminSupabase
       .from('quote_items')
       .select('*')
       .eq('quote_id', id)
@@ -175,14 +179,12 @@ const QuoteModel = {
     let data;
     let error;
 
-    ({ data, error } = await supabase
-      .from('quotes')
+    ({ data, error } = await adminSupabase.from('quotes')
       .select('quote_number, base_quote_number')
       .like('quote_number', pattern));
 
     if (isMissingColumnError(error, 'base_quote_number')) {
-      ({ data, error } = await supabase
-        .from('quotes')
+      ({ data, error } = await adminSupabase.from('quotes')
         .select('quote_number')
         .like('quote_number', pattern));
     }
@@ -214,8 +216,7 @@ const QuoteModel = {
         version_number: versionNumber,
       }, totalAmount);
 
-      ({ data: row, error: qErr } = await supabase
-        .from('quotes')
+      ({ data: row, error: qErr } = await adminSupabase.from('quotes')
         .insert(insertPayload)
         .select('id')
         .single());
@@ -224,8 +225,7 @@ const QuoteModel = {
         || isMissingColumnError(qErr, 'version_number')
         || isMissingColumnError(qErr, 'parent_quote_id')
         || isMissingColumnError(qErr, 'is_latest')) {
-        ({ data: row, error: qErr } = await supabase
-          .from('quotes')
+        ({ data: row, error: qErr } = await adminSupabase.from('quotes')
           .insert(buildLegacyInsertPayload(candidateNumber, quote, totalAmount))
           .select('id')
           .single());
@@ -254,7 +254,7 @@ const QuoteModel = {
         emp_code: item.emp_code || null,
         location: item.location || null,
       }));
-      const { error: iErr } = await supabase.from('quote_items').insert(itemRows);
+      const { error: iErr } = await adminSupabase.from('quote_items').insert(itemRows);
       if (iErr) throw new Error(iErr.message);
     }
 
@@ -267,8 +267,7 @@ const QuoteModel = {
 
     const totalAmount = Math.round(items.reduce((sum, item) => sum + item.amount, 0) * 100) / 100;
 
-    const { error: qErr } = await supabase
-      .from('quotes')
+    const { error: qErr } = await adminSupabase.from('quotes')
       .update({
         client_id: quote.client_id,
         quote_date: quote.quote_date,
@@ -280,7 +279,7 @@ const QuoteModel = {
       .eq('id', id);
     if (qErr) throw new Error(qErr.message);
 
-    const { error: dErr } = await supabase.from('quote_items').delete().eq('quote_id', id);
+    const { error: dErr } = await adminSupabase.from('quote_items').delete().eq('quote_id', id);
     if (dErr) throw new Error(dErr.message);
 
     if (items.length > 0) {
@@ -293,7 +292,7 @@ const QuoteModel = {
         emp_code: item.emp_code || null,
         location: item.location || null,
       }));
-      const { error: iErr } = await supabase.from('quote_items').insert(itemRows);
+      const { error: iErr } = await adminSupabase.from('quote_items').insert(itemRows);
       if (iErr) throw new Error(iErr.message);
     }
 
@@ -323,8 +322,7 @@ const QuoteModel = {
       status: 'Draft',
     }, items);
 
-    const { error: archiveErr } = await supabase
-      .from('quotes')
+    const { error: archiveErr } = await adminSupabase.from('quotes')
       .update({
         is_latest: false,
         updated_at: new Date().toISOString(),
@@ -336,15 +334,14 @@ const QuoteModel = {
   },
 
   async updateStatus(id, status) {
-    const { error } = await supabase
-      .from('quotes')
+    const { error } = await adminSupabase.from('quotes')
       .update({ status, updated_at: new Date().toISOString() })
       .eq('id', id);
     if (error) throw new Error(error.message);
   },
 
   async delete(id) {
-    const { error } = await supabase.from('quotes').delete().eq('id', id);
+    const { error } = await adminSupabase.from('quotes').delete().eq('id', id);
     if (error) throw new Error(error.message);
   },
 };

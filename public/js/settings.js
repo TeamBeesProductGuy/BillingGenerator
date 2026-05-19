@@ -13,25 +13,11 @@
     try {
       var res = await apiCall("GET", "/api/profile/me");
       currentProfile = res.data || {};
-      document.getElementById("settingsName").value = currentProfile.name || "";
-      document.getElementById("settingsEmail").value = currentProfile.email || "";
       var isAdmin = Boolean(currentProfile.is_admin || (typeof getCurrentUserIsAdmin === "function" && getCurrentUserIsAdmin()));
-      var profileNotice = document.getElementById("settingsProfileNotice");
-      var emailNotice = document.getElementById("settingsEmailNotice");
-      var nameButtonLabel = document.getElementById("settingsNameButtonLabel");
-      var emailButtonLabel = document.getElementById("settingsEmailButtonLabel");
-      if (profileNotice) {
-        profileNotice.textContent = isAdmin
-          ? "Admin user name changes are applied immediately."
-          : "User name changes are sent for admin approval.";
-      }
-      if (emailNotice) {
-        emailNotice.textContent = isAdmin
-          ? "Admin email changes are applied immediately."
-          : "Email changes are sent for admin approval.";
-      }
-      if (nameButtonLabel) nameButtonLabel.textContent = isAdmin ? "Update Name" : "Request Name Update";
-      if (emailButtonLabel) emailButtonLabel.textContent = isAdmin ? "Update Email" : "Request Email Update";
+      var displayName = document.getElementById("settingsDisplayName");
+      var displayEmail = document.getElementById("settingsDisplayEmail");
+      if (displayName) displayName.textContent = currentProfile.name || "-";
+      if (displayEmail) displayEmail.textContent = currentProfile.email || "-";
       var pendingSection = document.getElementById("settingsPendingRequestsSection");
       if (pendingSection) pendingSection.classList.toggle("hidden", isAdmin);
       document.getElementById("settingsPasswordNotice").textContent = isAdmin
@@ -72,54 +58,6 @@
   function resetPasswordForm() {
     document.getElementById("settingsPassword").value = "";
     document.getElementById("settingsConfirmPassword").value = "";
-  }
-
-  var nameForm = document.getElementById("settingsNameForm");
-  if (nameForm) {
-    nameForm.addEventListener("submit", async function (e) {
-      e.preventDefault();
-      var name = document.getElementById("settingsName").value.trim();
-      if (!name) {
-        showToast("User name is required", "danger");
-        return;
-      }
-      if (currentProfile && name === (currentProfile.name || "")) {
-        showToast("No user name change to submit", "info");
-        return;
-      }
-      try {
-        var res = await apiCall("PATCH", "/api/profile/me", { name: name });
-        if (handleApprovalResponse(res, loadApprovals)) return;
-        showToast("User name updated", "success");
-        await loadProfile();
-      } catch (err) {
-        showToast("Failed to submit user name update: " + err.message, "danger");
-      }
-    });
-  }
-
-  var emailForm = document.getElementById("settingsEmailForm");
-  if (emailForm) {
-    emailForm.addEventListener("submit", async function (e) {
-      e.preventDefault();
-      var email = document.getElementById("settingsEmail").value.trim();
-      if (!email) {
-        showToast("Email is required", "danger");
-        return;
-      }
-      if (currentProfile && email.toLowerCase() === String(currentProfile.email || "").toLowerCase()) {
-        showToast("No email change to submit", "info");
-        return;
-      }
-      try {
-        var res = await apiCall("PATCH", "/api/profile/me", { email: email });
-        if (handleApprovalResponse(res, loadApprovals)) return;
-        showToast("Email updated", "success");
-        await loadProfile();
-      } catch (err) {
-        showToast("Failed to submit email update: " + err.message, "danger");
-      }
-    });
   }
 
   var passwordForm = document.getElementById("settingsPasswordForm");

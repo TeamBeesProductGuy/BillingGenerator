@@ -9,7 +9,14 @@ const {
   buildPoStatusRequest,
   buildPoRenewRequest,
   buildPoDeleteRequest,
+  buildPoCrossClientCreateRequest,
 } = require('../services/adminApproval.service');
+const {
+  filterAllowedContractualClientId,
+  filterAllowedContractualClientIdForAny,
+  requireContractualClientAccess,
+  requireContractualClientReadAccess,
+} = require('../services/permissionAccess.service');
 
 function isLinkableSowStatus(status) {
   return status === 'Draft' || status === 'Amendment Draft' || status === 'Signed' || status === 'Active';
@@ -46,11 +53,26 @@ async function validateSowForClient(clientId, sowId, sowSourceClientId) {
   return sow;
 }
 
+async function needsCrossClientSowApproval(clientId, sowId) {
+  if (!sowId) return null;
+  const sow = await SOWModel.findById(sowId);
+  if (!sow) throw new AppError(404, 'SOW not found');
+  if (!isLinkableSowStatus(sow.status)) {
+    throw new AppError(400, 'SOW cannot be linked to a PO in its current status: ' + sow.status);
+  }
+  if (Number(sow.client_id) === Number(clientId)) return null;
+  const hasExistingLink = await SOWModel.hasClientLink(sowId, clientId);
+  return hasExistingLink ? null : sow;
+}
+
 const poController = {
   list: catchAsync(async (req, res) => {
     const { clientId, status, sowId } = req.query;
+    const parsedClientId = clientId ? parseInt(clientId, 10) : null;
+    const allowedClientIds = await filterAllowedContractualClientIdForAny(req.user, ['purchase_orders', 'rate_cards', 'billing'], parsedClientId);
+    if (allowedClientIds.length === 0) return res.json({ success: true, data: [] });
     const orders = await POModel.findAll(
-      clientId ? parseInt(clientId, 10) : null,
+      allowedClientIds,
       status,
       { sowId: sowId ? parseInt(sowId, 10) : null }
     );
@@ -60,6 +82,7 @@ const poController = {
   getById: catchAsync(async (req, res) => {
     const po = await POModel.findById(parseInt(req.params.id, 10));
     if (!po) throw new AppError(404, 'Purchase order not found');
+    await requireContractualClientReadAccess(req, ['purchase_orders', 'rate_cards', 'billing'], po.client_id);
     po.linkedEmployees = await RateCardModel.findByPoId(po.id);
     res.json({ success: true, data: po });
   }),
@@ -68,12 +91,27 @@ const poController = {
     const poId = parseInt(req.params.id, 10);
     const po = await POModel.findById(poId);
     if (!po) throw new AppError(404, 'Purchase order not found');
+    await requireContractualClientReadAccess(req, ['purchase_orders', 'rate_cards', 'billing'], po.client_id);
     const employees = await RateCardModel.findByPoId(poId);
     res.json({ success: true, data: employees });
   }),
 
   create: catchAsync(async (req, res) => {
     const { po_number, client_id, po_date, start_date, end_date, po_value, alert_threshold, sow_id, sow_source_client_id, notes } = req.body;
+    await requireContractualClientAccess(req, 'purchase_orders', client_id);
+    const crossClientSow = await needsCrossClientSowApproval(client_id, sow_id);
+    if (crossClientSow && await requireAdminApproval(req, res, await buildPoCrossClientCreateRequest(req, {
+      po_number,
+      client_id,
+      po_date,
+      start_date,
+      end_date,
+      po_value,
+      alert_threshold,
+      sow_id,
+      sow_source_client_id,
+      notes,
+    }, crossClientSow))) return;
 
     await validateSowForClient(client_id, sow_id, sow_source_client_id || null);
 
@@ -100,6 +138,7 @@ const poController = {
     const id = parseInt(req.params.id, 10);
     const existing = await POModel.findById(id);
     if (!existing) throw new AppError(404, 'Purchase order not found');
+    await requireContractualClientAccess(req, 'purchase_orders', existing.client_id);
 
     // Validate SOW if provided
     if (req.body.sow_id) {
@@ -126,6 +165,7 @@ const poController = {
 
     const po = await POModel.findById(id);
     if (!po) throw new AppError(404, 'Purchase order not found');
+    await requireContractualClientReadAccess(req, ['purchase_orders', 'rate_cards', 'billing'], po.client_id);
     if (po.status !== 'Active') throw new AppError(400, 'Can only consume from active POs');
 
     await POModel.addConsumption(id, amount, description, billingRunId);
@@ -150,6 +190,7 @@ const poController = {
     const id = parseInt(req.params.id, 10);
     const po = await POModel.findById(id);
     if (!po) throw new AppError(404, 'Purchase order not found');
+    await requireContractualClientAccess(req, 'purchase_orders', po.client_id);
 
     const { po_number, po_date, start_date, end_date, po_value, alert_threshold, notes } = req.body;
     if (await requireAdminApproval(req, res, await buildPoRenewRequest(req, po, {
@@ -176,6 +217,7 @@ const poController = {
     const { status } = req.body;
     const po = await POModel.findById(id);
     if (!po) throw new AppError(404, 'Purchase order not found');
+    await requireContractualClientAccess(req, 'purchase_orders', po.client_id);
 
     const allowed = {
       Active: ['Inactive', 'Expired', 'Exhausted', 'Renewed', 'Cancelled'],
@@ -208,6 +250,7 @@ const poController = {
     const id = parseInt(req.params.id, 10);
     const po = await POModel.findById(id);
     if (!po) throw new AppError(404, 'Purchase order not found');
+    await requireContractualClientAccess(req, 'purchase_orders', po.client_id);
     if (await requireAdminApproval(req, res, await buildPoDeleteRequest(req, po))) return;
     await POModel.delete(id);
     await logActivity(req, {
@@ -225,6 +268,7 @@ const poController = {
     const id = parseInt(req.params.id, 10);
     const po = await POModel.findById(id);
     if (!po) throw new AppError(404, 'Purchase order not found');
+    await requireContractualClientAccess(req, 'purchase_orders', po.client_id);
     const associations = await POModel.getAssociations(id);
     res.json({ success: true, data: associations });
   }),

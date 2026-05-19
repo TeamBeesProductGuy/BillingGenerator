@@ -4,6 +4,7 @@ const { parseAttendance, getDaysInMonth } = require('../services/excelParser.ser
 const { validateBillingMonth } = require('../services/validation.service');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
+const { logActivity } = require('../services/activityLog.service');
 
 const attendanceController = {
   list: catchAsync(async (req, res) => {
@@ -58,6 +59,14 @@ const attendanceController = {
       }
       throw err;
     }
+    await logActivity(req, {
+      module: 'attendance',
+      action: 'record',
+      entityType: 'attendance',
+      entityId: emp_code,
+      entityLabel: emp_name || emp_code,
+      details: { summary: `Recorded attendance for ${emp_code} on day ${day_number}`, billing_month, day_number, status },
+    });
     res.json({ success: true, data: { message: 'Attendance recorded' } });
   }),
 
@@ -135,6 +144,14 @@ const attendanceController = {
       }
       throw err;
     }
+    await logActivity(req, {
+      module: 'attendance',
+      action: 'record_bulk',
+      entityType: 'attendance',
+      entityId: emp_code,
+      entityLabel: employee.emp_name || emp_code,
+      details: { summary: `Recorded monthly attendance for ${emp_code}`, billing_month, days: daysInMonth, leave_units: totalLeaveUnits },
+    });
     res.json({
       success: true,
       data: {
@@ -185,6 +202,14 @@ const attendanceController = {
           throw err;
         }
       }
+      await logActivity(req, {
+        module: 'attendance',
+        action: 'upload',
+        entityType: 'attendance',
+        entityId: billingMonth,
+        entityLabel: 'Attendance ' + billingMonth,
+        details: { summary: `Uploaded attendance for ${billingMonth}`, imported: records.length, errors: errors.length },
+      });
 
       res.json({
         success: true,
@@ -203,6 +228,14 @@ const attendanceController = {
     const { empCode, billingMonth } = req.body;
     if (!empCode || !billingMonth) throw new AppError(400, 'empCode and billingMonth are required');
     await AttendanceModel.deleteByEmpMonth(empCode, billingMonth);
+    await logActivity(req, {
+      module: 'attendance',
+      action: 'delete',
+      entityType: 'attendance',
+      entityId: empCode,
+      entityLabel: empCode,
+      details: { summary: `Deleted attendance for ${empCode} in ${billingMonth}`, billing_month: billingMonth },
+    });
     res.json({ success: true, data: { message: 'Attendance deleted' } });
   }),
 
@@ -210,6 +243,14 @@ const attendanceController = {
     const { billingMonth } = req.body;
     if (!billingMonth) throw new AppError(400, 'billingMonth is required');
     await AttendanceModel.deleteByMonth(billingMonth);
+    await logActivity(req, {
+      module: 'attendance',
+      action: 'delete_month',
+      entityType: 'attendance',
+      entityId: billingMonth,
+      entityLabel: 'Attendance ' + billingMonth,
+      details: { summary: `Deleted all attendance for ${billingMonth}`, billing_month: billingMonth },
+    });
     res.json({ success: true, data: { message: `All attendance for ${billingMonth} deleted` } });
   }),
 };

@@ -1,4 +1,4 @@
-const { supabase } = require('../config/database');
+const { adminSupabase } = require('../config/database');
 
 const TABLE = 'permanent_clients';
 const CONTACTS_TABLE = 'permanent_client_contacts';
@@ -6,7 +6,7 @@ const CONTACTS_TABLE = 'permanent_client_contacts';
 async function attachContacts(clients) {
   if (!clients || clients.length === 0) return clients || [];
   const ids = clients.map((c) => c.id);
-  const { data: contacts, error } = await supabase
+  const { data: contacts, error } = await adminSupabase
     .from(CONTACTS_TABLE)
     .select('*')
     .in('client_id', ids)
@@ -27,18 +27,23 @@ async function attachContacts(clients) {
 }
 
 const PermanentClientModel = {
-  async findAll() {
-    const { data, error } = await supabase
+  async findAll(clientIds) {
+    let query = adminSupabase
       .from(TABLE)
       .select('*')
       .eq('is_active', true)
       .order('client_name');
+    if (Array.isArray(clientIds)) {
+      if (clientIds.length === 0) return [];
+      query = query.in('id', clientIds);
+    }
+    const { data, error } = await query;
     if (error) throw new Error(error.message);
     return attachContacts(data || []);
   },
 
   async findById(id) {
-    const { data, error } = await supabase
+    const { data, error } = await adminSupabase
       .from(TABLE)
       .select('*')
       .eq('id', id)
@@ -53,7 +58,7 @@ const PermanentClientModel = {
     const normalizedName = String(clientName || '').trim().toLowerCase();
     const normalizedAddress = String(address || '').trim().toLowerCase();
 
-    let query = supabase
+    let query = adminSupabase
       .from(TABLE)
       .select('id, client_name, address')
       .eq('is_active', true);
@@ -69,7 +74,7 @@ const PermanentClientModel = {
   },
 
   async create(data) {
-    const { data: row, error } = await supabase
+    const { data: row, error } = await adminSupabase
       .from(TABLE)
       .insert({
         client_name: data.client_name,
@@ -91,7 +96,7 @@ const PermanentClientModel = {
         phone: contact.phone || null,
         designation: contact.designation || null,
       }));
-      const { error: contactError } = await supabase
+      const { error: contactError } = await adminSupabase
         .from(CONTACTS_TABLE)
         .insert(payload);
       if (contactError) throw new Error(contactError.message);
@@ -101,7 +106,7 @@ const PermanentClientModel = {
   },
 
   async update(id, data) {
-    const { error } = await supabase
+    const { error } = await adminSupabase
       .from(TABLE)
       .update({
         client_name: data.client_name,
@@ -115,7 +120,7 @@ const PermanentClientModel = {
       .eq('id', id);
     if (error) throw new Error(error.message);
 
-    const { error: deactivateError } = await supabase
+    const { error: deactivateError } = await adminSupabase
       .from(CONTACTS_TABLE)
       .update({ is_active: false, updated_at: new Date().toISOString() })
       .eq('client_id', id)
@@ -130,7 +135,7 @@ const PermanentClientModel = {
         phone: contact.phone || null,
         designation: contact.designation || null,
       }));
-      const { error: contactError } = await supabase
+      const { error: contactError } = await adminSupabase
         .from(CONTACTS_TABLE)
         .insert(payload);
       if (contactError) throw new Error(contactError.message);
@@ -140,8 +145,8 @@ const PermanentClientModel = {
   async softDelete(id) {
     const now = new Date().toISOString();
     const [{ error: clientError }, { error: contactError }] = await Promise.all([
-      supabase.from(TABLE).update({ is_active: false, updated_at: now }).eq('id', id),
-      supabase.from(CONTACTS_TABLE).update({ is_active: false, updated_at: now }).eq('client_id', id),
+      adminSupabase.from(TABLE).update({ is_active: false, updated_at: now }).eq('id', id),
+      adminSupabase.from(CONTACTS_TABLE).update({ is_active: false, updated_at: now }).eq('client_id', id),
     ]);
     if (clientError) throw new Error(clientError.message);
     if (contactError) throw new Error(contactError.message);

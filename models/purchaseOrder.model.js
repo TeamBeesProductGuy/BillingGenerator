@@ -1,4 +1,4 @@
-const { supabase } = require('../config/database');
+const { adminSupabase } = require('../config/database');
 
 function isMissingFunctionError(error, functionName) {
   return Boolean(error && error.message && error.message.toLowerCase().includes(functionName.toLowerCase()));
@@ -40,13 +40,13 @@ async function enrichPurchaseOrders(rows) {
 
   const [clientsResult, quotesResult, sowItemsResult] = await Promise.all([
     clientIds.length > 0
-      ? supabase.from('clients').select('id, abbreviation, client_name').in('id', clientIds)
+      ? adminSupabase.from('clients').select('id, abbreviation, client_name').in('id', clientIds)
       : Promise.resolve({ data: [], error: null }),
     quoteIds.length > 0
-      ? supabase.from('quotes').select('id, notes').in('id', quoteIds)
+      ? adminSupabase.from('quotes').select('id, notes').in('id', quoteIds)
       : Promise.resolve({ data: [], error: null }),
     sowIds.length > 0
-      ? supabase.from('sow_items').select('sow_id, role_position').in('sow_id', sowIds)
+      ? adminSupabase.from('sow_items').select('sow_id, role_position').in('sow_id', sowIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
 
@@ -95,8 +95,7 @@ const POModel = {
     const year = String(now.getFullYear()).slice(-2);
     const today = `${day}${month}${year}`;
     const pattern = `PO-${today}-%`;
-    const { count, error } = await supabase
-      .from('purchase_orders')
+    const { count, error } = await adminSupabase.from('purchase_orders')
       .select('*', { count: 'exact', head: true })
       .like('po_number', pattern);
     if (error) throw new Error(error.message);
@@ -105,8 +104,9 @@ const POModel = {
   },
 
   async findAll(clientId, status, options = {}) {
-    let query = supabase.from('purchase_orders_view').select('*');
-    if (clientId) query = query.eq('client_id', clientId);
+    let query = adminSupabase.from('purchase_orders_view').select('*');
+    if (Array.isArray(clientId) && clientId.length > 0) query = query.in('client_id', clientId);
+    else if (clientId) query = query.eq('client_id', clientId);
     if (status) query = query.eq('status', status);
     if (options.sowId) query = query.eq('sow_id', options.sowId);
     query = query.order('created_at', { ascending: false });
@@ -116,7 +116,7 @@ const POModel = {
   },
 
   async findById(id) {
-    const { data: po, error: poErr } = await supabase
+    const { data: po, error: poErr } = await adminSupabase
       .from('purchase_orders_view')
       .select('*')
       .eq('id', id)
@@ -125,12 +125,12 @@ const POModel = {
     if (!po) return null;
 
     const [logResult, empResult] = await Promise.all([
-      supabase
+      adminSupabase
         .from('po_consumption_log')
         .select('*')
         .eq('po_id', id)
         .order('consumed_at', { ascending: false }),
-      supabase
+      adminSupabase
         .from('rate_cards')
         .select('emp_code, emp_name, reporting_manager, monthly_rate')
         .eq('po_id', id)
@@ -145,8 +145,7 @@ const POModel = {
   },
 
   async findByNumber(poNumber) {
-    const { data, error } = await supabase
-      .from('purchase_orders_view')
+    const { data, error } = await adminSupabase.from('purchase_orders_view')
       .select('*')
       .eq('po_number', poNumber)
       .maybeSingle();
@@ -162,8 +161,7 @@ const POModel = {
 
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       const candidateNumber = poNumber || await POModel.generatePONumber(attempt);
-      ({ data: row, error } = await supabase
-        .from('purchase_orders')
+      ({ data: row, error } = await adminSupabase.from('purchase_orders')
         .insert({
           po_number: candidateNumber,
           client_id: data.client_id,
@@ -207,15 +205,14 @@ const POModel = {
     };
     if (data.po_number) payload.po_number = data.po_number;
 
-    const { error } = await supabase
-      .from('purchase_orders')
+    const { error } = await adminSupabase.from('purchase_orders')
       .update(payload)
       .eq('id', id);
     if (error) throw new Error(error.message);
   },
 
   async addConsumption(poId, amount, description, billingRunId) {
-    let { error } = await supabase.rpc('consume_po', {
+    let { error } = await adminSupabase.rpc('consume_po', {
       p_po_id: poId,
       p_amount: amount,
       p_description: description || null,
@@ -226,14 +223,13 @@ const POModel = {
       if (!po) throw new Error(`PO ${poId} not found`);
 
       const [logResult, poResult] = await Promise.all([
-        supabase.from('po_consumption_log').insert({
+        adminSupabase.from('po_consumption_log').insert({
           po_id: poId,
           billing_run_id: billingRunId || null,
           amount,
           description: description || null,
         }),
-        supabase
-          .from('purchase_orders')
+        adminSupabase.from('purchase_orders')
           .update({
             consumed_value: Number(po.consumed_value || 0) + Number(amount || 0),
             updated_at: new Date().toISOString(),
@@ -246,8 +242,7 @@ const POModel = {
 
       const updatedPo = await this.findById(poId);
       if (updatedPo && Number(updatedPo.consumed_value || 0) >= Number(updatedPo.po_value || 0)) {
-        const { error: exhaustError } = await supabase
-          .from('purchase_orders')
+        const { error: exhaustError } = await adminSupabase.from('purchase_orders')
           .update({ status: 'Exhausted', updated_at: new Date().toISOString() })
           .eq('id', poId);
         if (exhaustError) throw new Error(exhaustError.message);
@@ -258,13 +253,13 @@ const POModel = {
   },
 
   async getAlerts() {
-    const { data, error } = await supabase.rpc('get_po_alerts');
+    const { data, error } = await adminSupabase.rpc('get_po_alerts');
     if (error) throw new Error(error.message);
     return data;
   },
 
   async renew(id, newPoData) {
-    const { data, error } = await supabase.rpc('renew_po', {
+    const { data, error } = await adminSupabase.rpc('renew_po', {
       p_old_id: id,
       p_po_number: newPoData.po_number,
       p_client_id: newPoData.client_id,
@@ -281,16 +276,14 @@ const POModel = {
   },
 
   async updateStatus(id, status) {
-    const { error } = await supabase
-      .from('purchase_orders')
+    const { error } = await adminSupabase.from('purchase_orders')
       .update({ status, updated_at: new Date().toISOString() })
       .eq('id', id);
     if (error) throw new Error(error.message);
   },
 
   async delete(id) {
-    const { error } = await supabase
-      .from('purchase_orders')
+    const { error } = await adminSupabase.from('purchase_orders')
       .delete()
       .eq('id', id);
     if (error) throw new Error(error.message);
@@ -298,13 +291,11 @@ const POModel = {
 
   async getAssociations(id) {
     const [poResult, rateCardResult] = await Promise.all([
-      supabase
-        .from('purchase_orders_view')
+      adminSupabase.from('purchase_orders_view')
         .select('id, sow_id, sow_number')
         .eq('id', id)
         .maybeSingle(),
-      supabase
-        .from('rate_cards_view')
+      adminSupabase.from('rate_cards_view')
         .select('id, emp_code, emp_name, sow_id, sow_number')
         .eq('po_id', id)
         .eq('is_active', true),

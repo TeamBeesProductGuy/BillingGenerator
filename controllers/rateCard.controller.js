@@ -7,10 +7,17 @@ const SOWModel = require('../models/sow.model');
 const { parseRateCard } = require('../services/excelParser.service');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
+const { logActivity } = require('../services/activityLog.service');
 const {
   requireAdminApproval,
   buildRateCardDeleteRequest,
 } = require('../services/adminApproval.service');
+const {
+  filterAllowedContractualClientId,
+  filterAllowedContractualClientIdForAny,
+  requireContractualClientAccess,
+  requireContractualClientReadAccess,
+} = require('../services/permissionAccess.service');
 
 function isSelectableSowStatus(status) {
   return ['Draft', 'Amendment Draft', 'Signed', 'Active'].includes(status);
@@ -23,13 +30,16 @@ function isCleanPersonName(value) {
 const rateCardController = {
   list: catchAsync(async (req, res) => {
     const clientId = req.query.clientId ? parseInt(req.query.clientId, 10) : null;
-    const cards = await RateCardModel.findAll(clientId);
+    const allowedClientIds = await filterAllowedContractualClientIdForAny(req.user, ['rate_cards', 'attendance', 'billing'], clientId);
+    if (allowedClientIds.length === 0) return res.json({ success: true, data: [] });
+    const cards = await RateCardModel.findAll(allowedClientIds);
     res.json({ success: true, data: cards });
   }),
 
   getById: catchAsync(async (req, res) => {
     const card = await RateCardModel.findById(parseInt(req.params.id, 10));
     if (!card) throw new AppError(404, 'Rate card not found');
+    await requireContractualClientReadAccess(req, ['rate_cards', 'attendance', 'billing'], card.client_id);
     res.json({ success: true, data: card });
   }),
 
@@ -56,6 +66,7 @@ const rateCardController = {
       disable_billing,
       disable_from_date,
     } = payload;
+    await requireContractualClientAccess(req, 'rate_cards', client_id);
 
     const sow = await validateSowForRateCardClient(client_id, sow_id, 'creating a Rate Card');
     validateRateCardDates(doj, charging_date);
@@ -88,6 +99,14 @@ const rateCardController = {
         disable_billing,
         disable_from_date,
       });
+      await logActivity(req, {
+        module: 'rate_cards',
+        action: 'create',
+        entityType: 'rate_card',
+        entityId: id,
+        entityLabel: emp_name,
+        details: { summary: 'Created rate card for ' + emp_name, emp_code, client_id },
+      });
       res.status(201).json({ success: true, data: { id } });
     } catch (err) {
       if (err.message && (err.message.includes('UNIQUE') || err.message.includes('duplicate key'))) {
@@ -101,6 +120,7 @@ const rateCardController = {
     const id = parseInt(req.params.id, 10);
     const existing = await RateCardModel.findById(id);
     if (!existing) throw new AppError(404, 'Rate card not found');
+    await requireContractualClientAccess(req, 'rate_cards', existing.client_id);
     const payload = normalizeRateCardPayload(req.body);
 
     const clientId = payload.client_id || existing.client_id;
@@ -127,6 +147,14 @@ const rateCardController = {
 
     try {
       await RateCardModel.update(id, payload);
+      await logActivity(req, {
+        module: 'rate_cards',
+        action: 'update',
+        entityType: 'rate_card',
+        entityId: id,
+        entityLabel: existing.emp_name || existing.emp_code || 'Rate Card #' + id,
+        details: { summary: 'Updated rate card for ' + (existing.emp_name || existing.emp_code || id), client_id: clientId },
+      });
       res.json({ success: true, data: { id } });
     } catch (err) {
       if (err.message && (err.message.includes('UNIQUE') || err.message.includes('duplicate key'))) {
@@ -140,8 +168,17 @@ const rateCardController = {
     const id = parseInt(req.params.id, 10);
     const existing = await RateCardModel.findById(id);
     if (!existing) throw new AppError(404, 'Rate card not found');
+    await requireContractualClientAccess(req, 'rate_cards', existing.client_id);
     if (await requireAdminApproval(req, res, await buildRateCardDeleteRequest(req, existing))) return;
     await RateCardModel.softDelete(id);
+    await logActivity(req, {
+      module: 'rate_cards',
+      action: 'delete',
+      entityType: 'rate_card',
+      entityId: id,
+      entityLabel: existing.emp_name || existing.emp_code || 'Rate Card #' + id,
+      details: { summary: 'Deleted rate card for ' + (existing.emp_name || existing.emp_code || id), client_id: existing.client_id },
+    });
     res.json({ success: true, data: { message: 'Rate card deleted' } });
   }),
 
@@ -149,7 +186,16 @@ const rateCardController = {
     const id = parseInt(req.params.id, 10);
     const existing = await RateCardModel.findById(id);
     if (!existing) throw new AppError(404, 'Rate card not found');
+    await requireContractualClientAccess(req, 'attendance', existing.client_id);
     await RateCardModel.updateLeavesAllowed(id, req.body.leaves_allowed);
+    await logActivity(req, {
+      module: 'rate_cards',
+      action: 'update_leaves_allowed',
+      entityType: 'rate_card',
+      entityId: id,
+      entityLabel: existing.emp_name || existing.emp_code || 'Rate Card #' + id,
+      details: { summary: 'Updated leaves allowed for ' + (existing.emp_name || existing.emp_code || id), leaves_allowed: req.body.leaves_allowed },
+    });
     res.json({ success: true, data: { id } });
   }),
 
@@ -157,6 +203,7 @@ const rateCardController = {
     if (!req.file) throw new AppError(400, 'Excel file is required');
     const clientId = parseInt(req.body.clientId, 10);
     if (!clientId) throw new AppError(400, 'clientId is required');
+    await requireContractualClientAccess(req, 'rate_cards', clientId);
 
     const client = await ClientModel.findById(clientId);
     if (!client) throw new AppError(404, 'Client not found');
@@ -215,6 +262,14 @@ const rateCardController = {
         const dbRecords = validRecords.map((r) => ({ ...r, client_id: clientId }));
         await RateCardModel.bulkCreate(dbRecords);
       }
+      await logActivity(req, {
+        module: 'rate_cards',
+        action: 'upload',
+        entityType: 'rate_card',
+        entityId: clientId,
+        entityLabel: client.client_name || 'Client #' + clientId,
+        details: { summary: 'Uploaded rate cards for ' + (client.client_name || clientId), imported: validRecords.length, errors: errors.length },
+      });
 
       res.json({
         success: true,
@@ -231,7 +286,8 @@ const rateCardController = {
 
   exportExcel: catchAsync(async (req, res) => {
     const clientId = req.query.clientId ? parseInt(req.query.clientId, 10) : null;
-    const cards = await RateCardModel.findAll(clientId);
+    const allowedClientIds = await filterAllowedContractualClientId(req.user, 'rate_cards', clientId);
+    const cards = allowedClientIds.length > 0 ? await RateCardModel.findAll(allowedClientIds) : [];
 
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Rate Cards');

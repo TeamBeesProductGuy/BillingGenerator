@@ -1,8 +1,8 @@
-const { supabase } = require('../config/database');
+const { adminSupabase } = require('../config/database');
 
 const ClientModel = {
   async findAll() {
-    const { data, error } = await supabase
+    const { data, error } = await adminSupabase
       .from('clients')
       .select('*')
       .eq('is_active', true)
@@ -14,7 +14,7 @@ const ClientModel = {
   async findByNameAndAddress(clientName, address, excludeId) {
     const normalizedName = String(clientName || '').trim().toLowerCase();
     const normalizedAddress = String(address || '').trim().toLowerCase();
-    const { data, error } = await supabase
+    const { data, error } = await adminSupabase
       .from('clients')
       .select('*')
       .eq('is_active', true)
@@ -29,7 +29,7 @@ const ClientModel = {
   },
 
   async findById(id) {
-    const { data, error } = await supabase
+    const { data, error } = await adminSupabase
       .from('clients')
       .select('*')
       .eq('id', id)
@@ -39,7 +39,7 @@ const ClientModel = {
   },
 
   async create(data) {
-    const { data: row, error } = await supabase
+    const { data: row, error } = await adminSupabase
       .from('clients')
       .insert({
         client_name: data.client_name,
@@ -58,7 +58,7 @@ const ClientModel = {
   },
 
   async update(id, data) {
-    const { error } = await supabase
+    const { error } = await adminSupabase
       .from('clients')
       .update({
         client_name: data.client_name,
@@ -76,7 +76,7 @@ const ClientModel = {
   },
 
   async softDelete(id) {
-    const { error } = await supabase
+    const { error } = await adminSupabase
       .from('clients')
       .update({ is_active: false, updated_at: new Date().toISOString() })
       .eq('id', id);

@@ -1,11 +1,11 @@
-const { supabase } = require('../config/database');
+const { adminSupabase } = require('../config/database');
 
 const TABLE = 'permanent_orders';
 
 async function mapOrdersWithClients(orders) {
   if (!orders || orders.length === 0) return [];
   const clientIds = Array.from(new Set(orders.map((o) => o.client_id)));
-  const { data: clients, error } = await supabase
+  const { data: clients, error } = await adminSupabase
     .from('permanent_clients')
     .select('id, client_name, abbreviation, billing_pattern, billing_rate, address')
     .in('id', clientIds);
@@ -19,7 +19,7 @@ async function mapOrdersWithClients(orders) {
   const orderIds = Array.from(new Set(orders.map((order) => order.id)));
   let reminders = [];
   if (orderIds.length > 0) {
-    const reminderResult = await supabase
+    const reminderResult = await adminSupabase
       .from('permanent_reminders')
       .select('id, order_id, status, due_date, invoice_status, invoice_number, invoice_date, payment_status')
       .in('order_id', orderIds)
@@ -41,17 +41,22 @@ async function mapOrdersWithClients(orders) {
 }
 
 const PermanentOrderModel = {
-  async findAll() {
-    const { data, error } = await supabase
+  async findAll(clientIds) {
+    let query = adminSupabase
       .from(TABLE)
       .select('*')
       .order('created_at', { ascending: false });
+    if (Array.isArray(clientIds)) {
+      if (clientIds.length === 0) return [];
+      query = query.in('client_id', clientIds);
+    }
+    const { data, error } = await query;
     if (error) throw new Error(error.message);
     return mapOrdersWithClients(data || []);
   },
 
   async findById(id) {
-    const { data, error } = await supabase
+    const { data, error } = await adminSupabase
       .from(TABLE)
       .select('*')
       .eq('id', id)
@@ -63,7 +68,7 @@ const PermanentOrderModel = {
   },
 
   async create(data) {
-    const { data: row, error } = await supabase
+    const { data: row, error } = await adminSupabase
       .from(TABLE)
       .insert({
         client_id: data.client_id,
@@ -84,7 +89,7 @@ const PermanentOrderModel = {
   },
 
   async update(id, data) {
-    const { error } = await supabase
+    const { error } = await adminSupabase
       .from(TABLE)
       .update({
         client_id: data.client_id,
@@ -104,7 +109,7 @@ const PermanentOrderModel = {
   },
 
   async remove(id) {
-    const { error } = await supabase
+    const { error } = await adminSupabase
       .from(TABLE)
       .delete()
       .eq('id', id);

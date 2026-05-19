@@ -1,4 +1,4 @@
-const { supabase } = require('../config/database');
+const { adminSupabase } = require('../config/database');
 
 const TABLE = 'activity_logs';
 
@@ -11,6 +11,7 @@ function normalizeLimit(value) {
 const ActivityLogModel = {
   async create(entry) {
     const payload = {
+      owner_user_id: entry.owner_user_id,
       user_email: entry.user_email || null,
       module: entry.module,
       action: entry.action,
@@ -20,18 +21,21 @@ const ActivityLogModel = {
       details: entry.details || null,
     };
 
-    const { error } = await supabase.from(TABLE).insert(payload);
+    const { error } = await adminSupabase.from(TABLE).insert(payload);
     if (error) throw new Error(error.message);
   },
 
   async findAll(filters) {
     const safeFilters = filters || {};
-    let query = supabase
+    let query = adminSupabase
       .from(TABLE)
       .select('*')
       .order('created_at', { ascending: false })
       .limit(normalizeLimit(safeFilters.limit));
 
+    if (safeFilters.ownerUserId && !safeFilters.includeAllUsers) {
+      query = query.eq('owner_user_id', safeFilters.ownerUserId);
+    }
     if (safeFilters.module) query = query.eq('module', safeFilters.module);
     if (safeFilters.action) query = query.eq('action', safeFilters.action);
 

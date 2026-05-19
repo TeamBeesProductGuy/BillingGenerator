@@ -13,6 +13,12 @@ const {
   requireAdminApproval,
   buildQuoteDeleteRequest,
 } = require('../services/adminApproval.service');
+const {
+  filterAllowedContractualClientId,
+  filterAllowedContractualClientIdForAny,
+  requireContractualClientAccess,
+  requireContractualClientReadAccess,
+} = require('../services/permissionAccess.service');
 
 const logoPath = path.join(__dirname, '..', 'public', 'images', 'TeamBeesLOgo.png');
 const robotoRegularPath = path.join(__dirname, '..', 'public', 'fonts', 'Roboto-Regular.ttf');
@@ -439,26 +445,32 @@ const quoteController = {
   list: catchAsync(async (req, res) => {
     const { clientId, status, mode } = req.query;
     const parsedClientId = clientId ? parseInt(clientId, 10) : null;
+    const allowedClientIds = await filterAllowedContractualClientIdForAny(req.user, ['quotes', 'sows'], parsedClientId);
+    if (allowedClientIds.length === 0) return res.json({ success: true, data: [] });
     const quotes = mode === 'register'
-      ? await QuoteModel.findRegister(parsedClientId, status)
-      : await QuoteModel.findAll(parsedClientId, status);
+      ? await QuoteModel.findRegister(allowedClientIds, status)
+      : await QuoteModel.findAll(allowedClientIds, status);
     res.json({ success: true, data: quotes });
   }),
 
   listAmendments: catchAsync(async (req, res) => {
     const { clientId, status } = req.query;
-    const quotes = await QuoteModel.findAmendments(clientId ? parseInt(clientId, 10) : null, status);
+    const parsedClientId = clientId ? parseInt(clientId, 10) : null;
+    const allowedClientIds = await filterAllowedContractualClientIdForAny(req.user, ['quotes', 'sows'], parsedClientId);
+    const quotes = allowedClientIds.length > 0 ? await QuoteModel.findAmendments(allowedClientIds, status) : [];
     res.json({ success: true, data: quotes });
   }),
 
   getById: catchAsync(async (req, res) => {
     const quote = await QuoteModel.findById(parseInt(req.params.id, 10));
     if (!quote) throw new AppError(404, 'Quote not found');
+    await requireContractualClientReadAccess(req, ['quotes', 'sows'], quote.client_id);
     res.json({ success: true, data: quote });
   }),
 
   create: catchAsync(async (req, res) => {
     const { client_id, quote_date, valid_until, notes, items } = req.body;
+    await requireContractualClientAccess(req, 'quotes', client_id);
     validateQuoteCandidateName(notes);
     const result = await QuoteModel.create({ client_id, quote_date, valid_until, notes }, items);
     await logActivity(req, {
@@ -476,6 +488,7 @@ const quoteController = {
     const id = parseInt(req.params.id, 10);
     const existing = await QuoteModel.findById(id);
     if (!existing) throw new AppError(404, 'Quote not found');
+    await requireContractualClientAccess(req, 'quotes', existing.client_id);
     if (existing.status !== 'Draft') throw new AppError(400, 'Only draft quotes can be edited');
     const { client_id, quote_date, valid_until, notes, items } = req.body;
     validateQuoteCandidateName(notes);
@@ -495,6 +508,7 @@ const quoteController = {
     const id = parseInt(req.params.id, 10);
     const existing = await QuoteModel.findById(id);
     if (!existing) throw new AppError(404, 'Quote not found');
+    await requireContractualClientAccess(req, 'quotes', existing.client_id);
     if (existing.status !== 'Sent') throw new AppError(400, 'Only sent quotes can be amended');
     const { client_id, quote_date, valid_until, notes, items } = req.body;
     validateQuoteCandidateName(notes);
@@ -515,6 +529,7 @@ const quoteController = {
     const { status } = req.body;
     const existing = await QuoteModel.findById(id);
     if (!existing) throw new AppError(404, 'Quote not found');
+    await requireContractualClientAccess(req, 'quotes', existing.client_id);
 
     // Enforce valid status transitions
     const VALID_TRANSITIONS = {
@@ -552,6 +567,7 @@ const quoteController = {
     const id = parseInt(req.params.id, 10);
     const existing = await QuoteModel.findById(id);
     if (!existing) throw new AppError(404, 'Quote not found');
+    await requireContractualClientAccess(req, 'quotes', existing.client_id);
     if (existing.status !== 'Draft') throw new AppError(400, 'Only draft quotes can be deleted');
     if (await requireAdminApproval(req, res, await buildQuoteDeleteRequest(req, existing))) return;
     await QuoteModel.delete(id);
@@ -569,6 +585,7 @@ const quoteController = {
   download: catchAsync(async (req, res) => {
     const quote = await QuoteModel.findById(parseInt(req.params.id, 10));
     if (!quote) throw new AppError(404, 'Quote not found');
+    await requireContractualClientReadAccess(req, ['quotes', 'sows'], quote.client_id);
     const client = await ClientModel.findById(quote.client_id);
     const buffer = await generateQuoteDocxBuffer(quote, client);
     const fileName = `${buildQuoteDocumentBaseName(quote, client)}.docx`;
@@ -581,6 +598,7 @@ const quoteController = {
   downloadPDF: catchAsync(async (req, res) => {
     const quote = await QuoteModel.findById(parseInt(req.params.id, 10));
     if (!quote) throw new AppError(404, 'Quote not found');
+    await requireContractualClientReadAccess(req, ['quotes', 'sows'], quote.client_id);
     const client = await ClientModel.findById(quote.client_id);
     const baseName = buildQuoteDocumentBaseName(quote, client);
     const docxBuffer = await generateQuoteDocxBuffer(quote, client);

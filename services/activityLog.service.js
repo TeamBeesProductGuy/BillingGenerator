@@ -5,6 +5,7 @@ async function logActivity(req, entry) {
 
   try {
     await ActivityLogModel.create({
+      owner_user_id: req.user.id,
       user_email: req.user.email || null,
       module: entry.module,
       action: entry.action,

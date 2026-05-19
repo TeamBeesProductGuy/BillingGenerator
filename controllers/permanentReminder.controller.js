@@ -3,11 +3,21 @@ const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
 const { sendPaymentReminderEmail } = require('../services/graphMail.service');
 const { logActivity } = require('../services/activityLog.service');
+const {
+  allowedPermanentClientIdsForAny,
+  requirePermanentClientReadAccess,
+} = require('../services/permissionAccess.service');
+
+async function assertReminderAccess(req, reminder) {
+  const clientId = reminder && reminder.order ? reminder.order.client_id : null;
+  await requirePermanentClientReadAccess(req, ['reminders', 'orders'], clientId);
+}
 
 const permanentReminderController = {
   listOpen: catchAsync(async (req, res) => {
     await PermanentReminderModel.closeCompletedOpenReminders();
-    const reminders = await PermanentReminderModel.findAll();
+    const allowedClientIds = await allowedPermanentClientIdsForAny(req.user, ['reminders', 'orders']);
+    const reminders = await PermanentReminderModel.findAll(allowedClientIds);
     res.json({ success: true, data: reminders });
   }),
 
@@ -15,6 +25,7 @@ const permanentReminderController = {
     const id = parseInt(req.params.id, 10);
     const existing = await PermanentReminderModel.findById(id);
     if (!existing) throw new AppError(404, 'Reminder not found');
+    await assertReminderAccess(req, existing);
     if (existing.status !== 'Open') throw new AppError(400, 'Reminder is already closed');
 
     await PermanentReminderModel.updateEmails(id, req.body.email_primary, req.body.email_secondary);
@@ -34,6 +45,7 @@ const permanentReminderController = {
     const id = parseInt(req.params.id, 10);
     const existing = await PermanentReminderModel.findById(id);
     if (!existing) throw new AppError(404, 'Reminder not found');
+    await assertReminderAccess(req, existing);
 
     await PermanentReminderModel.updatePaymentStatus(id, req.body.payment_status);
     const updated = await PermanentReminderModel.findById(id);
@@ -52,6 +64,7 @@ const permanentReminderController = {
     const id = parseInt(req.params.id, 10);
     const existing = await PermanentReminderModel.findById(id);
     if (!existing) throw new AppError(404, 'Reminder not found');
+    await assertReminderAccess(req, existing);
     if (existing.status !== 'Open') throw new AppError(400, 'Reminder is already closed');
 
     await PermanentReminderModel.markInvoiceSent(id, req.body.invoice_number, req.body.invoice_date);
@@ -71,6 +84,7 @@ const permanentReminderController = {
     const id = parseInt(req.params.id, 10);
     const existing = await PermanentReminderModel.findById(id);
     if (!existing) throw new AppError(404, 'Reminder not found');
+    await assertReminderAccess(req, existing);
     if (existing.status !== 'Open') throw new AppError(400, 'Reminder is already closed');
     if (existing.invoice_status === 'sent') throw new AppError(400, 'Invoice is already marked as sent');
 
@@ -104,6 +118,7 @@ const permanentReminderController = {
     const id = parseInt(req.params.id, 10);
     const existing = await PermanentReminderModel.findById(id);
     if (!existing) throw new AppError(404, 'Reminder not found');
+    await assertReminderAccess(req, existing);
     if (existing.status !== 'Open') throw new AppError(400, 'Reminder is already closed');
 
     await PermanentReminderModel.close(id);
@@ -123,6 +138,7 @@ const permanentReminderController = {
     const id = parseInt(req.params.id, 10);
     const existing = await PermanentReminderModel.findById(id);
     if (!existing) throw new AppError(404, 'Reminder not found');
+    await assertReminderAccess(req, existing);
     if (existing.status !== 'Open') throw new AppError(400, 'Reminder is already closed');
 
     await PermanentReminderModel.extend(id, req.body.due_date);

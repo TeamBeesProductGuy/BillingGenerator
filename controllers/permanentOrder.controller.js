@@ -5,6 +5,11 @@ const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
 const { calculateBillAmount, calculateNextBillDate } = require('../services/permanentBilling.service');
 const { logActivity } = require('../services/activityLog.service');
+const {
+  allowedPermanentClientIdsForAny,
+  requirePermanentClientAccess,
+  requirePermanentClientReadAccess,
+} = require('../services/permissionAccess.service');
 
 function buildComputedOrderFields(payload, client) {
   const billAmount = calculateBillAmount(payload.ctc_offered, client.billing_rate);
@@ -19,7 +24,8 @@ function buildComputedOrderFields(payload, client) {
 
 const permanentOrderController = {
   list: catchAsync(async (req, res) => {
-    const orders = await PermanentOrderModel.findAll();
+    const allowedClientIds = await allowedPermanentClientIdsForAny(req.user, ['orders', 'reminders']);
+    const orders = await PermanentOrderModel.findAll(allowedClientIds);
     res.json({ success: true, data: orders });
   }),
 
@@ -27,10 +33,12 @@ const permanentOrderController = {
     const id = parseInt(req.params.id, 10);
     const order = await PermanentOrderModel.findById(id);
     if (!order) throw new AppError(404, 'Order not found');
+    await requirePermanentClientReadAccess(req, ['orders', 'reminders'], order.client_id);
     res.json({ success: true, data: order });
   }),
 
   create: catchAsync(async (req, res) => {
+    await requirePermanentClientAccess(req, 'orders', req.body.client_id);
     const client = await PermanentClientModel.findById(req.body.client_id);
     if (!client || !client.is_active) throw new AppError(404, 'Permanent client not found');
 
@@ -54,6 +62,8 @@ const permanentOrderController = {
     const id = parseInt(req.params.id, 10);
     const existing = await PermanentOrderModel.findById(id);
     if (!existing) throw new AppError(404, 'Order not found');
+    await requirePermanentClientAccess(req, 'orders', existing.client_id);
+    await requirePermanentClientAccess(req, 'orders', req.body.client_id);
 
     const client = await PermanentClientModel.findById(req.body.client_id);
     if (!client || !client.is_active) throw new AppError(404, 'Permanent client not found');
@@ -82,6 +92,7 @@ const permanentOrderController = {
     const id = parseInt(req.params.id, 10);
     const existing = await PermanentOrderModel.findById(id);
     if (!existing) throw new AppError(404, 'Order not found');
+    await requirePermanentClientAccess(req, 'orders', existing.client_id);
 
     await PermanentOrderModel.remove(id);
     await logActivity(req, {

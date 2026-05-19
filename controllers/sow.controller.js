@@ -14,6 +14,12 @@ const {
   buildSowDeleteRequest,
   buildSowStatusRequest,
 } = require('../services/adminApproval.service');
+const {
+  filterAllowedContractualClientId,
+  filterAllowedContractualClientIdForAny,
+  requireContractualClientAccess,
+  requireContractualClientReadAccess,
+} = require('../services/permissionAccess.service');
 
 function isEditableStatus(status) {
   return status === 'Draft' || status === 'Amendment Draft' || status === 'Signed' || status === 'Active';
@@ -595,8 +601,11 @@ function resolveLinkedDocumentPath(folderName, fileName) {
 const sowController = {
   list: catchAsync(async (req, res) => {
     const { clientId, status, includeLinked } = req.query;
+    const parsedClientId = clientId ? parseInt(clientId, 10) : null;
+    const allowedClientIds = await filterAllowedContractualClientIdForAny(req.user, ['sows', 'quotes', 'purchase_orders', 'rate_cards', 'billing'], parsedClientId);
+    if (allowedClientIds.length === 0) return res.json({ success: true, data: [] });
     const sows = await SOWModel.findAll(
-      clientId ? parseInt(clientId, 10) : null,
+      allowedClientIds,
       status,
       { includeLinked: includeLinked === '1' || includeLinked === 'true' }
     );
@@ -606,11 +615,13 @@ const sowController = {
   getById: catchAsync(async (req, res) => {
     const sow = await SOWModel.findById(parseInt(req.params.id, 10));
     if (!sow) throw new AppError(404, 'SOW not found');
+    await requireContractualClientReadAccess(req, ['sows', 'quotes', 'purchase_orders', 'rate_cards', 'billing'], sow.client_id);
     res.json({ success: true, data: sow });
   }),
 
   create: catchAsync(async (req, res) => {
     const { sow_number, client_id, quote_id, sow_date, effective_start, effective_end, notes, items } = req.body;
+    await requireContractualClientAccess(req, 'sows', client_id);
     try {
       if (await SOWModel.existsForClient(sow_number, client_id)) {
         throw new AppError(409, 'SOW already exists for this client. Add the new role in that SOW instead.');
@@ -637,6 +648,7 @@ const sowController = {
     const id = parseInt(req.params.id, 10);
     const existing = await SOWModel.findById(id);
     if (!existing) throw new AppError(404, 'SOW not found');
+    await requireContractualClientReadAccess(req, ['sows', 'purchase_orders', 'rate_cards'], existing.client_id);
     if (!isEditableStatus(existing.status)) throw new AppError(400, 'Only Draft, Amendment Draft, Signed, or Active SOWs can be edited');
     const { sow_number, client_id, quote_id, sow_date, effective_start, effective_end, notes, items } = req.body;
     try {
@@ -662,6 +674,7 @@ const sowController = {
     const id = parseInt(req.params.id, 10);
     const existing = await SOWModel.findById(id);
     if (!existing) throw new AppError(404, 'SOW not found');
+    await requireContractualClientAccess(req, 'sows', existing.client_id);
     if (existing.status !== 'Signed' && existing.status !== 'Active') throw new AppError(400, 'Only signed or active SOWs can be amended');
 
     const { client_id, quote_id, sow_date, effective_start, effective_end, notes, items } = req.body;
@@ -689,6 +702,7 @@ const sowController = {
     const { status } = req.body;
     const existing = await SOWModel.findById(id);
     if (!existing) throw new AppError(404, 'SOW not found');
+    await requireContractualClientAccess(req, 'sows', existing.client_id);
     if (!isAllowedSowStatusChange(existing.status, status)) {
       throw new AppError(400, `Cannot change status from "${existing.status}" to "${status}".`);
     }
@@ -712,6 +726,7 @@ const sowController = {
     const id = parseInt(req.params.id, 10);
     const existing = await SOWModel.findById(id);
     if (!existing) throw new AppError(404, 'SOW not found');
+    await requireContractualClientAccess(req, 'sows', existing.client_id);
     const associations = await SOWModel.getAssociations(id);
     res.json({ success: true, data: associations });
   }),
@@ -720,6 +735,7 @@ const sowController = {
     const id = parseInt(req.params.id, 10);
     const existing = await SOWModel.findById(id);
     if (!existing) throw new AppError(404, 'SOW not found');
+    await requireContractualClientAccess(req, 'sows', existing.client_id);
     if (!isDeletableStatus(existing.status)) throw new AppError(400, 'Only Draft or Amendment Draft SOWs can be deleted');
     if (await requireAdminApproval(req, res, await buildSowDeleteRequest(req, existing))) return;
     await SOWModel.delete(id);

@@ -1,5 +1,6 @@
 const { adminSupabase } = require('../config/database');
 const AdminApprovalModel = require('../models/adminApproval.model');
+const UserPermissionModel = require('../models/userPermission.model');
 const catchAsync = require('../middleware/catchAsync');
 const { AppError } = require('../middleware/errorHandler');
 const {
@@ -54,6 +55,52 @@ function normalizeUser(user) {
   };
 }
 
+function normalizePermissions(value) {
+  const input = value || {};
+  const result = {};
+  UserPermissionModel.modules.forEach((moduleKey) => {
+    result[moduleKey] = input[moduleKey] === true;
+  });
+  return result;
+}
+
+function normalizeUserWithPermissions(user, permissionsByUser) {
+  const normalized = normalizeUser(user);
+  return {
+    ...normalized,
+    permissions: permissionsByUser && permissionsByUser[user.id]
+      ? permissionsByUser[user.id]
+      : normalizePermissions({}),
+    client_permissions: {},
+  };
+}
+
+function normalizeClientIdentity(client) {
+  return String(client.abbreviation || client.client_name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+function dedupeAdminClients(clients, clientType) {
+  const byIdentity = new Map();
+  (clients || []).forEach((client) => {
+    const identity = normalizeClientIdentity(client);
+    const key = `${clientType}:${identity || client.id}`;
+    const existing = byIdentity.get(key);
+    if (!existing || Number(client.id) < Number(existing.id)) {
+      byIdentity.set(key, client);
+    }
+  });
+  return Array.from(byIdentity.values())
+    .sort((a, b) => String(a.abbreviation || a.client_name || '').localeCompare(String(b.abbreviation || b.client_name || '')))
+    .map((client) => ({
+      ...client,
+      client_type: clientType,
+      label: `${client.abbreviation || client.client_name || 'Client'} - ${clientType === 'permanent' ? 'Permanent' : 'Contractual'}`,
+    }));
+}
+
 function redactApprovalPayload(request) {
   if (!request || !request.request_payload || request.action_key !== 'profile.password') return request;
   return {
@@ -85,7 +132,7 @@ async function resolveClientAbbreviation(request) {
       .maybeSingle();
     if (error) throw new Error(error.message);
     return data ? (data.abbreviation || data.client_name || request.client_name || '') : (request.client_name || '');
-  } catch (_err) {
+  } catch {
     return request.client_name || '';
   }
 }
@@ -158,7 +205,7 @@ async function resolveRoleDescription(request) {
       if (itemError) throw new Error(itemError.message);
       return joinDescriptions((items || []).map((item) => item.role_position)) || po.candidate_name || '';
     }
-  } catch (_err) {
+  } catch {
     return '';
   }
 
@@ -193,6 +240,12 @@ const adminController = {
     res.json({ success: true, data: redactApprovalPayloads(await enrichApprovalRoleDescriptions(requests)) });
   }),
 
+  approvalCounts: catchAsync(async (req, res) => {
+    assertAdmin(req);
+    const pending = await AdminApprovalModel.count({ status: 'Pending' });
+    res.json({ success: true, data: { pending } });
+  }),
+
   listUsers: catchAsync(async (req, res) => {
     assertAdmin(req);
     const { data, error } = await adminSupabase.auth.admin.listUsers({
@@ -200,9 +253,47 @@ const adminController = {
       perPage: 1000,
     });
     if (error) throw new Error(error.message);
-    const users = (data.users || []).map(normalizeUser)
+    const usersRaw = data.users || [];
+    const permissionsByUser = await UserPermissionModel.findForUsers(usersRaw.map((user) => user.id));
+    const clientPermissionsByUser = await UserPermissionModel.findClientPermissionsForUsers(usersRaw.map((user) => user.id));
+    const users = usersRaw.map((user) => ({
+      ...normalizeUserWithPermissions(user, permissionsByUser),
+      client_permissions: clientPermissionsByUser[user.id] || {},
+    }))
       .sort((a, b) => String(a.email || '').localeCompare(String(b.email || '')));
     res.json({ success: true, data: users });
+  }),
+
+  listClients: catchAsync(async (req, res) => {
+    assertAdmin(req);
+    const [contractualResult, permanentResult] = await Promise.all([
+      adminSupabase
+        .from('clients')
+        .select('id, client_name, abbreviation, is_active')
+        .eq('is_active', true)
+        .order('client_name'),
+      adminSupabase
+        .from('permanent_clients')
+        .select('id, client_name, abbreviation, is_active')
+        .eq('is_active', true)
+        .order('client_name'),
+    ]);
+    if (contractualResult.error) throw new Error(contractualResult.error.message);
+    if (permanentResult.error) throw new Error(permanentResult.error.message);
+    const contractual = dedupeAdminClients(contractualResult.data, 'contractual');
+    const permanent = dedupeAdminClients(permanentResult.data, 'permanent');
+    res.json({ success: true, data: contractual.concat(permanent) });
+  }),
+
+  myPermissions: catchAsync(async (req, res) => {
+    if (isAdminUser(req.user)) {
+      const permissions = {};
+      UserPermissionModel.modules.forEach((moduleKey) => { permissions[moduleKey] = true; });
+      return res.json({ success: true, data: { modules: UserPermissionModel.modules, permissions } });
+    }
+    const permissions = await UserPermissionModel.findForUser(req.user.id);
+    const clientPermissions = await UserPermissionModel.findClientPermissionsForUser(req.user.id);
+    return res.json({ success: true, data: { modules: UserPermissionModel.modules, permissions, client_permissions: clientPermissions } });
   }),
 
   createUser: catchAsync(async (req, res) => {
@@ -211,6 +302,7 @@ const adminController = {
     const name = String(req.body.name || '').trim();
     const sendCredentials = req.body.sendCredentials !== false;
     const password = String(req.body.password || '').trim() || generateTemporaryPassword();
+    const permissions = normalizePermissions(req.body.permissions);
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       throw new AppError(400, 'Valid email is required');
@@ -248,10 +340,22 @@ const adminController = {
       }
     }
 
+    const savedPermissions = await UserPermissionModel.replaceForUser(data.user.id, permissions);
+    const clientPermissions = Array.isArray(req.body.client_permissions)
+      ? await UserPermissionModel.replaceForUserClients(
+        data.user.id,
+        req.body.client_permissions.map((entry) => ({
+          client_type: entry.client_type || 'contractual',
+          client_id: entry.client_id,
+          permissions: normalizePermissions(entry.permissions),
+        }))
+      )
+      : {};
+
     res.status(201).json({
       success: true,
       data: {
-        user: normalizeUser(data.user),
+        user: { ...normalizeUser(data.user), permissions: savedPermissions, client_permissions: clientPermissions },
         temporaryPassword: mailStatus === 'sent' ? null : password,
         mailStatus,
         mailError,
@@ -267,6 +371,79 @@ const adminController = {
     const { error } = await adminSupabase.auth.admin.deleteUser(id);
     if (error) throw new Error(error.message);
     res.json({ success: true, data: { message: 'User deleted' } });
+  }),
+
+  updateUser: catchAsync(async (req, res) => {
+    assertAdmin(req);
+    const id = req.params.id;
+    const email = req.body.email !== undefined ? String(req.body.email || '').trim().toLowerCase() : undefined;
+    const name = req.body.name !== undefined ? String(req.body.name || '').trim() : undefined;
+    const password = req.body.password !== undefined ? String(req.body.password || '').trim() : undefined;
+    const update = {};
+
+    if (name !== undefined) {
+      if (!name) throw new AppError(400, 'Name is required');
+      const { data: existing, error: existingError } = await adminSupabase.auth.admin.getUserById(id);
+      if (existingError) throw new Error(existingError.message);
+      if (!existing || !existing.user) throw new AppError(404, 'User not found');
+      const meta = existing.user.user_metadata || {};
+      update.user_metadata = { ...meta, full_name: name, name };
+    }
+    if (email !== undefined) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new AppError(400, 'Valid email is required');
+      update.email = email;
+      update.email_confirm = true;
+    }
+    if (password !== undefined && password) {
+      if (password.length < 8) throw new AppError(400, 'Password must be at least 8 characters');
+      update.password = password;
+    }
+
+    let updatedUser;
+    if (Object.keys(update).length > 0) {
+      const { data, error } = await adminSupabase.auth.admin.updateUserById(id, update);
+      if (error) throw new Error(error.message);
+      updatedUser = data.user;
+    } else {
+      const { data, error } = await adminSupabase.auth.admin.getUserById(id);
+      if (error) throw new Error(error.message);
+      updatedUser = data.user;
+    }
+
+    const permissions = req.body.permissions
+      ? await UserPermissionModel.replaceForUser(id, normalizePermissions(req.body.permissions))
+      : await UserPermissionModel.findForUser(id, { admin: true });
+
+    res.json({ success: true, data: { user: { ...normalizeUser(updatedUser), permissions } } });
+  }),
+
+  updateUserPermissions: catchAsync(async (req, res) => {
+    assertAdmin(req);
+    const id = req.params.id;
+    if (Array.isArray(req.body.client_permissions)) {
+      const clientPermissions = await UserPermissionModel.replaceForUserClients(
+        id,
+        req.body.client_permissions.map((entry) => ({
+          client_type: entry.client_type || 'contractual',
+          client_id: entry.client_id,
+          permissions: normalizePermissions(entry.permissions),
+        }))
+      );
+      const permissions = await UserPermissionModel.findForUser(id, { admin: true });
+      return res.json({ success: true, data: { userId: id, permissions, client_permissions: clientPermissions } });
+    }
+    if (req.body.client_id) {
+      const clientPermissions = await UserPermissionModel.replaceForUserClient(
+        id,
+        req.body.client_type || 'contractual',
+        req.body.client_id,
+        normalizePermissions(req.body.permissions)
+      );
+      const permissions = await UserPermissionModel.findForUser(id, { admin: true });
+      return res.json({ success: true, data: { userId: id, permissions, client_permissions: clientPermissions } });
+    }
+    const permissions = await UserPermissionModel.replaceForUser(id, normalizePermissions(req.body.permissions));
+    return res.json({ success: true, data: { userId: id, permissions } });
   }),
 
   myApprovals: catchAsync(async (req, res) => {

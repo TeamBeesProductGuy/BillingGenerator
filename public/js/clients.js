@@ -258,8 +258,10 @@
   }
 
   function renderClientActions(client) {
+    var safeName = escapeHtml(client.client_name || '').replace(/'/g, '&#39;');
     return '<div class="client-actions-wrap">' +
       '<button class="btn-secondary btn-sm inline-flex items-center" onclick="editClient(' + client.id + ', \'' + client.contract_type + '\')" title="Edit"><span class="material-symbols-outlined text-base">edit</span></button>' +
+      '<button class="btn-danger btn-sm inline-flex items-center" onclick="deleteClient(' + client.id + ', \'' + client.contract_type + '\', \'' + safeName + '\')" title="Delete"><span class="material-symbols-outlined text-base">delete</span></button>' +
     '</div>';
   }
 

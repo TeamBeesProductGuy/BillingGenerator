@@ -2,10 +2,16 @@ const PermanentClientModel = require('../models/permanentClient.model');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
 const { logActivity } = require('../services/activityLog.service');
+const {
+  allowedPermanentClientIdsForAny,
+  requirePermanentClientAccess,
+  requirePermanentClientReadAccess,
+} = require('../services/permissionAccess.service');
 
 const permanentClientController = {
   list: catchAsync(async (req, res) => {
-    const clients = await PermanentClientModel.findAll();
+    const allowedClientIds = await allowedPermanentClientIdsForAny(req.user, ['clients', 'orders', 'reminders']);
+    const clients = await PermanentClientModel.findAll(allowedClientIds);
     res.json({ success: true, data: clients });
   }),
 
@@ -13,6 +19,7 @@ const permanentClientController = {
     const id = parseInt(req.params.id, 10);
     const client = await PermanentClientModel.findById(id);
     if (!client) throw new AppError(404, 'Permanent client not found');
+    await requirePermanentClientReadAccess(req, ['clients', 'orders', 'reminders'], id);
     res.json({ success: true, data: client });
   }),
 
@@ -38,6 +45,7 @@ const permanentClientController = {
     const id = parseInt(req.params.id, 10);
     const existing = await PermanentClientModel.findById(id);
     if (!existing) throw new AppError(404, 'Permanent client not found');
+    await requirePermanentClientAccess(req, 'clients', id);
 
     const duplicate = await PermanentClientModel.findByNameAndAddress(req.body.client_name, req.body.address, id);
     if (duplicate) {
@@ -60,6 +68,7 @@ const permanentClientController = {
     const id = parseInt(req.params.id, 10);
     const existing = await PermanentClientModel.findById(id);
     if (!existing) throw new AppError(404, 'Permanent client not found');
+    await requirePermanentClientAccess(req, 'clients', id);
     await PermanentClientModel.softDelete(id);
     await logActivity(req, {
       module: 'permanent_clients',

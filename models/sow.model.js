@@ -1,4 +1,4 @@
-const { supabase, adminSupabase } = require('../config/database');
+const { adminSupabase } = require('../config/database');
 
 function buildSowRevisionNumber(baseSowNumber, versionNumber) {
   return `${baseSowNumber} A(${versionNumber})`;
@@ -26,7 +26,7 @@ async function enrichSowRoles(rows) {
   const sowIds = uniqueStrings(items.map((row) => row.id)).filter(Boolean);
   if (sowIds.length === 0) return items;
 
-  const { data, error } = await supabase
+  const { data, error } = await adminSupabase
     .from('sow_items')
     .select('sow_id, role_position')
     .in('sow_id', sowIds);
@@ -75,8 +75,7 @@ function shouldUpdateSowInPlace(existing) {
 }
 
 async function getNextRevisionNumber(baseSowNumber) {
-  const { data, error } = await supabase
-    .from('sows')
+  const { data, error } = await adminSupabase.from('sows')
     .select('version_number')
     .eq('base_sow_number', baseSowNumber)
     .order('version_number', { ascending: false })
@@ -160,16 +159,18 @@ function isForeignKeyReferenceError(error) {
 
 const SOWModel = {
   async findAll(clientId, status, options) {
-    const includeLinked = Boolean(options && options.includeLinked && clientId);
-    let query = supabase.from('sows_view').select('*').eq('is_latest', true);
-    if (clientId) query = query.eq('client_id', clientId);
+    const includeLinked = Boolean(options && options.includeLinked && clientId && !Array.isArray(clientId));
+    let query = adminSupabase.from('sows_view').select('*').eq('is_latest', true);
+    if (Array.isArray(clientId) && clientId.length > 0) query = query.in('client_id', clientId);
+    else if (clientId) query = query.eq('client_id', clientId);
     if (status) query = query.eq('status', toDatabaseSowStatus(status));
     query = query.order('created_at', { ascending: false });
     let { data, error } = await query;
 
     if (isMissingColumnError(error, 'is_latest')) {
-      let fallbackQuery = supabase.from('sows_view').select('*');
-      if (clientId) fallbackQuery = fallbackQuery.eq('client_id', clientId);
+      let fallbackQuery = adminSupabase.from('sows_view').select('*');
+      if (Array.isArray(clientId) && clientId.length > 0) fallbackQuery = fallbackQuery.in('client_id', clientId);
+      else if (clientId) fallbackQuery = fallbackQuery.eq('client_id', clientId);
       if (status) fallbackQuery = fallbackQuery.eq('status', toDatabaseSowStatus(status));
       fallbackQuery = fallbackQuery.order('created_at', { ascending: false });
       const fallback = await fallbackQuery;
@@ -192,12 +193,12 @@ const SOWModel = {
       const missingIds = linkedIds.filter((id) => !existingIds.has(id));
 
       if (missingIds.length > 0) {
-        let linkedQuery = supabase.from('sows_view').select('*').in('id', missingIds).eq('is_latest', true);
+        let linkedQuery = adminSupabase.from('sows_view').select('*').in('id', missingIds).eq('is_latest', true);
         if (status) linkedQuery = linkedQuery.eq('status', toDatabaseSowStatus(status));
         let linkedResult = await linkedQuery.order('created_at', { ascending: false });
 
         if (isMissingColumnError(linkedResult.error, 'is_latest')) {
-          let legacyQuery = supabase.from('sows_view').select('*').in('id', missingIds);
+          let legacyQuery = adminSupabase.from('sows_view').select('*').in('id', missingIds);
           if (status) legacyQuery = legacyQuery.eq('status', toDatabaseSowStatus(status));
           linkedResult = await legacyQuery.order('created_at', { ascending: false });
         }
@@ -211,7 +212,7 @@ const SOWModel = {
   },
 
   async findById(id) {
-    const { data: sow, error: sErr } = await supabase
+    const { data: sow, error: sErr } = await adminSupabase
       .from('sows_view')
       .select('*')
       .eq('id', id)
@@ -219,7 +220,7 @@ const SOWModel = {
     if (sErr) throw new Error(sErr.message);
     if (!sow) return null;
 
-    const { data: items, error: iErr } = await supabase
+    const { data: items, error: iErr } = await adminSupabase
       .from('sow_items')
       .select('*')
       .eq('sow_id', id)
@@ -233,14 +234,12 @@ const SOWModel = {
     const normalizedNumber = String(sowNumber || '').trim().toLowerCase();
     if (!normalizedNumber || !clientId) return false;
 
-    let { data, error } = await supabase
-      .from('sows')
+    let { data, error } = await adminSupabase.from('sows')
       .select('id, sow_number, base_sow_number')
       .eq('client_id', clientId);
 
     if (isMissingColumnError(error, 'base_sow_number')) {
-      const fallback = await supabase
-        .from('sows')
+      const fallback = await adminSupabase.from('sows')
         .select('id, sow_number')
         .eq('client_id', clientId);
       data = fallback.data;
@@ -269,8 +268,7 @@ const SOWModel = {
       version_number: versionNumber,
     }, totalValue);
 
-    let { data: row, error: sErr } = await supabase
-      .from('sows')
+    let { data: row, error: sErr } = await adminSupabase.from('sows')
       .insert(insertPayload)
       .select('id')
       .single();
@@ -279,8 +277,7 @@ const SOWModel = {
       || isMissingColumnError(sErr, 'version_number')
       || isMissingColumnError(sErr, 'parent_sow_id')
       || isMissingColumnError(sErr, 'is_latest')) {
-      ({ data: row, error: sErr } = await supabase
-        .from('sows')
+      ({ data: row, error: sErr } = await adminSupabase.from('sows')
         .insert({
           sow_number: sowNumber,
           client_id: sow.client_id,
@@ -307,7 +304,7 @@ const SOWModel = {
         valid_from: item.valid_from || sow.effective_start,
         valid_to: item.valid_to || sow.effective_end,
       }));
-      const { error: iErr } = await supabase.from('sow_items').insert(itemRows);
+      const { error: iErr } = await adminSupabase.from('sow_items').insert(itemRows);
       if (iErr) throw new Error(iErr.message);
     }
 
@@ -321,8 +318,7 @@ const SOWModel = {
     if (shouldUpdateSowInPlace(existing)) {
       const totalValue = calculateSowTotalValue(sow, items);
 
-      const { error: sErr } = await supabase
-        .from('sows')
+      const { error: sErr } = await adminSupabase.from('sows')
         .update({
           sow_number: sow.sow_number,
           client_id: sow.client_id,
@@ -349,15 +345,13 @@ const SOWModel = {
 
         if (matchingExisting && matchingExisting.id) {
           usedExistingIds.add(Number(matchingExisting.id));
-          const { error: uErr } = await supabase
-            .from('sow_items')
+          const { error: uErr } = await adminSupabase.from('sow_items')
             .update(buildSowItemPayload(item, sow))
             .eq('id', matchingExisting.id)
             .eq('sow_id', id);
           if (uErr) throw new Error(uErr.message);
         } else {
-          const { error: iErr } = await supabase
-            .from('sow_items')
+          const { error: iErr } = await adminSupabase.from('sow_items')
             .insert({
               sow_id: id,
               ...buildSowItemPayload(item, sow),
@@ -370,8 +364,7 @@ const SOWModel = {
         .map((item) => Number(item.id))
         .filter((itemId) => itemId && !usedExistingIds.has(itemId));
       if (removedIds.length > 0) {
-        const { error: dErr } = await supabase
-          .from('sow_items')
+        const { error: dErr } = await adminSupabase.from('sow_items')
           .delete()
           .eq('sow_id', id)
           .in('id', removedIds);
@@ -402,8 +395,7 @@ const SOWModel = {
       status: existing.status || 'Draft',
     }, items);
 
-    const { error: archiveErr } = await supabase
-      .from('sows')
+    const { error: archiveErr } = await adminSupabase.from('sows')
       .update({
         is_latest: false,
         updated_at: new Date().toISOString(),
@@ -438,16 +430,14 @@ const SOWModel = {
   },
 
   async linkQuote(id, quoteId) {
-    const { error } = await supabase
-      .from('sows')
+    const { error } = await adminSupabase.from('sows')
       .update({ quote_id: quoteId, updated_at: new Date().toISOString() })
       .eq('id', id);
     if (error) throw new Error(error.message);
   },
 
   async updateStatus(id, status) {
-    const { error } = await supabase
-      .from('sows')
+    const { error } = await adminSupabase.from('sows')
       .update({ status: toDatabaseSowStatus(status), updated_at: new Date().toISOString() })
       .eq('id', id);
     if (error) throw new Error(error.message);
@@ -455,14 +445,12 @@ const SOWModel = {
 
   async getAssociations(id) {
     const [poResult, rateCardResult] = await Promise.all([
-      supabase
-        .from('purchase_orders')
+      adminSupabase.from('purchase_orders')
         .select('id, po_number, status')
         .eq('sow_id', id)
         .neq('status', 'Inactive')
         .order('created_at', { ascending: false }),
-      supabase
-        .from('rate_cards')
+      adminSupabase.from('rate_cards')
         .select('id, emp_code, emp_name, po_id')
         .eq('sow_id', id)
         .eq('is_active', true),
@@ -476,7 +464,7 @@ const SOWModel = {
   },
 
   async delete(id) {
-    const { error } = await supabase.from('sows').delete().eq('id', id);
+    const { error } = await adminSupabase.from('sows').delete().eq('id', id);
     if (error) throw new Error(error.message);
   },
 

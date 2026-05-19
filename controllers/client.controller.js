@@ -2,21 +2,37 @@ const ClientModel = require('../models/client.model');
 const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
 const { logActivity } = require('../services/activityLog.service');
+const {
+  allowedContractualClientIds,
+  allowedContractualClientIdsForAny,
+  requireContractualClientAccess,
+  requireContractualClientReadAccess,
+} = require('../services/permissionAccess.service');
+
+const CLIENT_READ_MODULES = ['clients', 'sows', 'quotes', 'purchase_orders', 'rate_cards', 'attendance', 'billing'];
 
 const clientController = {
   list: catchAsync(async (req, res) => {
-    const clients = await ClientModel.findAll();
+    const dependencyIds = Array.from(new Set([
+      ...(await allowedContractualClientIds(req.user, 'clients')),
+      ...(await allowedContractualClientIdsForAny(req.user, CLIENT_READ_MODULES)),
+    ]));
+    const clients = (await ClientModel.findAll())
+      .filter((client) => dependencyIds.includes(Number(client.id)));
     res.json({ success: true, data: clients });
   }),
 
   getById: catchAsync(async (req, res) => {
     const client = await ClientModel.findById(parseInt(req.params.id, 10));
     if (!client) throw new AppError(404, 'Client not found');
+    await requireContractualClientReadAccess(req, CLIENT_READ_MODULES, client.id);
     res.json({ success: true, data: client });
   }),
 
   create: catchAsync(async (req, res) => {
     const { client_name, abbreviation, contact_person, email, phone, address, industry, leaves_allowed } = req.body;
+    const allowedIds = await allowedContractualClientIds(req.user, 'clients');
+    if (allowedIds.length === 0) throw new AppError(403, 'You do not have permission to create clients');
     const duplicate = await ClientModel.findByNameAndAddress(client_name, address);
     if (duplicate) {
       throw new AppError(409, 'Client with the same name and location already exists');
@@ -44,6 +60,7 @@ const clientController = {
     const id = parseInt(req.params.id, 10);
     const existing = await ClientModel.findById(id);
     if (!existing) throw new AppError(404, 'Client not found');
+    await requireContractualClientAccess(req, 'clients', id);
     const { client_name, abbreviation, contact_person, email, phone, address, industry, leaves_allowed } = req.body;
     const duplicate = await ClientModel.findByNameAndAddress(client_name, address, id);
     if (duplicate) {
@@ -65,6 +82,7 @@ const clientController = {
     const id = parseInt(req.params.id, 10);
     const existing = await ClientModel.findById(id);
     if (!existing) throw new AppError(404, 'Client not found');
+    await requireContractualClientAccess(req, 'clients', id);
     await ClientModel.softDelete(id);
     await logActivity(req, {
       module: 'clients',

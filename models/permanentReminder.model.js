@@ -1,4 +1,4 @@
-const { supabase } = require('../config/database');
+const { adminSupabase } = require('../config/database');
 const env = require('../config/env');
 
 const TABLE = 'permanent_reminders';
@@ -52,7 +52,7 @@ async function withOrderDetails(reminders) {
   if (!reminders || reminders.length === 0) return [];
 
   const orderIds = Array.from(new Set(reminders.map((item) => item.order_id)));
-  const { data: orders, error } = await supabase
+  const { data: orders, error } = await adminSupabase
     .from('permanent_orders')
     .select('id, client_id, candidate_name, requisition_description, position_role, date_of_offer, date_of_joining, next_bill_date, bill_amount, ctc_offered')
     .in('id', orderIds);
@@ -61,7 +61,7 @@ async function withOrderDetails(reminders) {
   const clientIds = Array.from(new Set((orders || []).map((order) => order.client_id)));
   let clients = [];
   if (clientIds.length > 0) {
-    const result = await supabase
+    const result = await adminSupabase
       .from('permanent_clients')
       .select('id, client_name, abbreviation, billing_pattern, billing_rate')
       .in('id', clientIds);
@@ -92,7 +92,7 @@ async function withOrderDetails(reminders) {
 const PermanentReminderModel = {
   async closeCompletedOpenReminders() {
     const now = new Date().toISOString();
-    const { error } = await supabase
+    const { error } = await adminSupabase
       .from(TABLE)
       .update({
         status: 'Closed',
@@ -107,7 +107,7 @@ const PermanentReminderModel = {
   },
 
   async createForOrder(orderId, dueDate) {
-    const { error } = await supabase
+    const { error } = await adminSupabase
       .from(TABLE)
       .insert({
         order_id: orderId,
@@ -120,7 +120,7 @@ const PermanentReminderModel = {
   },
 
   async findById(id) {
-    const { data, error } = await supabase
+    const { data, error } = await adminSupabase
       .from(TABLE)
       .select('*')
       .eq('id', id)
@@ -132,7 +132,7 @@ const PermanentReminderModel = {
   },
 
   async findOpenByOrderId(orderId) {
-    const { data, error } = await supabase
+    const { data, error } = await adminSupabase
       .from(TABLE)
       .select('*')
       .eq('order_id', orderId)
@@ -151,7 +151,7 @@ const PermanentReminderModel = {
     const fromDate = toISODate(addDays(ref, -3));
     const toDate = toISODate(addDays(ref, 3));
 
-    const { data, error } = await supabase
+    const { data, error } = await adminSupabase
       .from(TABLE)
       .select('*')
       .eq('status', 'Open')
@@ -162,17 +162,29 @@ const PermanentReminderModel = {
     return withOrderDetails(data || []);
   },
 
-  async findAll() {
-    const { data, error } = await supabase
+  async findAll(clientIds) {
+    let query = adminSupabase
       .from(TABLE)
       .select('*')
       .order('due_date', { ascending: true });
+    if (Array.isArray(clientIds)) {
+      if (clientIds.length === 0) return [];
+      const { data: orders, error: ordersError } = await adminSupabase
+        .from('permanent_orders')
+        .select('id')
+        .in('client_id', clientIds);
+      if (ordersError) throw new Error(ordersError.message);
+      const orderIds = (orders || []).map((order) => order.id);
+      if (orderIds.length === 0) return [];
+      query = query.in('order_id', orderIds);
+    }
+    const { data, error } = await query;
     if (error) throw new Error(error.message);
     return withOrderDetails(data || []);
   },
 
   async updateEmails(id, emailPrimary, emailSecondary) {
-    const { error } = await supabase
+    const { error } = await adminSupabase
       .from(TABLE)
       .update({
         email_primary: emailPrimary || null,
@@ -184,7 +196,7 @@ const PermanentReminderModel = {
   },
 
   async updatePaymentStatus(id, paymentStatus) {
-    const { data: existing, error: existingError } = await supabase
+    const { data: existing, error: existingError } = await adminSupabase
       .from(TABLE)
       .select('invoice_status, next_reminder_at')
       .eq('id', id)
@@ -212,7 +224,7 @@ const PermanentReminderModel = {
       updates.next_reminder_at = addHours(new Date(), env.reminderFrequencyHours).toISOString();
     }
 
-    const { error } = await supabase
+    const { error } = await adminSupabase
       .from(TABLE)
       .update(updates)
       .eq('id', id);
@@ -238,7 +250,7 @@ const PermanentReminderModel = {
       updated_at: now,
     };
 
-    const { error } = await supabase
+    const { error } = await adminSupabase
       .from(TABLE)
       .update(updates)
       .eq('id', id);
@@ -252,7 +264,7 @@ const PermanentReminderModel = {
   },
 
   async close(id) {
-    const { error } = await supabase
+    const { error } = await adminSupabase
       .from(TABLE)
       .update({
         status: 'Closed',
@@ -264,14 +276,14 @@ const PermanentReminderModel = {
   },
 
   async extend(id, newDueDate) {
-    const { data: existing, error: existingError } = await supabase
+    const { data: existing, error: existingError } = await adminSupabase
       .from(TABLE)
       .select('extended_count')
       .eq('id', id)
       .maybeSingle();
     if (existingError) throw new Error(existingError.message);
 
-    const { error } = await supabase
+    const { error } = await adminSupabase
       .from(TABLE)
       .update({
         due_date: newDueDate,
@@ -290,7 +302,7 @@ const PermanentReminderModel = {
     const fromDate = toISODate(addDays(ref, -3));
     const toDate = toISODate(addDays(ref, 3));
 
-    const { data, error } = await supabase
+    const { data, error } = await adminSupabase
       .from(TABLE)
       .select('*')
       .eq('status', 'Open')
@@ -308,14 +320,14 @@ const PermanentReminderModel = {
     if (!ids || ids.length === 0) return;
 
     const now = new Date();
-    const { data: existing, error: existingError } = await supabase
+    const { data: existing, error: existingError } = await adminSupabase
       .from(TABLE)
       .select('id, reminder_count')
       .in('id', ids);
     if (existingError) throw new Error(existingError.message);
 
     for (const row of existing || []) {
-      const { error } = await supabase
+      const { error } = await adminSupabase
         .from(TABLE)
         .update({
           reminder_sent_at: now.toISOString(),
@@ -334,7 +346,7 @@ const PermanentReminderModel = {
   async markBatchFailed(ids, message) {
     if (!ids || ids.length === 0) return;
     const now = new Date().toISOString();
-    const { error } = await supabase
+    const { error } = await adminSupabase
       .from(TABLE)
       .update({
         mail_last_status: 'failed',
