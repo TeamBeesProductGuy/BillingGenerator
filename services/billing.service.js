@@ -51,9 +51,16 @@ function toDateKey(year, month, day) {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
+function formatDateKeyForBilling(dateKey) {
+  if (!dateKey) return '';
+  const [year, month, day] = String(dateKey).split('-');
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const monthName = monthNames[Math.max(0, Math.min(11, Number(month) - 1))] || month;
+  return `${Number(day)}-${monthName}-${year}`;
+}
+
 function getActiveBillingDays(rc, billingYear, billingMon, daysInMonth, effectiveStartDay) {
   const activeDays = [];
-  let status = 'Active';
   const notes = [];
 
   for (let day = effectiveStartDay; day <= daysInMonth; day += 1) {
@@ -62,26 +69,28 @@ function getActiveBillingDays(rc, billingYear, billingMon, daysInMonth, effectiv
 
     if (rc.sow_item_valid_from && dateKey < rc.sow_item_valid_from) {
       isActive = false;
-      status = 'Outside SOW Role Duration';
     }
 
     if (rc.sow_item_valid_to && dateKey > rc.sow_item_valid_to) {
       isActive = false;
-      status = 'Outside SOW Role Duration';
     }
 
     if (rc.pause_billing && rc.pause_start_date && rc.pause_end_date && dateKey >= rc.pause_start_date && dateKey <= rc.pause_end_date) {
       isActive = false;
-      status = 'Paused';
     }
 
     if (rc.disable_billing && rc.disable_from_date && dateKey >= rc.disable_from_date) {
       isActive = false;
-      status = 'Disabled';
     }
 
     if (isActive) activeDays.push(day);
   }
+
+  const activeStartDate = activeDays.length > 0 ? toDateKey(billingYear, billingMon, activeDays[0]) : null;
+  const activeEndDate = activeDays.length > 0 ? toDateKey(billingYear, billingMon, activeDays[activeDays.length - 1]) : null;
+  const billingDuration = activeStartDate && activeEndDate
+    ? `${formatDateKeyForBilling(activeStartDate)} to ${formatDateKeyForBilling(activeEndDate)}`
+    : 'Outside SOW Role Duration';
 
   if (rc.pause_billing && rc.pause_start_date && rc.pause_end_date) {
     notes.push(`Paused ${rc.pause_start_date} to ${rc.pause_end_date}`);
@@ -93,7 +102,7 @@ function getActiveBillingDays(rc, billingYear, billingMon, daysInMonth, effectiv
     notes.push(`SOW role duration ${rc.sow_item_valid_from || 'open'} to ${rc.sow_item_valid_to || 'open'}`);
   }
 
-  return { activeDays, status, notes };
+  return { activeDays, status: billingDuration, notes, activeStartDate, activeEndDate };
 }
 
 function sumLeaveUnitsForDays(attendance, activeDays, fallbackLeavesTaken) {

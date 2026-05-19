@@ -1,6 +1,18 @@
 <div class="p-5 sm:p-8 space-y-8 max-w-7xl mx-auto w-full fade-in">
     <section class="admin-summary-grid stagger-in">
         <div id="adminTotalUsersCard" class="stat-card admin-metric-card admin-clickable-card" role="button" tabindex="0" aria-label="Go to users table">
+            <div class="stat-glow bg-success"></div>
+            <div class="admin-metric-topline">
+                <div class="admin-metric-icon bg-success/12">
+                    <span class="material-symbols-outlined text-success text-lg">manage_accounts</span>
+                </div>
+            </div>
+            <p class="admin-metric-label">Total Users</p>
+            <h3 id="adminTotalUsers" class="admin-metric-value count-up">--</h3>
+            <span class="admin-card-action-hint">View users</span>
+        </div>
+
+        <div class="stat-card admin-metric-card">
             <div class="stat-glow bg-primary"></div>
             <div class="admin-metric-topline">
                 <div class="admin-metric-icon bg-primary/12">
@@ -20,18 +32,6 @@
             </div>
             <p class="admin-metric-label">Total Employees</p>
             <h3 id="adminTotalEmployees" class="admin-metric-value count-up">--</h3>
-        </div>
-
-        <div class="stat-card admin-metric-card">
-            <div class="stat-glow bg-success"></div>
-            <div class="admin-metric-topline">
-                <div class="admin-metric-icon bg-success/12">
-                    <span class="material-symbols-outlined text-success text-lg">manage_accounts</span>
-                </div>
-            </div>
-            <p class="admin-metric-label">Total Users</p>
-            <h3 id="adminTotalUsers" class="admin-metric-value count-up">--</h3>
-            <span class="admin-card-action-hint">View users</span>
         </div>
 
         <div class="stat-card admin-tracker-card">

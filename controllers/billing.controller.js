@@ -926,9 +926,17 @@ const billingController = {
     const missingItems = itemsToApprove.filter((item) => !item.po_id);
     if (missingItems.length > 0) {
       const assignmentMap = new Map();
+      const missingCountByEmp = new Map();
+      missingItems.forEach((item) => {
+        const empKey = String(item.emp_code || '').trim();
+        if (!empKey) return;
+        missingCountByEmp.set(empKey, (missingCountByEmp.get(empKey) || 0) + 1);
+      });
       poAssignments.forEach((entry) => {
         if (entry.item_id) assignmentMap.set(`item:${entry.item_id}`, entry);
-        if (entry.emp_code && !assignmentMap.has(`emp:${entry.emp_code}`)) assignmentMap.set(`emp:${entry.emp_code}`, entry);
+        if (entry.emp_code && missingCountByEmp.get(String(entry.emp_code).trim()) === 1 && !assignmentMap.has(`emp:${entry.emp_code}`)) {
+          assignmentMap.set(`emp:${entry.emp_code}`, entry);
+        }
       });
       const resolvedAssignments = [];
 
