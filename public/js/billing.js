@@ -634,12 +634,14 @@
       showResults({
         id: run.id,
         billingRunId: run.id,
+        billing_month: run.billing_month,
         client_id: run.client_id || null,
         summary: {
           totalEmployees: run.total_employees,
           totalAmount: run.total_amount,
           errorCount: run.error_count,
           daysInMonth: run.items && run.items.length > 0 ? run.items[0].days_in_month : 0,
+          billingMonth: run.billing_month,
           clientLabel: run.clientLabel || run.client_label || ''
         },
         errors: run.errors || [],
@@ -660,7 +662,7 @@
     try {
       var res = await apiCall('GET', '/api/billing/runs');
       if (res.data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8">' +
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8">' +
           '<div class="flex flex-col items-center gap-2 text-on-surface-variant">' +
           '<span class="material-symbols-outlined text-4xl opacity-40">inbox</span>' +
           '<h6 class="text-sm font-semibold">No service requests yet</h6>' +
@@ -676,6 +678,7 @@
           '</div>';
           return '<tr>' +
             '<td><strong>' + escapeHtml(r.billing_month) + '</strong></td>' +
+            '<td><span class="entity-pill">' + escapeHtml(r.clientLabel || r.client_label || r.client_abbreviation || '-') + '</span></td>' +
             '<td class="text-center">' + r.total_employees + '</td>' +
             '<td class="text-right">' + formatCurrency(r.total_amount) + '</td>' +
             '<td class="text-center">' + (r.error_count > 0 ? '<span class="badge-error">' + r.error_count + '</span>' : '<span class="badge-success">0</span>') + '</td>' +

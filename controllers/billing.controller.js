@@ -97,6 +97,38 @@ async function deriveRunClientLabel(run) {
   return fallback.join(', ');
 }
 
+async function getRunClientLabelsByIds(runIds) {
+  const ids = Array.from(new Set((runIds || []).map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0)));
+  if (ids.length === 0) return {};
+
+  const [itemsResult, errorsResult] = await Promise.all([
+    supabase
+      .from('billing_items')
+      .select('billing_run_id, client_abbreviation, client_name')
+      .in('billing_run_id', ids),
+    supabase
+      .from('billing_errors')
+      .select('billing_run_id, client_abbreviation, client_name')
+      .in('billing_run_id', ids),
+  ]);
+
+  const rows = [];
+  if (!itemsResult.error && Array.isArray(itemsResult.data)) rows.push(...itemsResult.data);
+  if (!errorsResult.error && Array.isArray(errorsResult.data)) rows.push(...errorsResult.data);
+
+  const labelsByRun = {};
+  rows.forEach((row) => {
+    const runId = Number(row.billing_run_id);
+    const label = String(row.client_abbreviation || row.client_name || '').trim();
+    if (!runId || !label) return;
+    if (!labelsByRun[runId]) labelsByRun[runId] = [];
+    const exists = labelsByRun[runId].some((item) => item.toLowerCase() === label.toLowerCase());
+    if (!exists) labelsByRun[runId].push(label);
+  });
+
+  return Object.fromEntries(Object.entries(labelsByRun).map(([runId, labels]) => [runId, labels.join(', ')]));
+}
+
 function errorBelongsToSelectedClients(errorItem, selectedClientSet, empClientMap) {
   if (!selectedClientSet || selectedClientSet.size === 0) return true;
   if (errorItem.client_id) return selectedClientSet.has(Number(errorItem.client_id));
@@ -825,7 +857,22 @@ const billingController = {
     const offset = parseInt(req.query.offset, 10) || 0;
     const runs = await BillingModel.findRuns(limit, offset);
     const normalizedRuns = await Promise.all(runs.map(inferRunStatus));
-    res.json({ success: true, data: normalizedRuns });
+    const labelsByRun = await getRunClientLabelsByIds(normalizedRuns.map((run) => run.id));
+    const fallbackClientIds = normalizedRuns
+      .filter((run) => !labelsByRun[run.id] && run.client_id)
+      .map((run) => run.client_id);
+    const fallbackLabels = await getClientAbbreviationsByIds(fallbackClientIds);
+    const fallbackByClientId = {};
+    fallbackClientIds.forEach((clientId, index) => {
+      if (fallbackLabels[index]) fallbackByClientId[clientId] = fallbackLabels[index];
+    });
+    res.json({
+      success: true,
+      data: normalizedRuns.map((run) => ({
+        ...run,
+        clientLabel: labelsByRun[run.id] || fallbackByClientId[run.client_id] || '',
+      })),
+    });
   }),
 
   getRunDetails: catchAsync(async (req, res) => {

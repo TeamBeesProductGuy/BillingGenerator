@@ -141,14 +141,14 @@ const BillingModel = {
   async findRuns(limit = 20, offset = 0) {
     let { data, error } = await supabase
       .from('billing_runs')
-      .select('id, billing_month, total_employees, total_amount, error_count, output_file, request_status, consumption_applied_at, created_at')
+      .select('id, billing_month, client_id, total_employees, total_amount, error_count, output_file, request_status, consumption_applied_at, created_at')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (isMissingColumnError(error, 'request_status') || isMissingColumnError(error, 'consumption_applied_at')) {
       ({ data, error } = await supabase
         .from('billing_runs')
-        .select('id, billing_month, total_employees, total_amount, error_count, output_file, created_at')
+        .select('id, billing_month, client_id, total_employees, total_amount, error_count, output_file, created_at')
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1));
       if (!error && Array.isArray(data)) {

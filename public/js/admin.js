@@ -172,6 +172,12 @@
         renderPermissionMatrix("edit");
     }
 
+    function scrollToUsersTable() {
+        var table = document.getElementById("adminUsersTable");
+        if (!table) return;
+        table.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
     function renderActions(row) {
         if (row.status !== "Pending") {
             return '<span class="text-xs text-on-surface-variant">No action</span>';
@@ -344,6 +350,17 @@
 
     var openUserBtn = document.getElementById("adminOpenUserModal");
     if (openUserBtn) openUserBtn.addEventListener("click", openUserModal);
+
+    var totalUsersCard = document.getElementById("adminTotalUsersCard");
+    if (totalUsersCard) {
+        totalUsersCard.addEventListener("click", scrollToUsersTable);
+        totalUsersCard.addEventListener("keydown", function (e) {
+            if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                scrollToUsersTable();
+            }
+        });
+    }
 
     ["adminCloseUserModal", "adminCancelUserModal"].forEach(function (id) {
         var btn = document.getElementById(id);
