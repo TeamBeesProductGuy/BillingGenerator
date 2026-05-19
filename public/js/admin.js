@@ -250,12 +250,15 @@
                 return;
             }
             tbody.innerHTML = rows.map(function (row) {
+                var requestTime = row.created_at
+                    ? new Date(row.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                    : "";
                 return '<tr>' +
                     '<td><div class="table-cell-box table-cell-stack"><span class="table-cell-primary">' + escapeHtml(row.requester_name || row.requester_email || '-') + '</span><span class="table-cell-secondary">' + escapeHtml(row.requester_email || '') + '</span></div></td>' +
                     '<td><div class="table-cell-box table-cell-text min-w-[180px]">' + escapeHtml(row.role_description || '-') + '</div></td>' +
                     '<td><div class="table-cell-box"><span class="entity-pill">' + escapeHtml(row.client_name || '-') + '</span></div></td>' +
                     '<td><div class="table-cell-box table-cell-text min-w-[280px]">' + escapeHtml(row.permission_message || '-') + '</div></td>' +
-                    '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(row.created_at) + ' ' + new Date(row.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + '</span></div></td>' +
+                    '<td><div class="table-cell-box"><span class="table-date-chip table-date-chip-stack">' + formatDate(row.created_at) + '<span>' + escapeHtml(requestTime) + '</span></span></div></td>' +
                     '<td><div class="table-cell-box">' + statusBadge(row.status) + '</div></td>' +
                     '<td class="text-center"><div class="table-cell-box table-cell-center">' + renderActions(row) + '</div></td>' +
                     '</tr>';

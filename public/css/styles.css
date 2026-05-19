@@ -1151,6 +1151,17 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
     font-size: 0.79rem;
     white-space: nowrap;
 }
+.table-date-chip-stack {
+    flex-direction: column;
+    gap: 0.15rem;
+    line-height: 1.15;
+    padding-block: 0.45rem;
+}
+.table-date-chip-stack span {
+    color: var(--color-text-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+}
 
 .table-count-badge {
     display: inline-flex;
