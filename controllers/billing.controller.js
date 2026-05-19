@@ -349,6 +349,7 @@ async function hydrateRunItemsForDecision(run) {
   }
 
   await resolvePoFromSow(run.items);
+  normalizeStoredServiceDurations(run);
 }
 
 /**
@@ -401,6 +402,50 @@ function formatBillingMonthLabel(value) {
     return new Date(Number(year), month, 1).toLocaleString('en-US', { month: 'short', year: '2-digit' });
   }
   return raw || '-';
+}
+
+function toBillingDateKey(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString().slice(0, 10);
+}
+
+function formatBillingDateKey(dateKey) {
+  if (!dateKey) return '';
+  const [year, month, day] = String(dateKey).split('-');
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const monthName = monthNames[Math.max(0, Math.min(11, Number(month) - 1))] || month;
+  return `${Number(day)}-${monthName}-${year}`;
+}
+
+function deriveServiceDurationFromStoredItem(item, billingMonth) {
+  if (!item || item.billing_status !== 'Outside SOW Role Duration') return null;
+  const note = String(item.billing_note || '');
+  const match = note.match(/SOW role duration\s+([0-9]{4}-[0-9]{2}-[0-9]{2}|open)\s+to\s+([0-9]{4}-[0-9]{2}-[0-9]{2}|open)/i);
+  if (!match || !billingMonth || String(billingMonth).length < 6) return null;
+
+  const year = Number(String(billingMonth).slice(0, 4));
+  const month = Number(String(billingMonth).slice(4, 6));
+  const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+  const monthEnd = new Date(year, month, 0).toISOString().slice(0, 10);
+  const chargingDate = toBillingDateKey(item.charging_date);
+  const roleStart = match[1] === 'open' ? monthStart : match[1];
+  const roleEnd = match[2] === 'open' ? monthEnd : match[2];
+  const start = [monthStart, roleStart, chargingDate].filter(Boolean).sort().pop();
+  const end = [monthEnd, roleEnd].filter(Boolean).sort()[0];
+
+  if (!start || !end || start > end) return null;
+  return `${formatBillingDateKey(start)} to ${formatBillingDateKey(end)}`;
+}
+
+function normalizeStoredServiceDurations(run) {
+  if (!run || !Array.isArray(run.items)) return run;
+  run.items.forEach((item) => {
+    const duration = deriveServiceDurationFromStoredItem(item, run.billing_month);
+    if (duration) item.billing_status = duration;
+  });
+  return run;
 }
 
 function toTwoDecimalValue(value) {

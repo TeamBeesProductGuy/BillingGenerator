@@ -197,8 +197,39 @@
     section.classList.remove('hidden');
   }
 
+  function formatDurationDate(dateKey) {
+    if (!dateKey) return '';
+    var parts = String(dateKey).split('-');
+    var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return Number(parts[2]) + '-' + (months[Math.max(0, Math.min(11, Number(parts[1]) - 1))] || parts[1]) + '-' + parts[0];
+  }
+
+  function toDateKey(value) {
+    if (!value) return null;
+    var date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toISOString().slice(0, 10);
+  }
+
+  function normalizeServiceDuration(status, note, billingMonth, chargingDate) {
+    if (status !== 'Outside SOW Role Duration') return status;
+    var match = String(note || '').match(/SOW role duration\s+([0-9]{4}-[0-9]{2}-[0-9]{2}|open)\s+to\s+([0-9]{4}-[0-9]{2}-[0-9]{2}|open)/i);
+    if (!match || !billingMonth || String(billingMonth).length < 6) return status;
+    var year = Number(String(billingMonth).slice(0, 4));
+    var month = Number(String(billingMonth).slice(4, 6));
+    var monthStart = year + '-' + String(month).padStart(2, '0') + '-01';
+    var monthEnd = new Date(year, month, 0).toISOString().slice(0, 10);
+    var roleStart = match[1] === 'open' ? monthStart : match[1];
+    var roleEnd = match[2] === 'open' ? monthEnd : match[2];
+    var start = [monthStart, roleStart, toDateKey(chargingDate)].filter(Boolean).sort().pop();
+    var end = [monthEnd, roleEnd].filter(Boolean).sort()[0];
+    if (!start || !end || start > end) return status;
+    return formatDurationDate(start) + ' to ' + formatDurationDate(end);
+  }
+
   function normalizeItems(items) {
     return (items || []).map(function (item) {
+      var billingMonth = item.billing_month || currentBillingMonth || '';
       return {
         client_name: item.client_name,
         client_abbreviation: item.client_abbreviation || item.abbreviation || '',
@@ -211,7 +242,7 @@
         days_present: item.days_present,
         billing_hours: item.billing_hours,
         billing_method: item.billing_method,
-        billing_status: item.billing_status,
+        billing_status: normalizeServiceDuration(item.billing_status, item.billing_note, billingMonth, item.charging_date),
         billing_note: item.billing_note,
         service_description: item.service_description || item.role_position || '',
         role_position: item.role_position || item.service_description || '',
@@ -221,7 +252,7 @@
         client_id: item.client_id || null,
         sow_id: item.sow_id || null,
         sow_number: item.sow_number || null,
-        billing_month: item.billing_month || currentBillingMonth || '',
+        billing_month: billingMonth,
         id: item.id || null,
         approval_status: item.approval_status || 'Pending',
         approved_at: item.approved_at || null,

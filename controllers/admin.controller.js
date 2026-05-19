@@ -97,7 +97,7 @@ function dedupeAdminClients(clients, clientType) {
     .map((client) => ({
       ...client,
       client_type: clientType,
-      label: `${client.abbreviation || client.client_name || 'Client'} - ${clientType === 'permanent' ? 'Permanent' : 'Contractual'}`,
+      label: client.abbreviation || client.client_name || 'Client',
     }));
 }
 

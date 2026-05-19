@@ -571,7 +571,7 @@
                 return '<tr data-client-permission-row data-client-key="' + escapeHtml(key) + '" data-client-type="' + escapeHtml(client.client_type || "contractual") + '" data-client-id="' + escapeHtml(client.id) + '">' +
                     '<td><div class="admin-permission-client-name">' +
                     '<strong>' + escapeHtml(client.label || client.client_name || key) + '</strong>' +
-                    '<span>' + escapeHtml((client.client_type === "permanent" ? "Permanent" : "Contractual") + " - " + checkedCount + " modules") + '</span>' +
+                    '<span>' + escapeHtml(checkedCount + " modules") + '</span>' +
                     '</div></td>' +
                     modules.map(function (module) {
                         var inputId = config.mode + "_perm_" + key.replace(/[^a-zA-Z0-9]/g, "_") + "_" + module.key;
