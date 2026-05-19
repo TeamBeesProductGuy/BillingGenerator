@@ -175,7 +175,12 @@
     function scrollToUsersTable() {
         var table = document.getElementById("adminUsersTable");
         if (!table) return;
-        table.scrollIntoView({ behavior: "smooth", block: "start" });
+        var section = table.closest("section") || table;
+        section.scrollIntoView({ behavior: "smooth", block: "start" });
+        section.classList.add("admin-users-section-highlight");
+        window.setTimeout(function () {
+            section.classList.remove("admin-users-section-highlight");
+        }, 1400);
     }
 
     function renderActions(row) {

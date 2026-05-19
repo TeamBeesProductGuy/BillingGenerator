@@ -1650,11 +1650,56 @@ input[type="file"]::file-selector-button:hover {
     box-shadow: 0 14px 34px rgba(15, 23, 42, 0.10), 0 4px 12px rgba(15, 23, 42, 0.06);
 }
 .admin-clickable-card {
+    position: relative;
     cursor: pointer;
+    border-color: rgba(var(--color-success-rgb), 0.45) !important;
+    box-shadow: 0 16px 42px rgba(var(--color-success-rgb), 0.16), 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+.admin-clickable-card::after {
+    content: "arrow_downward";
+    position: absolute;
+    right: 1rem;
+    bottom: 0.9rem;
+    width: 1.9rem;
+    height: 1.9rem;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    background: rgba(var(--color-success-rgb), 0.12);
+    color: var(--color-success);
+    font-family: "Material Symbols Outlined";
+    font-size: 1.05rem;
+    font-weight: normal;
+    line-height: 1;
+}
+.admin-clickable-card:hover {
+    border-color: rgba(var(--color-success-rgb), 0.72) !important;
+    box-shadow: 0 20px 52px rgba(var(--color-success-rgb), 0.22), 0 5px 14px rgba(15, 23, 42, 0.08);
 }
 .admin-clickable-card:focus-visible {
     outline: 3px solid rgba(var(--color-primary-rgb), 0.45);
     outline-offset: 3px;
+}
+.admin-card-action-hint {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    margin-top: 0.7rem;
+    border-radius: 999px;
+    background: rgba(var(--color-success-rgb), 0.10);
+    color: var(--color-success);
+    border: 1px solid rgba(var(--color-success-rgb), 0.18);
+    padding: 0.25rem 0.55rem;
+    font-size: 0.68rem;
+    font-weight: 900;
+}
+.admin-users-section-highlight {
+    animation: adminUsersPulse 1.35s ease;
+}
+@keyframes adminUsersPulse {
+    0% { box-shadow: 0 0 0 0 rgba(var(--color-success-rgb), 0.34); }
+    55% { box-shadow: 0 0 0 8px rgba(var(--color-success-rgb), 0.10); }
+    100% { box-shadow: 0 0 0 0 rgba(var(--color-success-rgb), 0); }
 }
 .admin-metric-topline {
     display: flex;

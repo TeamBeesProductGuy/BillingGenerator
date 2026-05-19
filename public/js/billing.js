@@ -678,7 +678,9 @@
           '</div>';
           return '<tr>' +
             '<td><strong>' + escapeHtml(r.billing_month) + '</strong></td>' +
-            '<td><span class="entity-pill">' + escapeHtml(r.clientLabel || r.client_label || r.client_abbreviation || '-') + '</span></td>' +
+            '<td>' + (r.clientLabel || r.client_label || r.client_abbreviation
+              ? '<span class="entity-pill">' + escapeHtml(r.clientLabel || r.client_label || r.client_abbreviation) + '</span>'
+              : '') + '</td>' +
             '<td class="text-center">' + r.total_employees + '</td>' +
             '<td class="text-right">' + formatCurrency(r.total_amount) + '</td>' +
             '<td class="text-center">' + (r.error_count > 0 ? '<span class="badge-error">' + r.error_count + '</span>' : '<span class="badge-success">0</span>') + '</td>' +
