@@ -368,6 +368,11 @@ const adminController = {
     const id = req.params.id;
     if (id === req.user.id) throw new AppError(400, 'Admin cannot delete the currently signed-in account');
 
+    const { data: existing, error: existingError } = await adminSupabase.auth.admin.getUserById(id);
+    if (existingError) throw new Error(existingError.message);
+    if (!existing || !existing.user) throw new AppError(404, 'User not found');
+    if (isAdminUser(existing.user)) throw new AppError(400, 'Admin user cannot be deleted');
+
     const { error } = await adminSupabase.auth.admin.deleteUser(id);
     if (error) throw new Error(error.message);
     res.json({ success: true, data: { message: 'User deleted' } });

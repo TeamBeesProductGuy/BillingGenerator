@@ -14,6 +14,7 @@
     ];
     var CONTRACTUAL_MODULE_KEYS = ["clients", "quotes", "sows", "purchase_orders", "rate_cards", "attendance", "billing"];
     var PERMANENT_MODULE_KEYS = ["clients", "orders", "reminders"];
+    var ADMIN_EMAILS = ["jatinder@teambeescorp.com", "jatinder@teambeescrop.com"];
     var adminUsersById = {};
     var adminClients = [];
     var permissionState = {
@@ -50,6 +51,10 @@
         return user.password_changed_once
             ? '<span class="badge-success">Changed</span>'
             : '<span class="badge-warning" title="First password change has not been completed">Pending</span>';
+    }
+
+    function isAdminAccount(user) {
+        return ADMIN_EMAILS.indexOf(String(user && user.email || "").trim().toLowerCase()) !== -1;
     }
 
     function renderPermissionsSummary(permissions) {
@@ -180,12 +185,14 @@
     }
 
     function renderUserActions(user) {
-        return '<div class="table-action-group justify-center">' +
-            '<button class="btn-secondary btn-sm inline-flex items-center gap-1" onclick="openAdminEditUser(\'' + jsString(user.id) + '\')">' +
-            '<span class="material-symbols-outlined text-base">edit</span>Edit</button>' +
+        var editButton = '<button class="btn-secondary btn-sm inline-flex items-center gap-1" onclick="openAdminEditUser(\'' + jsString(user.id) + '\')">' +
+            '<span class="material-symbols-outlined text-base">edit</span>Edit</button>';
+        if (isAdminAccount(user)) {
+            return '<div class="table-action-group justify-center">' + editButton + '</div>';
+        }
+        return '<div class="table-action-group justify-center">' + editButton +
             '<button class="btn-danger btn-sm inline-flex items-center gap-1" onclick="deleteAdminUser(\'' + jsString(user.id) + '\', \'' + jsString(user.email) + '\')">' +
-            '<span class="material-symbols-outlined text-base">delete</span>Delete</button>' +
-            '</div>';
+            '<span class="material-symbols-outlined text-base">delete</span>Delete</button></div>';
     }
 
     async function loadUsers() {
@@ -502,19 +509,19 @@
         });
     }
 
-    function assignedClientKeys(mode) {
-        syncPermissionDraftFromDom(mode);
+    function assignedClientKeys(mode, options) {
+        if (!options || options.sync !== false) syncPermissionDraftFromDom(mode);
         var entries = permissionConfig(mode).state.draftByKey;
         return Object.keys(entries).filter(function (key) {
             return allowedModuleLabels(entries[key]).length > 0;
         });
     }
 
-    function updateAssignedClientCount(mode) {
+    function updateAssignedClientCount(mode, options) {
         var config = permissionConfig(mode);
         var count = document.getElementById(config.countId);
         if (!count) return;
-        var keys = assignedClientKeys(mode);
+        var keys = assignedClientKeys(mode, options);
         if (count) count.textContent = keys.length === 1 ? "1 client" : keys.length + " clients";
     }
 
@@ -569,7 +576,7 @@
             var label = String(client.label || client.client_name || "").toLowerCase();
             return !search || label.indexOf(search) !== -1 || String(client.abbreviation || "").toLowerCase().indexOf(search) !== -1;
         });
-        updateAssignedClientCount(mode);
+        updateAssignedClientCount(mode, { sync: false });
 
         if (adminClients.length === 0) {
             holder.innerHTML = '<div class="admin-permission-empty">No active clients found.</div>';
