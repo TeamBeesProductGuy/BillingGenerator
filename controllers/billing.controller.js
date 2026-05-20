@@ -4,6 +4,7 @@ const { parseRateCard, parseAttendance } = require('../services/excelParser.serv
 const { validateBillingMonth, crossValidate } = require('../services/validation.service');
 const { calculateBilling } = require('../services/billing.service');
 const { generateBillingExcel, generateBillingWorksheetBuffer } = require('../services/excelWriter.service');
+const { generateManagerAttendanceWorkbook } = require('../services/managerAttendanceExcel.service');
 const BillingModel = require('../models/billing.model');
 const RateCardModel = require('../models/rateCard.model');
 const AttendanceModel = require('../models/attendance.model');
@@ -380,6 +381,21 @@ async function autoConsumePOs(billingItems, billingMonth, runId) {
 
 function normalizeManagerKey(value) {
   return String(value || '').trim().toUpperCase();
+}
+
+function safeManagerFilename(managerName) {
+  return String(managerName || 'Manager').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'Manager';
+}
+
+async function buildManagerAttendanceAttachment(run, rows, managerName) {
+  const empCodes = Array.from(new Set(rows.map((item) => String(item.emp_code || '').trim()).filter(Boolean)));
+  const attendanceRows = await AttendanceModel.getDetailedByMonth(run.billing_month, empCodes);
+  const buffer = await generateManagerAttendanceWorkbook(rows, attendanceRows, {
+    billingMonth: run.billing_month,
+    managerName,
+  });
+  const filename = `Attendance_${safeManagerFilename(managerName)}_${run.billing_month}.xlsx`;
+  return { buffer, filename };
 }
 
 function deriveRunStatusFromItems(items) {
@@ -1109,6 +1125,7 @@ const billingController = {
     }
 
     const decoratedRows = aggregateManagerRows(rows);
+    const attendanceAttachment = await buildManagerAttendanceAttachment(run, rows, managerName);
 
     const draft = await createManagerApprovalDraft({
       reportingManager: managerName,
@@ -1118,6 +1135,11 @@ const billingController = {
       cc: req.body.cc,
       userName: resolveUserDisplayName(req.user),
       userEmail: req.user && req.user.email ? req.user.email : '',
+      attachments: [{
+        name: attendanceAttachment.filename,
+        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        content: attendanceAttachment.buffer,
+      }],
     });
 
     await logActivity(req, {
@@ -1144,6 +1166,27 @@ const billingController = {
         composeUrl: draft.composeUrl,
       },
     });
+  }),
+
+  downloadManagerAttendance: catchAsync(async (req, res) => {
+    const runId = parseInt(req.params.id, 10);
+    const managerName = String(req.query.manager || '').trim();
+    if (!managerName) throw new AppError(400, 'Reporting manager is required');
+
+    const run = await BillingModel.findRunById(runId);
+    if (!run) throw new AppError(404, 'Billing run not found');
+    await hydrateRunItemsForDecision(run);
+
+    const rows = (run.items || []).filter((item) => normalizeManagerKey(item.reporting_manager || 'Unassigned') === normalizeManagerKey(managerName));
+    if (rows.length === 0) {
+      throw new AppError(404, 'No service request items found for this reporting manager');
+    }
+
+    const attachment = await buildManagerAttendanceAttachment(run, rows, managerName);
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.attachment(attachment.filename);
+    res.send(Buffer.from(attachment.buffer));
   }),
 
   downloadFile: catchAsync(async (req, res) => {

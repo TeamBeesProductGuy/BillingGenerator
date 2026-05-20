@@ -73,6 +73,14 @@ function formatDisplayName(value) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function toSentenceCaseName(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/\b([a-z])/g, (match) => match.toUpperCase());
+}
+
 function escapeHtmlWithBreaks(value) {
   return escapeHtml(value).replace(/\r?\n/g, '<br/>');
 }
@@ -343,6 +351,15 @@ async function createDraftMessage(message) {
     ccRecipients: recipientObjects(splitRecipients(message.cc)),
   };
 
+  if (Array.isArray(message.attachments) && message.attachments.length > 0) {
+    payload.attachments = message.attachments.map((attachment) => ({
+      '@odata.type': '#microsoft.graph.fileAttachment',
+      name: attachment.name,
+      contentType: attachment.contentType || 'application/octet-stream',
+      contentBytes: Buffer.from(attachment.content).toString('base64'),
+    }));
+  }
+
   const response = await globalThis.fetch(`${GRAPH_BASE_URL}/users/${encodeURIComponent(env.msSenderUpn)}/messages`, {
     method: 'POST',
     headers: {
@@ -375,9 +392,13 @@ async function createDraftMessage(message) {
 async function createManagerApprovalDraft(options) {
   const rows = Array.isArray(options.rows) ? options.rows : [];
   const billingMonthLabel = formatBillingMonth(options.billingMonth);
-  const managerName = String(options.reportingManager || 'Manager').trim() || 'Manager';
+  const managerName = toSentenceCaseName(options.reportingManager || 'Manager') || 'Manager';
   const subject = `Attendance Sheet and Service Request for ${billingMonthLabel}`;
-  const tableHtml = buildManagerSummaryTable(rows, options.billingMonth);
+  const displayRows = rows.map((row) => ({
+    ...row,
+    reporting_manager: toSentenceCaseName(row.reporting_manager || managerName) || managerName,
+  }));
+  const tableHtml = buildManagerSummaryTable(displayRows, options.billingMonth);
   const htmlBody = [
     `<p>Hi ${escapeHtml(managerName)},</p>`,
     `<p>Please find below the Attendance Sheet and Service Request for the month of <strong>${escapeHtml(billingMonthLabel)}</strong>.</p>`,
@@ -391,6 +412,7 @@ async function createManagerApprovalDraft(options) {
     htmlBody,
     to: options.to,
     cc: options.cc,
+    attachments: options.attachments,
   });
 
   return {

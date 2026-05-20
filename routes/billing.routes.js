@@ -20,6 +20,7 @@ router.patch('/runs/:id/items/:itemId', validate(updateRunItem), billingControll
 router.post('/runs/:id/manager-draft', validate(createManagerDraft), billingController.createManagerDraft);
 router.post('/runs/:id/decision', validate(decideRun), billingController.decideRun);
 router.get('/runs/:id/download', billingController.downloadFile);
+router.get('/runs/:id/manager-attendance', billingController.downloadManagerAttendance);
 router.get('/runs/:id/download/:worksheet', billingController.downloadWorksheet);
 
 module.exports = router;

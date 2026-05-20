@@ -433,6 +433,21 @@
     return rows.length > 0 && rows.every(function (item) { return item.approval_status === 'Accepted'; });
   }
 
+  function managerClientLabel(rows) {
+    return uniqueJoined((rows || []).map(function (item) {
+      return item.client_abbreviation || item.client_name || '';
+    })) || '-';
+  }
+
+  function downloadManagerAttendance(managerName) {
+    if (!currentRunId) return;
+    var safeName = String(managerName || 'Manager').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'Manager';
+    downloadFile(
+      '/api/billing/runs/' + currentRunId + '/manager-attendance?manager=' + encodeURIComponent(managerName || ''),
+      'Attendance_' + safeName + '_' + (currentBillingMonth || '') + '.xlsx'
+    );
+  }
+
   function renderManagerApprovals(items) {
     var section = document.getElementById('managerApprovalSection');
     var body = document.getElementById('managerApprovalBody');
@@ -458,20 +473,26 @@
       var accepted = rows.filter(function (item) { return item.approval_status === 'Accepted'; }).length;
       var rejected = rows.filter(function (item) { return item.approval_status === 'Rejected'; }).length;
       var approved = managerApproved(rows);
+      var clientLabel = managerClientLabel(rows);
       var statusText = accepted + ' accepted';
       if (pending) statusText += ', ' + pending + ' pending';
       if (rejected) statusText += ', ' + rejected + ' rejected';
       var actionHtml = approved
-        ? '<div class="flex items-center justify-between gap-2"><span class="badge-success">Approved</span><button type="button" class="btn-secondary btn-sm manager-view-btn" data-manager="' + escapeHtml(name) + '">View</button></div>'
-        : '<div class="grid grid-cols-1 sm:grid-cols-4 gap-2">' +
+        ? '<div class="grid grid-cols-1 sm:grid-cols-3 gap-2">' +
+            '<span class="badge-success inline-flex items-center justify-center">Approved</span>' +
+            '<button type="button" class="btn-secondary btn-sm manager-attendance-btn" data-manager="' + escapeHtml(name) + '">Download Attendance</button>' +
+            '<button type="button" class="btn-secondary btn-sm manager-view-btn" data-manager="' + escapeHtml(name) + '">View</button>' +
+          '</div>'
+        : '<div class="grid grid-cols-1 sm:grid-cols-5 gap-2">' +
             '<button type="button" class="btn-primary btn-sm manager-approve-btn" data-manager="' + escapeHtml(name) + '">Approve</button>' +
             '<button type="button" class="btn-secondary btn-sm manager-edit-btn" data-manager="' + escapeHtml(name) + '">Edit Request</button>' +
             '<button type="button" class="btn-secondary btn-sm manager-mail-btn" data-manager="' + escapeHtml(name) + '">Send Mail</button>' +
+            '<button type="button" class="btn-secondary btn-sm manager-attendance-btn" data-manager="' + escapeHtml(name) + '">Download Attendance</button>' +
             '<button type="button" class="btn-secondary btn-sm manager-view-btn" data-manager="' + escapeHtml(name) + '">View</button>' +
           '</div>';
       return '<div class="rounded-xl border border-outline-variant/15 bg-surface-container p-4 space-y-3">' +
         '<div class="flex items-start justify-between gap-3">' +
-          '<div><div class="text-xs text-on-surface-variant">Reporting Manager</div><div class="font-semibold text-on-surface">' + escapeHtml(name) + '</div></div>' +
+          '<div><div class="text-xs text-on-surface-variant">Reporting Manager</div><div class="font-semibold text-on-surface">' + escapeHtml(name) + '</div><div class="mt-1 text-xs text-on-surface-variant">Client: <span class="font-semibold text-on-surface">' + escapeHtml(clientLabel) + '</span></div></div>' +
           '<div class="text-right"><div class="text-xs text-on-surface-variant">Amount</div><div class="font-semibold">' + formatCurrency(total) + '</div></div>' +
         '</div>' +
         '<div class="text-xs text-on-surface-variant">' + rows.length + ' candidate(s) | ' + escapeHtml(statusText) + '</div>' +
@@ -809,6 +830,11 @@
     var mailBtn = e.target.closest('.manager-mail-btn');
     if (mailBtn) {
       openManagerMail(mailBtn.getAttribute('data-manager') || '');
+      return;
+    }
+    var attendanceBtn = e.target.closest('.manager-attendance-btn');
+    if (attendanceBtn) {
+      downloadManagerAttendance(attendanceBtn.getAttribute('data-manager') || '');
       return;
     }
     var viewBtn = e.target.closest('.manager-view-btn');
