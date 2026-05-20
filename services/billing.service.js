@@ -238,6 +238,7 @@ function calculateBilling(rateCards, attendanceRecords, billingMonth) {
       reporting_manager: rc.reporting_manager || attendance.reporting_manager,
       emp_code: rc.emp_code,
       emp_name: rc.emp_name,
+      doj: rc.doj || null,
       charging_date: rc.charging_date || null,
       monthly_rate: rc.monthly_rate,
       allowed_leaves: rc.leaves_allowed,

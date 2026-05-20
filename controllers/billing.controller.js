@@ -347,6 +347,7 @@ async function hydrateRunItemsForDecision(run) {
     item.po_date = item.po_date || currentRateCard.po_date || null;
     item.service_description = item.service_description || currentRateCard.service_description || null;
     item.client_abbreviation = item.client_abbreviation || currentRateCard.client_abbreviation || null;
+    item.doj = item.doj || currentRateCard.doj || null;
   }
 
   await resolvePoFromSow(run.items);
