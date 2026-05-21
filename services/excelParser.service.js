@@ -30,7 +30,7 @@ const ATTENDANCE_ALIASES = {
   reporting_manager: ['reporting_manager', 'reportingmanager', 'manager', 'rm'],
 };
 
-const ATTENDANCE_PRESENT_CODES = new Set(['P', 'PR', 'ODW', 'WFH']);
+const ATTENDANCE_PRESENT_CODES = new Set(['P', 'PR', 'HL', 'ODW', 'WFH']);
 // WO is not a leave, but it is also not billed for SGTC hourly-prorated clients.
 const ATTENDANCE_NON_BILLABLE_CODES = new Set(['WO', 'W/O', 'WEEKOFF', 'WEEK_OFF', 'WEEK OFF', 'OFF']);
 const ATTENDANCE_FULL_LEAVE_CODES = new Set(['L', 'CL', 'SL', 'EL', 'PRTO', 'A']);

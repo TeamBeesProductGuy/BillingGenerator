@@ -6,6 +6,15 @@ const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
 const { logActivity } = require('../services/activityLog.service');
 
+function normalizeAttendanceEntryCode(value) {
+  const code = String(value || '').trim().toUpperCase();
+  if (['CL', 'SL', 'EL', 'A'].includes(code)) return { status: 'L', leave_units: 1, attendance_code: code };
+  if (['HDL', 'HDS', 'HD'].includes(code)) return { status: 'L', leave_units: 0.5, attendance_code: code === 'HD' ? 'HDL' : code };
+  if (['WO', 'W/O', 'WEEKOFF', 'WEEK_OFF', 'WEEK OFF'].includes(code)) return { status: 'WO', leave_units: 0, attendance_code: 'WO' };
+  if (['P', 'PR', 'HL', 'ODW', 'PRTO', 'WFH'].includes(code)) return { status: 'P', leave_units: 0, attendance_code: code === 'P' ? 'PR' : code };
+  return { status: 'P', leave_units: 0, attendance_code: code || 'PR' };
+}
+
 const attendanceController = {
   list: catchAsync(async (req, res) => {
     const { empCode, billingMonth } = req.query;
@@ -51,8 +60,18 @@ const attendanceController = {
 
   submitSingle: catchAsync(async (req, res) => {
     const { emp_code, emp_name, reporting_manager, billing_month, day_number, status } = req.body;
+    const normalized = normalizeAttendanceEntryCode(status);
     try {
-      await AttendanceModel.bulkUpsert([{ emp_code, emp_name, reporting_manager, billing_month, day_number, status: status.toUpperCase(), attendance_code: status.toUpperCase() }]);
+      await AttendanceModel.bulkUpsert([{
+        emp_code,
+        emp_name,
+        reporting_manager,
+        billing_month,
+        day_number,
+        status: normalized.status,
+        leave_units: normalized.leave_units,
+        attendance_code: normalized.attendance_code,
+      }]);
     } catch (err) {
       if (err && err.message && err.message.includes('WO attendance requires DB migration 016')) {
         throw new AppError(400, err.message);

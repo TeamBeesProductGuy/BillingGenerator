@@ -28,7 +28,7 @@ const submitSingle = Joi.object({
     .required(),
 
   status: Joi.string()
-    .valid('P', 'L', 'WO', 'p', 'l', 'wo')
+    .valid('P', 'PR', 'L', 'CL', 'SL', 'EL', 'HD', 'HDL', 'HDS', 'HL', 'WO', 'A', 'ODW', 'PRTO', 'WFH', 'p', 'pr', 'l', 'cl', 'sl', 'el', 'hd', 'hdl', 'hds', 'hl', 'wo', 'a', 'odw', 'prto', 'wfh')
     .required()
 });
 
