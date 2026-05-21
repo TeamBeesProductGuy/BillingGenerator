@@ -390,7 +390,15 @@ function safeManagerFilename(managerName) {
 
 async function buildManagerAttendanceAttachment(run, rows, managerName) {
   const empCodes = Array.from(new Set(rows.map((item) => String(item.emp_code || '').trim()).filter(Boolean)));
-  const attendanceRows = await AttendanceModel.getDetailedByMonth(run.billing_month, empCodes);
+  let attendanceRows = [];
+  try {
+    attendanceRows = await BillingModel.getAttendanceSnapshot(run.id, empCodes);
+  } catch (err) {
+    console.warn('Unable to load billing attendance snapshot:', err.message);
+  }
+  if (!attendanceRows || attendanceRows.length === 0) {
+    attendanceRows = await AttendanceModel.getDetailedByMonth(run.billing_month, empCodes);
+  }
   const buffer = await generateManagerAttendanceWorkbook(rows, attendanceRows, {
     billingMonth: run.billing_month,
     managerName,
@@ -578,6 +586,7 @@ async function createStoredRun({
   billingItems,
   allErrors,
   summary,
+  attendanceRecords = [],
   blockedByErrors = false,
 }) {
   const summaryWithClients = await enrichSummaryWithClients(summary, billingItems, selectedClientIds);
@@ -595,6 +604,13 @@ async function createStoredRun({
 
   if (billingItems.length > 0) await BillingModel.addItems(runId, billingItems);
   if (allErrors.length > 0) await BillingModel.addErrors(runId, allErrors);
+  if (attendanceRecords.length > 0) {
+    try {
+      await BillingModel.addAttendanceSnapshot(runId, attendanceRecords, billingMonth);
+    } catch (err) {
+      console.warn('Unable to store billing attendance snapshot:', err.message);
+    }
+  }
 
   return {
     billingRunId: runId,
@@ -733,6 +749,7 @@ const billingController = {
         billingItems: result.billingItems,
         allErrors: [...warningErrors],
         summary: result.summary,
+        attendanceRecords: attendanceResult.records,
       });
       await logActivity(req, {
         module: 'billing',
@@ -790,6 +807,7 @@ const billingController = {
         billable_hours: a.billable_hours !== undefined ? Number(a.billable_hours) : Math.round(Number(a.days_present || 0) * 8.5 * 100) / 100,
         days: a.days || {},
         day_leave_units: a.day_leave_units || {},
+        attendance_codes: a.attendance_codes || {},
       }));
 
     const warningErrors = [];
@@ -901,6 +919,7 @@ const billingController = {
         ...result.summary,
         errorCount: scopedErrors.length,
       },
+      attendanceRecords,
     });
     await logActivity(req, {
       module: 'billing',

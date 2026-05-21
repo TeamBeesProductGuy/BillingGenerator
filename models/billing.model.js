@@ -138,6 +138,75 @@ const BillingModel = {
     if (error) throw new Error(error.message);
   },
 
+  async addAttendanceSnapshot(runId, attendanceRecords, billingMonth) {
+    if (!Array.isArray(attendanceRecords) || attendanceRecords.length === 0) return;
+
+    const rows = [];
+    attendanceRecords.forEach((record) => {
+      for (let day = 1; day <= 31; day += 1) {
+        if (!record.days || record.days[day] === undefined) continue;
+        rows.push({
+          billing_run_id: runId,
+          billing_month: billingMonth,
+          emp_code: record.emp_code,
+          emp_name: record.emp_name || null,
+          reporting_manager: record.reporting_manager || null,
+          day_number: day,
+          status: record.days[day] || 'P',
+          leave_units: record.day_leave_units && record.day_leave_units[day] !== undefined
+            ? Number(record.day_leave_units[day] || 0)
+            : 0,
+          attendance_code: record.attendance_codes && record.attendance_codes[day]
+            ? record.attendance_codes[day]
+            : null,
+        });
+      }
+    });
+
+    if (rows.length === 0) return;
+    let { error } = await supabase
+      .from('billing_attendance_snapshots')
+      .insert(rows);
+    if (error && (error.code === '42P01' || error.message.includes('billing_attendance_snapshots'))) return;
+    if (error) throw new Error(error.message);
+  },
+
+  async getAttendanceSnapshot(runId, empCodes) {
+    let query = supabase
+      .from('billing_attendance_snapshots')
+      .select('*')
+      .eq('billing_run_id', runId)
+      .order('emp_code')
+      .order('day_number');
+    if (Array.isArray(empCodes) && empCodes.length > 0) {
+      query = query.in('emp_code', empCodes);
+    }
+    const { data, error } = await query;
+    if (error && (error.code === '42P01' || error.message.includes('billing_attendance_snapshots'))) return [];
+    if (error) throw new Error(error.message);
+
+    const grouped = new Map();
+    (data || []).forEach((row) => {
+      const key = String(row.emp_code || '').trim();
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          emp_code: row.emp_code,
+          emp_name: row.emp_name,
+          reporting_manager: row.reporting_manager,
+          days: {},
+          day_leave_units: {},
+          attendance_codes: {},
+        });
+      }
+      const rec = grouped.get(key);
+      const day = Number(row.day_number);
+      rec.days[day] = String(row.status || 'P').toUpperCase();
+      rec.day_leave_units[day] = Number(row.leave_units || 0);
+      rec.attendance_codes[day] = String(row.attendance_code || '').trim().toUpperCase();
+    });
+    return Array.from(grouped.values());
+  },
+
   async findRuns(limit = 20, offset = 0) {
     let { data, error } = await supabase
       .from('billing_runs')
