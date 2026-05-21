@@ -392,12 +392,12 @@ async function buildManagerAttendanceAttachment(run, rows, managerName) {
   const empCodes = Array.from(new Set(rows.map((item) => String(item.emp_code || '').trim()).filter(Boolean)));
   let attendanceRows = [];
   try {
-    attendanceRows = await BillingModel.getAttendanceSnapshot(run.id, empCodes);
+    attendanceRows = await BillingModel.getAttendanceSnapshot(run.id);
   } catch (err) {
     console.warn('Unable to load billing attendance snapshot:', err.message);
   }
   if (!attendanceRows || attendanceRows.length === 0) {
-    attendanceRows = await AttendanceModel.getDetailedByMonth(run.billing_month, empCodes);
+    attendanceRows = await AttendanceModel.getDetailedByMonth(run.billing_month);
   }
   const buffer = await generateManagerAttendanceWorkbook(rows, attendanceRows, {
     billingMonth: run.billing_month,

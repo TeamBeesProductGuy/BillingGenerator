@@ -89,13 +89,39 @@ function excelDate(value) {
   return Number.isNaN(date.getTime()) ? value : date;
 }
 
+function normalizeEmpCode(value) {
+  return String(value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function normalizeEmpName(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ').replace(/[^a-z0-9 ]/g, '');
+}
+
 function buildAttendanceMap(attendanceRows) {
   const map = new Map();
+  const nameMap = new Map();
+  const duplicateNames = new Set();
   (attendanceRows || []).forEach((row) => {
-    const key = String(row.emp_code || '').trim().toUpperCase();
-    if (key) map.set(key, row);
+    const codeKey = normalizeEmpCode(row.emp_code);
+    if (codeKey) map.set(codeKey, row);
+    const nameKey = normalizeEmpName(row.emp_name);
+    if (!nameKey) return;
+    if (nameMap.has(nameKey)) {
+      duplicateNames.add(nameKey);
+      return;
+    }
+    nameMap.set(nameKey, row);
   });
-  return map;
+  duplicateNames.forEach((nameKey) => nameMap.delete(nameKey));
+  return { byCode: map, byName: nameMap };
+}
+
+function findAttendance(attendanceLookup, candidate) {
+  const codeKey = normalizeEmpCode(candidate.emp_code);
+  const nameKey = normalizeEmpName(candidate.emp_name);
+  return (codeKey && attendanceLookup.byCode.get(codeKey))
+    || (nameKey && attendanceLookup.byName.get(nameKey))
+    || {};
 }
 
 function uniqueCandidates(rows) {
@@ -190,9 +216,9 @@ function setupHeaders(ws, billingMonth, daysInMonth) {
   }
 }
 
-function writeCandidateRows(ws, candidates, attendanceByEmp, daysInMonth) {
+function writeCandidateRows(ws, candidates, attendanceLookup, daysInMonth) {
   candidates.forEach((candidate, index) => {
-    const attendance = attendanceByEmp.get(String(candidate.emp_code || '').trim().toUpperCase()) || {};
+    const attendance = findAttendance(attendanceLookup, candidate);
     const rowNumber = index + 5;
     const row = ws.getRow(rowNumber);
     row.height = 35.4;

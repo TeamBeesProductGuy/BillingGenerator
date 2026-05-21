@@ -171,16 +171,13 @@ const BillingModel = {
     if (error) throw new Error(error.message);
   },
 
-  async getAttendanceSnapshot(runId, empCodes) {
-    let query = supabase
+  async getAttendanceSnapshot(runId) {
+    const query = supabase
       .from('billing_attendance_snapshots')
       .select('*')
       .eq('billing_run_id', runId)
       .order('emp_code')
       .order('day_number');
-    if (Array.isArray(empCodes) && empCodes.length > 0) {
-      query = query.in('emp_code', empCodes);
-    }
     const { data, error } = await query;
     if (error && (error.code === '42P01' || error.message.includes('billing_attendance_snapshots'))) return [];
     if (error) throw new Error(error.message);
