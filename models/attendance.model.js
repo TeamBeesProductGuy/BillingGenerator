@@ -20,6 +20,7 @@ const AttendanceModel = {
       billing_month: rec.billing_month,
       day_number: rec.day_number,
       status: rec.status,
+      attendance_code: rec.attendance_code || rec.original_code || rec.raw_code || null,
       leave_units: rec.leave_units !== undefined
         ? rec.leave_units
         : (String(rec.status || '').toUpperCase() === 'L' ? 1 : 0),
@@ -29,6 +30,17 @@ const AttendanceModel = {
       .upsert(rows, { onConflict: 'emp_code,billing_month,day_number' });
     if (error && error.message && (error.message.includes('attendance_status_check') || error.message.includes('attendance_leave_units_check'))) {
       throw new Error('WO attendance requires DB migration 016 (attendance status WO). Please run the latest migration in Supabase first.');
+    }
+    // Backward compatibility for databases where attendance_code has not been added yet.
+    if (error && error.message && error.message.includes('attendance_code')) {
+      const fallbackRows = rows.map((row) => {
+        const copy = { ...row };
+        delete copy.attendance_code;
+        return copy;
+      });
+      ({ error } = await supabase
+        .from('attendance')
+        .upsert(fallbackRows, { onConflict: 'emp_code,billing_month,day_number' }));
     }
     // Backward compatibility for databases where leave_units is not added yet.
     if (error && error.message && error.message.includes('leave_units')) {
@@ -92,6 +104,7 @@ const AttendanceModel = {
           reporting_manager: row.reporting_manager,
           days: {},
           day_leave_units: {},
+          attendance_codes: {},
           leaves_taken: 0,
           days_present: 0,
         });
@@ -100,8 +113,10 @@ const AttendanceModel = {
       const day = Number(row.day_number);
       const status = String(row.status || 'P').toUpperCase();
       const leaveUnits = Number(row.leave_units || 0);
+      const attendanceCode = String(row.attendance_code || '').trim().toUpperCase();
       rec.days[day] = status;
       rec.day_leave_units[day] = leaveUnits;
+      rec.attendance_codes[day] = attendanceCode;
       if (status === 'L') {
         rec.leaves_taken += leaveUnits;
         rec.days_present += Math.max(1 - leaveUnits, 0);

@@ -52,7 +52,7 @@ const attendanceController = {
   submitSingle: catchAsync(async (req, res) => {
     const { emp_code, emp_name, reporting_manager, billing_month, day_number, status } = req.body;
     try {
-      await AttendanceModel.bulkUpsert([{ emp_code, emp_name, reporting_manager, billing_month, day_number, status: status.toUpperCase() }]);
+      await AttendanceModel.bulkUpsert([{ emp_code, emp_name, reporting_manager, billing_month, day_number, status: status.toUpperCase(), attendance_code: status.toUpperCase() }]);
     } catch (err) {
       if (err && err.message && err.message.includes('WO attendance requires DB migration 016')) {
         throw new AppError(400, err.message);
@@ -133,6 +133,7 @@ const attendanceController = {
         day_number: day,
         status: leaveUnits > 0 ? 'L' : 'P',
         leave_units: leaveUnits,
+        attendance_code: leaveUnits === 0.5 ? 'HDL' : (leaveUnits > 0 ? 'CL' : 'PR'),
       });
     }
 
@@ -188,6 +189,9 @@ const attendanceController = {
                 ? rec.day_leave_units[day]
                 : ((rec.days[day] || 'P') === 'L' ? 1 : 0)
             ),
+            attendance_code: rec.attendance_codes && rec.attendance_codes[day]
+              ? rec.attendance_codes[day]
+              : null,
           });
         }
       }

@@ -176,6 +176,7 @@ CREATE TABLE IF NOT EXISTS attendance (
     billing_month     TEXT NOT NULL,
     day_number        INTEGER NOT NULL CHECK(day_number >= 1 AND day_number <= 31),
     status            TEXT NOT NULL CHECK(status IN ('P', 'L', 'WO')),
+    attendance_code   TEXT,
     leave_units       NUMERIC(4,2) NOT NULL DEFAULT 0 CHECK(
                       (status = 'P' AND leave_units = 0)
                       OR (status = 'WO' AND leave_units = 0)

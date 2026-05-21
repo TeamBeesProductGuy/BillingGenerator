@@ -23,6 +23,7 @@ const TOTAL_HEADER_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 
 const SHADE_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8AEE8' }, bgColor: { argb: 'FF000000' } };
 const LEAVE_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF0000' }, bgColor: { argb: 'FF000000' } };
 const PRESENT_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' }, bgColor: { argb: 'FF000000' } };
+const WHITE_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' }, bgColor: { argb: 'FF000000' } };
 const THIN_BORDER = {
   top: { style: 'thin', color: { argb: 'FF000000' } },
   left: { style: 'thin', color: { argb: 'FF000000' } },
@@ -41,7 +42,18 @@ function safeSheetName(value) {
   return (raw || 'Attendance').slice(0, 31);
 }
 
-function formatStatus(status, leaveUnits) {
+function normalizeStoredAttendanceCode(value) {
+  const normalized = String(value || '').trim().toUpperCase();
+  if (!normalized) return '';
+  if (normalized === 'P') return 'PR';
+  if (normalized === 'HD') return 'HDL';
+  if (normalized === 'WEEKOFF' || normalized === 'WEEK_OFF' || normalized === 'WEEK OFF' || normalized === 'W/O') return 'WO';
+  return normalized;
+}
+
+function formatStatus(status, leaveUnits, attendanceCode) {
+  const originalCode = normalizeStoredAttendanceCode(attendanceCode);
+  if (originalCode) return originalCode;
   const normalized = String(status || '').trim().toUpperCase();
   if (normalized === 'P') return 'PR';
   if (normalized === 'L' && Number(leaveUnits) === 0.5) return 'HDL';
@@ -201,7 +213,11 @@ function writeCandidateRows(ws, candidates, attendanceByEmp, daysInMonth) {
     const codes = [];
     for (let day = 1; day <= 31; day += 1) {
       const code = day <= daysInMonth
-        ? formatStatus(attendance.days && attendance.days[day], attendance.day_leave_units && attendance.day_leave_units[day])
+        ? formatStatus(
+          attendance.days && attendance.days[day],
+          attendance.day_leave_units && attendance.day_leave_units[day],
+          attendance.attendance_codes && attendance.attendance_codes[day]
+        )
         : '';
       const cell = row.getCell(5 + day);
       cell.value = code;
@@ -222,8 +238,10 @@ function writeLegend(ws, candidateCount) {
   const title = ws.getCell(legendStart, 1);
   title.value = 'LEGEND';
   applyBaseCell(title, { bold: true, fill: HEADER_FILL, border: MEDIUM_BORDER });
+  ws.getRow(legendStart).height = 16.8;
 
   const headerRow = ws.getRow(legendStart + 1);
+  headerRow.height = 16.8;
   headerRow.getCell(1).value = 'Code';
   headerRow.getCell(2).value = 'Meaning';
   applyBaseCell(headerRow.getCell(1), { bold: true, fill: HEADER_FILL, border: MEDIUM_BORDER });
@@ -231,11 +249,30 @@ function writeLegend(ws, candidateCount) {
 
   LEGEND_ROWS.forEach((legend, index) => {
     const row = ws.getRow(legendStart + index + 2);
+    row.height = 16.8;
     row.getCell(1).value = legend[0];
     row.getCell(2).value = legend[1];
     applyBaseCell(row.getCell(1), { bold: true, fill: statusFill(legend[0]) || PRESENT_FILL });
-    applyBaseCell(row.getCell(2));
+    applyBaseCell(row.getCell(2), { fill: WHITE_FILL });
   });
+
+  const finalLegendRow = legendStart + LEGEND_ROWS.length + 1;
+  for (let rowNumber = legendStart; rowNumber <= finalLegendRow; rowNumber += 1) {
+    const left = ws.getRow(rowNumber).getCell(1);
+    const right = ws.getRow(rowNumber).getCell(2);
+    left.border = {
+      ...left.border,
+      left: { style: 'medium', color: { argb: 'FF000000' } },
+    };
+    right.border = {
+      ...right.border,
+      right: { style: 'medium', color: { argb: 'FF000000' } },
+    };
+    if (rowNumber === legendStart || rowNumber === finalLegendRow) {
+      left.border = { ...left.border, top: rowNumber === legendStart ? MEDIUM_BORDER.top : left.border.top, bottom: rowNumber === finalLegendRow ? MEDIUM_BORDER.bottom : left.border.bottom };
+      right.border = { ...right.border, top: rowNumber === legendStart ? MEDIUM_BORDER.top : right.border.top, bottom: rowNumber === finalLegendRow ? MEDIUM_BORDER.bottom : right.border.bottom };
+    }
+  }
 }
 
 async function generateManagerAttendanceWorkbook(rows, attendanceRows, options = {}) {

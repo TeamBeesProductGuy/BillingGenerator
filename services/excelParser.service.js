@@ -69,12 +69,12 @@ function normalizeEmployeeName(value) {
 function mapAttendanceCode(rawValue) {
   const code = String(rawValue || '').trim().toUpperCase();
   const compactCode = code.replace(/[\s_/-]+/g, '');
-  if (!code) return { status: 'P', leaveUnits: 0 };
-  if (ATTENDANCE_HALF_LEAVE_CODES.has(code)) return { status: 'L', leaveUnits: 0.5 };
-  if (ATTENDANCE_FULL_LEAVE_CODES.has(code)) return { status: 'L', leaveUnits: 1 };
-  if (ATTENDANCE_NON_BILLABLE_CODES.has(code) || compactCode === 'WO' || compactCode === 'WEEKOFF') return { status: 'WO', leaveUnits: 0 };
-  if (ATTENDANCE_PRESENT_CODES.has(code)) return { status: 'P', leaveUnits: 0 };
-  return { status: 'P', leaveUnits: 0 };
+  if (!code) return { status: 'P', leaveUnits: 0, attendanceCode: 'PR' };
+  if (ATTENDANCE_HALF_LEAVE_CODES.has(code)) return { status: 'L', leaveUnits: 0.5, attendanceCode: code };
+  if (ATTENDANCE_FULL_LEAVE_CODES.has(code)) return { status: 'L', leaveUnits: 1, attendanceCode: code };
+  if (ATTENDANCE_NON_BILLABLE_CODES.has(code) || compactCode === 'WO' || compactCode === 'WEEKOFF') return { status: 'WO', leaveUnits: 0, attendanceCode: code };
+  if (ATTENDANCE_PRESENT_CODES.has(code)) return { status: 'P', leaveUnits: 0, attendanceCode: code };
+  return { status: 'P', leaveUnits: 0, attendanceCode: code };
 }
 
 function detectAttendanceHeaderRow(worksheet) {
@@ -325,6 +325,7 @@ async function parseAttendance(filePath, billingMonth, options = {}) {
 
     const days = {};
     const dayLeaveUnits = {};
+    const attendanceCodes = {};
     let leavesTaken = 0;
     let daysPresent = 0;
 
@@ -333,6 +334,7 @@ async function parseAttendance(filePath, billingMonth, options = {}) {
       if (!col) {
         days[day] = 'P';
         dayLeaveUnits[day] = 0;
+        attendanceCodes[day] = 'PR';
         daysPresent += 1;
         continue;
       }
@@ -340,6 +342,7 @@ async function parseAttendance(filePath, billingMonth, options = {}) {
       const mapped = mapAttendanceCode(val);
       days[day] = mapped.status;
       dayLeaveUnits[day] = mapped.leaveUnits;
+      attendanceCodes[day] = mapped.attendanceCode;
       leavesTaken += mapped.leaveUnits;
       if (mapped.status === 'P') daysPresent += 1;
       if (mapped.status === 'L') daysPresent += (1 - mapped.leaveUnits);
@@ -351,6 +354,7 @@ async function parseAttendance(filePath, billingMonth, options = {}) {
       reporting_manager: resolvedManager,
       days,
       day_leave_units: dayLeaveUnits,
+      attendance_codes: attendanceCodes,
       leaves_taken: leavesTaken,
       days_present: daysPresent,
       billable_hours: Math.round(daysPresent * 8.5 * 100) / 100,
