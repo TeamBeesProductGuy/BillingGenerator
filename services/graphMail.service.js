@@ -62,6 +62,16 @@ function formatBillingMonth(value) {
   return raw || '-';
 }
 
+function formatBillingMonthLong(value) {
+  const raw = String(value || '').trim();
+  if (/^\d{6}$/.test(raw)) {
+    const year = Number(raw.slice(0, 4));
+    const month = parseInt(raw.slice(4, 6), 10) - 1;
+    return new Date(year, month, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  }
+  return raw || '-';
+}
+
 function formatDisplayName(value) {
   const raw = String(value || '').trim();
   if (!raw) return '';
@@ -392,8 +402,9 @@ async function createDraftMessage(message) {
 async function createManagerApprovalDraft(options) {
   const rows = Array.isArray(options.rows) ? options.rows : [];
   const billingMonthLabel = formatBillingMonth(options.billingMonth);
+  const billingMonthSubjectLabel = formatBillingMonthLong(options.billingMonth);
   const managerName = toSentenceCaseName(options.reportingManager || 'Manager') || 'Manager';
-  const subject = `Attendance Sheet and Service Request for ${billingMonthLabel}`;
+  const subject = `Approval Requested - Service Request for ${billingMonthSubjectLabel} (${managerName})`;
   const displayRows = rows.map((row) => ({
     ...row,
     reporting_manager: toSentenceCaseName(row.reporting_manager || managerName) || managerName,
