@@ -385,8 +385,54 @@ function normalizeManagerKey(value) {
   return String(value || '').trim().toUpperCase();
 }
 
-function safeManagerFilename(managerName) {
-  return String(managerName || 'Manager').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'Manager';
+function safeFilenameSegment(value, fallback = 'File') {
+  const segment = String(value || '')
+    .replace(/[\\/:*?"<>|]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return segment || fallback;
+}
+
+function formatAttendanceMonthToken(billingMonth) {
+  const raw = String(billingMonth || '').trim();
+  if (/^\d{6}$/.test(raw)) {
+    return `${raw.slice(4, 6)}${raw.slice(2, 4)}`;
+  }
+  return raw.replace(/\D/g, '').slice(-4) || 'Month';
+}
+
+function formatGeneratedDateToken(date = new Date()) {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = String(date.getFullYear()).slice(-2);
+  return `${day}${month}${year}`;
+}
+
+function attendanceClientFilenameToken(rows) {
+  const seen = new Set();
+  const tokens = [];
+  (rows || []).forEach((row) => {
+    const label = String(row.client_abbreviation || row.client_name || '').trim();
+    if (!label) return;
+    const normalized = label.toUpperCase();
+    let token = label;
+    if (normalized.startsWith('SGTC')) token = 'SGTC';
+    else if (normalized.startsWith('VOCERA')) token = 'Vocera';
+    const key = token.toUpperCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    tokens.push(safeFilenameSegment(token, 'Client'));
+  });
+  return tokens.length > 0 ? tokens.join('_') : 'Client';
+}
+
+function buildManagerAttendanceFilename(run, rows, managerName, extension = 'xlsx') {
+  const monthToken = formatAttendanceMonthToken(run && run.billing_month);
+  const clientToken = attendanceClientFilenameToken(rows);
+  const managerToken = safeFilenameSegment(managerName, 'Manager');
+  const dateToken = formatGeneratedDateToken();
+  const ext = String(extension || 'xlsx').replace(/^\.+/, '') || 'xlsx';
+  return `Attendance_${monthToken}_${clientToken}_${managerToken}-${dateToken}.${ext}`;
 }
 
 function stripFileExtension(filename) {
@@ -497,7 +543,7 @@ async function buildManagerAttendanceAttachment(run, rows, managerName) {
     billingMonth: run.billing_month,
     managerName,
   });
-  const filename = `Attendance_${safeManagerFilename(managerName)}_${run.billing_month}.xlsx`;
+  const filename = buildManagerAttendanceFilename(run, exportRows, managerName, 'xlsx');
   return { buffer, filename };
 }
 
