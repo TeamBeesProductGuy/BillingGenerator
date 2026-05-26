@@ -513,15 +513,16 @@
                 throw new Error(errText || "Download failed");
             }
 
-            // Derive filename from Content-Disposition header or URL
-            if (!filename) {
-                var cd = response.headers.get("Content-Disposition") || "";
-                var match = cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-                if (match) {
-                    filename = match[1].replace(/['"]/g, "");
-                } else {
-                    filename = url.split("/").pop().split("?")[0] || "download";
-                }
+            // Prefer server-provided names so downloads stay aligned with backend-generated files.
+            var cd = response.headers.get("Content-Disposition") || "";
+            var encodedMatch = cd.match(/filename\*=UTF-8''([^;\n]*)/i);
+            var simpleMatch = cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/i);
+            if (encodedMatch) {
+                filename = decodeURIComponent(encodedMatch[1]);
+            } else if (simpleMatch) {
+                filename = simpleMatch[1].replace(/['"]/g, "");
+            } else if (!filename) {
+                filename = url.split("/").pop().split("?")[0] || "download";
             }
 
             var blob = await response.blob();

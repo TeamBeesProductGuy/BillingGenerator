@@ -60,6 +60,30 @@ async function getClientAbbreviationsByIds(clientIds) {
     .filter(Boolean);
 }
 
+async function hydrateClientMetadata(rows) {
+  const ids = Array.from(new Set((rows || [])
+    .map((row) => Number(row.client_id))
+    .filter((id) => Number.isInteger(id) && id > 0)));
+  if (ids.length === 0) return rows || [];
+
+  const { data, error } = await supabase
+    .from('clients')
+    .select('id, client_name, abbreviation')
+    .in('id', ids);
+  if (error || !data) return rows || [];
+
+  const byId = new Map(data.map((client) => [Number(client.id), client]));
+  return (rows || []).map((row) => {
+    const client = byId.get(Number(row.client_id));
+    if (!client) return row;
+    return {
+      ...row,
+      client_name: row.client_name || client.client_name || null,
+      client_abbreviation: row.client_abbreviation || client.abbreviation || null,
+    };
+  });
+}
+
 async function enrichSummaryWithClients(summary, billingItems, selectedClientIds) {
   const seen = new Set();
   const clientAbbreviations = [];
@@ -527,7 +551,7 @@ function mergeAttendanceExportCodes(baseRows, overlayRows) {
 }
 
 async function buildManagerAttendanceAttachment(run, rows, managerName) {
-  const exportRows = await enrichAttendanceExportRows(rows);
+  const exportRows = await hydrateClientMetadata(await enrichAttendanceExportRows(rows));
   let attendanceRows = [];
   let monthAttendanceRows = [];
   try {

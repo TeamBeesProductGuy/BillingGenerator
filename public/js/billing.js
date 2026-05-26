@@ -441,11 +441,7 @@
 
   function downloadManagerAttendance(managerName) {
     if (!currentRunId) return;
-    var safeName = String(managerName || 'Manager').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'Manager';
-    downloadFile(
-      '/api/billing/runs/' + currentRunId + '/manager-attendance?manager=' + encodeURIComponent(managerName || ''),
-      'Attendance_' + safeName + '_' + (currentBillingMonth || '') + '.xlsx'
-    );
+    downloadFile('/api/billing/runs/' + currentRunId + '/manager-attendance?manager=' + encodeURIComponent(managerName || ''));
   }
 
   function renderManagerApprovals(items) {
