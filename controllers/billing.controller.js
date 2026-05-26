@@ -388,6 +388,14 @@ function safeManagerFilename(managerName) {
   return String(managerName || 'Manager').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'Manager';
 }
 
+function normalizeExportEmpCode(value) {
+  return String(value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function normalizeExportEmpName(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ').replace(/[^a-z0-9 ]/g, '');
+}
+
 async function enrichAttendanceExportRows(rows) {
   const enriched = [];
   for (const row of rows || []) {
@@ -418,16 +426,67 @@ async function enrichAttendanceExportRows(rows) {
   return enriched;
 }
 
+function buildAttendanceExportLookup(rows) {
+  const lookup = { byCode: new Map(), byName: new Map(), duplicateNames: new Set() };
+  (rows || []).forEach((row) => {
+    const codeKey = normalizeExportEmpCode(row.emp_code);
+    if (codeKey) lookup.byCode.set(codeKey, row);
+    const nameKey = normalizeExportEmpName(row.emp_name);
+    if (!nameKey) return;
+    if (lookup.byName.has(nameKey)) {
+      lookup.duplicateNames.add(nameKey);
+      return;
+    }
+    lookup.byName.set(nameKey, row);
+  });
+  lookup.duplicateNames.forEach((key) => lookup.byName.delete(key));
+  return lookup;
+}
+
+function findAttendanceExportRow(lookup, row) {
+  const codeKey = normalizeExportEmpCode(row.emp_code);
+  const nameKey = normalizeExportEmpName(row.emp_name);
+  return (codeKey && lookup.byCode.get(codeKey)) || (nameKey && lookup.byName.get(nameKey)) || null;
+}
+
+function mergeAttendanceExportCodes(baseRows, overlayRows) {
+  if (!Array.isArray(baseRows) || baseRows.length === 0) return overlayRows || [];
+  if (!Array.isArray(overlayRows) || overlayRows.length === 0) return baseRows;
+  const overlayLookup = buildAttendanceExportLookup(overlayRows);
+  return baseRows.map((row) => {
+    const overlay = findAttendanceExportRow(overlayLookup, row);
+    if (!overlay || !overlay.attendance_codes) return row;
+    const merged = {
+      ...row,
+      attendance_codes: { ...(row.attendance_codes || {}) },
+    };
+    for (let day = 1; day <= 31; day += 1) {
+      const overlayCode = String(overlay.attendance_codes[day] || '').trim().toUpperCase();
+      if (!overlayCode || overlayCode === 'PR') continue;
+      merged.attendance_codes[day] = overlayCode;
+    }
+    return merged;
+  });
+}
+
 async function buildManagerAttendanceAttachment(run, rows, managerName) {
   const exportRows = await enrichAttendanceExportRows(rows);
   let attendanceRows = [];
+  let monthAttendanceRows = [];
   try {
     attendanceRows = await BillingModel.getAttendanceSnapshot(run.id);
   } catch (err) {
     console.warn('Unable to load billing attendance snapshot:', err.message);
   }
+  try {
+    monthAttendanceRows = await AttendanceModel.getDetailedByMonth(run.billing_month);
+  } catch (err) {
+    console.warn('Unable to load month attendance for export code overlay:', err.message);
+  }
   if (!attendanceRows || attendanceRows.length === 0) {
-    attendanceRows = await AttendanceModel.getDetailedByMonth(run.billing_month);
+    attendanceRows = monthAttendanceRows;
+  } else {
+    attendanceRows = mergeAttendanceExportCodes(attendanceRows, monthAttendanceRows);
   }
   const buffer = await generateManagerAttendanceWorkbook(exportRows, attendanceRows, {
     billingMonth: run.billing_month,
