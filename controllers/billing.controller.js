@@ -439,19 +439,15 @@ function attendanceClientFilenameToken(rows) {
     const abbreviation = String(row.client_abbreviation || '').trim();
     const fullName = String(row.client_name || '').trim();
     const label = abbreviation || fullName;
-    if (!label && !fullName) return;
+    if (!label) return;
     const normalized = label.toUpperCase();
-    let abbreviationToken = label;
-    if (normalized.startsWith('SGTC')) abbreviationToken = 'SGTC';
-    else if (normalized.startsWith('VOCERA')) abbreviationToken = 'Vocera';
-    const nameToken = fullName && fullName.toUpperCase() !== abbreviationToken.toUpperCase()
-      ? fullName
-      : '';
-    const token = [abbreviationToken, nameToken].filter(Boolean).map((part) => safeFilenameSegment(part, 'Client')).join('_');
+    let token = label;
+    if (normalized.startsWith('SGTC')) token = 'SGTC';
+    else if (normalized.startsWith('VOCERA')) token = 'Vocera';
     const key = token.toUpperCase();
     if (seen.has(key)) return;
     seen.add(key);
-    tokens.push(token);
+    tokens.push(safeFilenameSegment(token, 'Client'));
   });
   return tokens.length > 0 ? tokens.join('_') : 'Client';
 }
@@ -459,7 +455,7 @@ function attendanceClientFilenameToken(rows) {
 function buildManagerAttendanceFilename(run, rows, managerName, extension = 'xlsx') {
   const monthToken = formatAttendanceMonthToken(run && run.billing_month);
   const clientToken = attendanceClientFilenameToken(rows);
-  const managerToken = safeFilenameSegment(managerName, 'Manager').toUpperCase();
+  const managerToken = safeFilenameSegment(managerName, 'Manager');
   const dateToken = formatGeneratedDateToken();
   const ext = String(extension || 'xlsx').replace(/^\.+/, '') || 'xlsx';
   return `2. Attendance_${monthToken}_${clientToken}_${managerToken}-${dateToken}.${ext}`;
