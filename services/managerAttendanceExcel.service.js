@@ -13,7 +13,6 @@ const LEGEND_ROWS = [
   ['A', 'Absent'],
   ['ODW', 'Off Day Working'],
   ['PRTO', 'Parental & Other Leaves'],
-  ['WFH', 'Work From home '],
 ];
 
 const FONT = { name: 'Verdana', family: 2, size: 12, color: { argb: 'FF000000' } };
@@ -46,6 +45,7 @@ function normalizeStoredAttendanceCode(value) {
   const normalized = String(value || '').trim().toUpperCase();
   if (!normalized) return '';
   if (normalized === 'P') return 'PR';
+  if (normalized === 'WFH') return 'PR';
   if (normalized === 'HD') return 'HDL';
   if (normalized === 'WEEKOFF' || normalized === 'WEEK_OFF' || normalized === 'WEEK OFF' || normalized === 'W/O') return 'WO';
   return normalized;
