@@ -5,6 +5,7 @@ const { validateBillingMonth, crossValidate } = require('../services/validation.
 const { calculateBilling } = require('../services/billing.service');
 const { generateBillingExcel, generateBillingWorksheetBuffer } = require('../services/excelWriter.service');
 const { generateManagerAttendanceWorkbook } = require('../services/managerAttendanceExcel.service');
+const { convertXlsxBufferToPdf } = require('../services/docxToPdf.service');
 const BillingModel = require('../models/billing.model');
 const RateCardModel = require('../models/rateCard.model');
 const AttendanceModel = require('../models/attendance.model');
@@ -386,6 +387,10 @@ function normalizeManagerKey(value) {
 
 function safeManagerFilename(managerName) {
   return String(managerName || 'Manager').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'Manager';
+}
+
+function stripFileExtension(filename) {
+  return String(filename || 'Attendance').replace(/\.[^.]+$/, '');
 }
 
 function normalizeExportEmpCode(value) {
@@ -1235,6 +1240,8 @@ const billingController = {
 
     const decoratedRows = aggregateManagerRows(rows);
     const attendanceAttachment = await buildManagerAttendanceAttachment(run, rows, managerName);
+    const pdfBaseName = stripFileExtension(attendanceAttachment.filename);
+    const attendancePdfBuffer = await convertXlsxBufferToPdf(attendanceAttachment.buffer, pdfBaseName);
 
     const draft = await createManagerApprovalDraft({
       reportingManager: managerName,
@@ -1245,9 +1252,9 @@ const billingController = {
       userName: resolveUserDisplayName(req.user),
       userEmail: req.user && req.user.email ? req.user.email : '',
       attachments: [{
-        name: attendanceAttachment.filename,
-        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        content: attendanceAttachment.buffer,
+        name: `${pdfBaseName}.pdf`,
+        contentType: 'application/pdf',
+        content: attendancePdfBuffer,
       }],
     });
 

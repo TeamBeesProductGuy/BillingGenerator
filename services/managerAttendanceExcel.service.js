@@ -315,6 +315,21 @@ async function generateManagerAttendanceWorkbook(rows, attendanceRows, options =
 
   const ws = workbook.addWorksheet(safeSheetName(clientLabel || managerName || 'Attendance'));
   ws.views = [{ state: 'frozen', ySplit: 4, xSplit: 5 }];
+  ws.pageSetup = {
+    orientation: 'landscape',
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    paperSize: 9,
+    margins: {
+      left: 0.25,
+      right: 0.25,
+      top: 0.35,
+      bottom: 0.35,
+      header: 0.2,
+      footer: 0.2,
+    },
+  };
   setupSheetColumns(ws);
   setupHeaders(ws, billingMonth, daysInMonth);
   writeCandidateRows(ws, candidates, attendanceByEmp, daysInMonth);

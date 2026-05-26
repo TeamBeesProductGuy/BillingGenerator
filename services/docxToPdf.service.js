@@ -28,9 +28,9 @@ function buildConversionError(message, cause) {
   return err;
 }
 
-async function convertDocxBufferToPdf(docxBuffer, baseName) {
-  if (!Buffer.isBuffer(docxBuffer) || docxBuffer.length === 0) {
-    throw buildConversionError('DOCX buffer is empty');
+async function convertOfficeBufferToPdf(inputBuffer, baseName, extension = 'docx') {
+  if (!Buffer.isBuffer(inputBuffer) || inputBuffer.length === 0) {
+    throw buildConversionError('Office document buffer is empty');
   }
 
   const commands = getLibreOfficeCommands();
@@ -40,11 +40,12 @@ async function convertDocxBufferToPdf(docxBuffer, baseName) {
     throw err;
   }
 
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'quote-docx-pdf-'));
-  const safeBaseName = String(baseName || 'quote')
+  const safeExtension = String(extension || 'docx').replace(/[^a-zA-Z0-9]+/g, '').toLowerCase() || 'docx';
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'office-to-pdf-'));
+  const safeBaseName = String(baseName || 'document')
     .replace(/[^a-zA-Z0-9._-]+/g, '_')
-    .replace(/^_+|_+$/g, '') || 'quote';
-  const docxPath = path.join(tempDir, `${safeBaseName}.docx`);
+    .replace(/^_+|_+$/g, '') || 'document';
+  const inputPath = path.join(tempDir, `${safeBaseName}.${safeExtension}`);
   const pdfPath = path.join(tempDir, `${safeBaseName}.pdf`);
   const libreOfficeProfile = `file://${path.join(tempDir, 'lo-profile')}`;
   const libreOfficeArgs = [
@@ -59,11 +60,11 @@ async function convertDocxBufferToPdf(docxBuffer, baseName) {
     'pdf',
     '--outdir',
     tempDir,
-    docxPath,
+    inputPath,
   ];
 
   try {
-    fs.writeFileSync(docxPath, docxBuffer);
+    fs.writeFileSync(inputPath, inputBuffer);
     let lastError = null;
     for (const command of commands) {
       try {
@@ -111,4 +112,12 @@ async function convertDocxBufferToPdf(docxBuffer, baseName) {
   }
 }
 
-module.exports = { convertDocxBufferToPdf };
+async function convertDocxBufferToPdf(docxBuffer, baseName) {
+  return convertOfficeBufferToPdf(docxBuffer, baseName, 'docx');
+}
+
+async function convertXlsxBufferToPdf(xlsxBuffer, baseName) {
+  return convertOfficeBufferToPdf(xlsxBuffer, baseName, 'xlsx');
+}
+
+module.exports = { convertDocxBufferToPdf, convertXlsxBufferToPdf, convertOfficeBufferToPdf };
