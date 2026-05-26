@@ -388,8 +388,38 @@ function safeManagerFilename(managerName) {
   return String(managerName || 'Manager').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'Manager';
 }
 
+async function enrichAttendanceExportRows(rows) {
+  const enriched = [];
+  for (const row of rows || []) {
+    const copy = { ...row };
+    if (copy.doj && copy.dor) {
+      enriched.push(copy);
+      continue;
+    }
+    try {
+      let rateCard = null;
+      if (copy.emp_code && copy.client_id) {
+        rateCard = await RateCardModel.findMatchingByEmpCode(copy.emp_code, copy.client_id, {
+          sow_id: copy.sow_id,
+          sow_item_id: copy.sow_item_id,
+        });
+        if (!rateCard) {
+          const matches = await RateCardModel.findActiveByEmpClient(copy.emp_code, copy.client_id);
+          rateCard = matches && matches.length > 0 ? matches[0] : null;
+        }
+      }
+      copy.doj = copy.doj || (rateCard && (rateCard.doj || rateCard.charging_date)) || null;
+      copy.dor = copy.dor || (rateCard && (rateCard.dor || rateCard.date_of_relieving || rateCard.last_working_day || rateCard.disable_from_date)) || null;
+    } catch (err) {
+      console.warn('Unable to enrich attendance export row:', err.message);
+    }
+    enriched.push(copy);
+  }
+  return enriched;
+}
+
 async function buildManagerAttendanceAttachment(run, rows, managerName) {
-  const empCodes = Array.from(new Set(rows.map((item) => String(item.emp_code || '').trim()).filter(Boolean)));
+  const exportRows = await enrichAttendanceExportRows(rows);
   let attendanceRows = [];
   try {
     attendanceRows = await BillingModel.getAttendanceSnapshot(run.id);
@@ -399,7 +429,7 @@ async function buildManagerAttendanceAttachment(run, rows, managerName) {
   if (!attendanceRows || attendanceRows.length === 0) {
     attendanceRows = await AttendanceModel.getDetailedByMonth(run.billing_month);
   }
-  const buffer = await generateManagerAttendanceWorkbook(rows, attendanceRows, {
+  const buffer = await generateManagerAttendanceWorkbook(exportRows, attendanceRows, {
     billingMonth: run.billing_month,
     managerName,
   });
