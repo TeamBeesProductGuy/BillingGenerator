@@ -432,7 +432,7 @@ function buildManagerAttendanceFilename(run, rows, managerName, extension = 'xls
   const managerToken = safeFilenameSegment(managerName, 'Manager');
   const dateToken = formatGeneratedDateToken();
   const ext = String(extension || 'xlsx').replace(/^\.+/, '') || 'xlsx';
-  return `Attendance_${monthToken}_${clientToken}_${managerToken}-${dateToken}.${ext}`;
+  return `2. Attendance_${monthToken}_${clientToken}_${managerToken}-${dateToken}.${ext}`;
 }
 
 function stripFileExtension(filename) {
