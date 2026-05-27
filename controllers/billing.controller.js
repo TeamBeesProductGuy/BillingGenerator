@@ -2,7 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const { parseRateCard, parseAttendance } = require('../services/excelParser.service');
 const { validateBillingMonth, crossValidate } = require('../services/validation.service');
-const { calculateBilling, getSgtcBillableDays } = require('../services/billing.service');
+const { calculateBilling, getSgtcBillingHours } = require('../services/billing.service');
 const { generateBillingExcel, generateBillingWorksheetBuffer } = require('../services/excelWriter.service');
 const { generateManagerAttendanceWorkbook } = require('../services/managerAttendanceExcel.service');
 const { convertXlsxBufferToPdf } = require('../services/docxToPdf.service');
@@ -1259,9 +1259,9 @@ const billingController = {
     let invoiceAmount = Math.round(((chargeableDays / Number(item.days_in_month || 30)) * Number(item.monthly_rate || 0)) * 100) / 100;
 
     if (item.billing_method === 'sgtc_hours') {
-      const sgtcBillableDays = toTwoDecimalValue(getSgtcBillableDays(daysPresent, leavesTaken, leavesAllowed, effectiveDays));
-      billingHours = Number.isFinite(billingHours) ? billingHours : Math.min(toTwoDecimalValue(sgtcBillableDays * 8.5), 170);
-      chargeableDays = sgtcBillableDays;
+      const calculatedHours = toTwoDecimalValue(getSgtcBillingHours(leavesTaken, leavesAllowed, effectiveDays));
+      billingHours = Number.isFinite(billingHours) ? billingHours : calculatedHours;
+      chargeableDays = toTwoDecimalValue(billingHours / 8.5);
       invoiceAmount = Math.round(((Number(item.monthly_rate || 0) / 170) * billingHours) * 100) / 100;
     }
 

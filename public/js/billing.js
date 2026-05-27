@@ -430,13 +430,13 @@
     return Math.trunc(number * 100) / 100;
   }
 
-  function sgtcBillableDays(presentDays, leavesTaken, leavesAllowed, effectiveDays) {
-    var present = Number(presentDays || 0);
+  function sgtcBillingHours(leavesTaken, leavesAllowed, effectiveDays) {
     var leaves = Number(leavesTaken || 0);
     var allowed = Number(leavesAllowed || 0);
     var activeDays = Number(effectiveDays || 0);
-    var coveredLeaveDays = Math.max(Math.min(leaves, allowed), 0);
-    return toTwoDecimalInput(Math.max(Math.min(present + coveredLeaveDays, activeDays), 0));
+    var baseHours = Math.min(toTwoDecimalInput(activeDays * 8.5), 170);
+    var extraLeaveDays = Math.max(leaves - allowed, 0);
+    return Math.max(toTwoDecimalInput(baseHours - (extraLeaveDays * 8.5)), 0);
   }
 
   function managerApproved(rows) {
@@ -866,8 +866,7 @@
       leavesEl.value = toTwoDecimalInput(managerEditSyncBaseDays - present);
     }
     if (!hoursEl.disabled) {
-      var billableDays = sgtcBillableDays(presentEl.value, leavesEl.value, managerEditLeavesAllowed, managerEditSyncBaseDays);
-      hoursEl.value = Math.min(toTwoDecimalInput(billableDays * 8.5), 170);
+      hoursEl.value = sgtcBillingHours(leavesEl.value, managerEditLeavesAllowed, managerEditSyncBaseDays);
     }
     managerEditSyncing = false;
   }
