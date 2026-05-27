@@ -6,6 +6,7 @@
   var managerGroups = {};
   var currentBillingMonth = '';
   var managerEditSyncBaseDays = 0;
+  var managerEditLeavesAllowed = 0;
   var managerEditSyncing = false;
   var billingClientMap = {};
 
@@ -429,6 +430,15 @@
     return Math.trunc(number * 100) / 100;
   }
 
+  function sgtcBillableDays(presentDays, leavesTaken, leavesAllowed, effectiveDays) {
+    var present = Number(presentDays || 0);
+    var leaves = Number(leavesTaken || 0);
+    var allowed = Number(leavesAllowed || 0);
+    var activeDays = Number(effectiveDays || 0);
+    var coveredLeaveDays = Math.max(Math.min(leaves, allowed), 0);
+    return toTwoDecimalInput(Math.max(Math.min(present + coveredLeaveDays, activeDays), 0));
+  }
+
   function managerApproved(rows) {
     return rows.length > 0 && rows.every(function (item) { return item.approval_status === 'Accepted'; });
   }
@@ -543,6 +553,7 @@
     if (!item) return;
     var isSgtc = isSgtcBillingItem(item);
     managerEditSyncBaseDays = toTwoDecimalInput(Number(item.days_present || 0) + Number(item.leaves_taken || 0));
+    managerEditLeavesAllowed = toTwoDecimalInput(item.allowed_leaves !== undefined ? item.allowed_leaves : item.leaves_allowed);
     document.getElementById('managerEditItemId').value = item.id;
     document.getElementById('managerEditPresent').value = item.days_present || 0;
     document.getElementById('managerEditLeaves').value = item.leaves_taken || 0;
@@ -855,7 +866,8 @@
       leavesEl.value = toTwoDecimalInput(managerEditSyncBaseDays - present);
     }
     if (!hoursEl.disabled) {
-      hoursEl.value = Math.min(toTwoDecimalInput(Number(presentEl.value || 0) * 8.5), 170);
+      var billableDays = sgtcBillableDays(presentEl.value, leavesEl.value, managerEditLeavesAllowed, managerEditSyncBaseDays);
+      hoursEl.value = Math.min(toTwoDecimalInput(billableDays * 8.5), 170);
     }
     managerEditSyncing = false;
   }

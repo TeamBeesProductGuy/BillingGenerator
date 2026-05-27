@@ -115,6 +115,20 @@ function sumLeaveUnitsForDays(attendance, activeDays, fallbackLeavesTaken) {
   return Number(fallbackLeavesTaken || 0);
 }
 
+function getLeaveCreditDays(leavesTaken, leavesAllowed) {
+  const taken = Number(leavesTaken || 0);
+  const allowed = Number(leavesAllowed || 0);
+  if (!Number.isFinite(taken) || !Number.isFinite(allowed)) return 0;
+  return Math.max(Math.min(taken, allowed), 0);
+}
+
+function getSgtcBillableDays(presentDays, leavesTaken, leavesAllowed, effectiveDays) {
+  const present = Number(presentDays || 0);
+  const activeDays = Number(effectiveDays || 0);
+  const compensatedDays = present + getLeaveCreditDays(leavesTaken, leavesAllowed);
+  return Math.max(Math.min(compensatedDays, activeDays), 0);
+}
+
 function getAttendancePresentDays(attendance, activeDays, fallbackActiveDays, leavesTaken) {
   if (attendance.days_present !== undefined && attendance.days_present !== null) {
     const presentDays = Number(attendance.days_present);
@@ -224,9 +238,10 @@ function calculateBilling(rateCards, attendanceRecords, billingMonth) {
     let billing_method = 'days';
 
     if (isSgtcHourlyProratedClient(rc)) {
-      billingHours = Math.min(roundMoney(presentDays * SGTC_HOURS_PER_PRESENT_DAY), SGTC_MONTHLY_HOURS);
+      const sgtcBillableDays = getSgtcBillableDays(presentDays, leavesTaken, rc.leaves_allowed, effectiveDays);
+      billingHours = Math.min(roundMoney(sgtcBillableDays * SGTC_HOURS_PER_PRESENT_DAY), SGTC_MONTHLY_HOURS);
       invoiceAmount = roundMoney((Number(rc.monthly_rate || 0) / SGTC_MONTHLY_HOURS) * billingHours);
-      chargeableDays = presentDays;
+      chargeableDays = sgtcBillableDays;
       billing_method = 'sgtc_hours';
     }
 
@@ -278,4 +293,4 @@ function calculateBilling(rateCards, attendanceRecords, billingMonth) {
   };
 }
 
-module.exports = { calculateBilling, isSgtcHourlyProratedClient };
+module.exports = { calculateBilling, isSgtcHourlyProratedClient, getSgtcBillableDays };
