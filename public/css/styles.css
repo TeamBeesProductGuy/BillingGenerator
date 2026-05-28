@@ -144,14 +144,26 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
     box-shadow: 0 0 0 2px var(--color-bg);
 }
 
-/* Sidebar section label */
+/* Sidebar section */
+.sidebar-section {
+    padding-top: 0.5rem;
+    padding-bottom: 0.25rem;
+}
+.sidebar-section + .sidebar-section:not(.hidden) {
+    border-top: 1px solid rgba(var(--color-border-rgb), 0.5);
+    margin-top: 0.5rem;
+}
+.sidebar-section.is-first-visible {
+    border-top: none !important;
+    margin-top: 0 !important;
+}
 .sidebar-section-label {
     font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.25em;
+    letter-spacing: 0.18em;
     color: var(--color-text-muted);
-    padding: 1.25rem 1.75rem 0.5rem;
+    padding: 0.85rem 0.75rem 0.4rem;
 }
 
 /* --- Toast Notifications --- */

@@ -226,12 +226,16 @@
             el.classList.toggle("hidden", !hasModuleAccess(el.getAttribute("data-module")));
         });
         setAdminApprovalBadge(document.getElementById("adminPendingApprovalBadge") ? document.getElementById("adminPendingApprovalBadge").textContent : 0);
-        document.querySelectorAll('[data-sidebar-section]').forEach(function (section) {
+        var sections = Array.from(document.querySelectorAll('[data-sidebar-section]'));
+        sections.forEach(function (section) {
             var hasVisibleLink = Array.from(section.querySelectorAll(".sidebar-link")).some(function (link) {
                 return !link.classList.contains("hidden");
             });
             section.classList.toggle("hidden", !hasVisibleLink);
+            section.classList.remove("is-first-visible");
         });
+        var firstVisible = sections.find(function (s) { return !s.classList.contains("hidden"); });
+        if (firstVisible) firstVisible.classList.add("is-first-visible");
     }
 
     window.onAuthSuccess = function (session) {
