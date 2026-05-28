@@ -222,30 +222,34 @@
               <input type="checkbox" id="rcPauseBilling" class="mt-0.5 w-4 h-4">
               <span>
                 <span class="block">Pause billing</span>
-                <span class="block text-xs font-normal text-on-surface-variant">Temporarily stop invoices for a date range.</span>
+                <span class="block text-xs font-normal text-on-surface-variant">Temporary leave / sabbatical. Pick LWD before leave and Date of Return.</span>
               </span>
             </label>
             <label class="flex items-start gap-3 rounded-lg border border-outline-variant/15 bg-surface-container-high p-3 text-sm font-semibold text-on-surface">
               <input type="checkbox" id="rcDisableBilling" class="mt-0.5 w-4 h-4">
               <span>
-                <span class="block">Disable billing</span>
-                <span class="block text-xs font-normal text-on-surface-variant">Stop billing from a selected date.</span>
+                <span class="block">Stop billing (LWD)</span>
+                <span class="block text-xs font-normal text-on-surface-variant">Final exit. Pick the Last Working Day; billing stops the next day.</span>
               </span>
             </label>
           </div>
-          <div id="rcPauseBillingDates" class="hidden grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Pause From</label>
-              <input type="date" id="rcPauseStartDate">
+          <div id="rcPauseBillingDates" class="hidden space-y-3">
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Last Working Day (LWD)</label>
+                <input type="date" id="rcPauseStartDate">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Date of Return</label>
+                <input type="date" id="rcPauseEndDate">
+              </div>
             </div>
-            <div>
-              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Pause To</label>
-              <input type="date" id="rcPauseEndDate">
-            </div>
+            <p id="rcPauseInfoNote" class="hidden text-xs text-on-surface-variant bg-surface-container rounded-lg px-3 py-2 border border-outline-variant/10"></p>
           </div>
-          <div id="rcDisableBillingDates" class="hidden">
-            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Disable From</label>
+          <div id="rcDisableBillingDates" class="hidden space-y-2">
+            <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Last Working Day (LWD)</label>
             <input type="date" id="rcDisableFromDate">
+            <p id="rcDisableInfoNote" class="hidden text-xs text-on-surface-variant bg-surface-container rounded-lg px-3 py-2 border border-outline-variant/10"></p>
           </div>
         </div>
 

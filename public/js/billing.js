@@ -720,6 +720,8 @@
     showLoading(tbody);
     try {
       var res = await apiCall('GET', '/api/billing/runs');
+      var approvalMap = {};
+      try { approvalMap = await loadMyPendingApprovalMap('billing'); } catch (_e) {}
       if (res.data.length === 0) {
         tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8">' +
           '<div class="flex flex-col items-center gap-2 text-on-surface-variant">' +
@@ -728,13 +730,22 @@
           '<p class="text-xs">Generate your first service request to see it here</p></div></td></tr>';
       } else {
         tbody.innerHTML = res.data.map(function (r) {
+          var pendingDelete = approvalMap['billing_run:' + r.id];
+          var deleteBtn;
+          if (pendingDelete) {
+            deleteBtn = '<button disabled class="btn-secondary btn-sm inline-flex items-center gap-1 opacity-50 cursor-not-allowed" title="Delete request pending admin approval"><span class="material-symbols-outlined text-base">hourglass_top</span></button>';
+          } else {
+            deleteBtn = '<button onclick="window.deleteServiceRequest(' + r.id + ')" class="btn-secondary btn-sm inline-flex items-center gap-1 text-error" title="Delete"><span class="material-symbols-outlined text-base">delete</span></button>';
+          }
           var actions = '<div class="inline-flex items-center gap-1">' +
             '<button onclick="downloadFile(\'/api/billing/runs/' + r.id + '/download\')" class="btn-secondary btn-sm inline-flex items-center gap-1" title="Download"><span class="material-symbols-outlined text-base">download</span></button>' +
             '<button onclick="downloadFile(\'/api/billing/runs/' + r.id + '/download/billing_working\')" class="btn-secondary btn-sm inline-flex items-center gap-1" title="Service Request"><span class="material-symbols-outlined text-base">table_view</span></button>' +
             '<button onclick="downloadFile(\'/api/billing/runs/' + r.id + '/download/manager_summary\')" class="btn-secondary btn-sm inline-flex items-center gap-1" title="Manager Approval Request"><span class="material-symbols-outlined text-base">table_chart</span></button>' +
             '<button onclick="downloadFile(\'/api/billing/runs/' + r.id + '/download/error_report\')" class="btn-secondary btn-sm inline-flex items-center gap-1" title="Error Report"><span class="material-symbols-outlined text-base">warning</span></button>' +
             '<button onclick="window.reviewServiceRequest(' + r.id + ')" class="btn-secondary btn-sm inline-flex items-center gap-1" title="Review"><span class="material-symbols-outlined text-base">visibility</span></button>' +
+            deleteBtn +
           '</div>';
+          var statusCellExtra = pendingDelete ? '<div class="mt-1">' + adminApprovalAwaitedBadge(pendingDelete) + '</div>' : '';
           return '<tr>' +
             '<td><strong>' + escapeHtml(r.billing_month) + '</strong></td>' +
             '<td>' + (r.clientLabel || r.client_label || r.client_abbreviation
@@ -743,7 +754,7 @@
             '<td class="text-center">' + r.total_employees + '</td>' +
             '<td class="text-right">' + formatCurrency(r.total_amount) + '</td>' +
             '<td class="text-center">' + (r.error_count > 0 ? '<span class="badge-error">' + r.error_count + '</span>' : '<span class="badge-success">0</span>') + '</td>' +
-            '<td>' + statusBadge(r.request_status || 'Pending') + '</td>' +
+            '<td>' + statusBadge(r.request_status || 'Pending') + statusCellExtra + '</td>' +
             '<td>' + formatDateWithTime(r.created_at) + '</td>' +
             '<td>' + actions + '</td>' +
             '</tr>';
@@ -751,6 +762,23 @@
       }
     } catch (e) { /* ignore */ }
   }
+
+  window.deleteServiceRequest = async function (id) {
+    var isAdmin = typeof getCurrentUserIsAdmin === 'function' && getCurrentUserIsAdmin();
+    var message = isAdmin
+      ? 'Are you sure you want to delete this service request? This will reverse any PO consumption tied to it and cannot be undone.'
+      : 'Are you sure you want to delete this service request? This action requires admin approval.';
+    var confirmed = await confirmAction('Delete Service Request', message);
+    if (!confirmed) return;
+    try {
+      var res = await apiCall('DELETE', '/api/billing/runs/' + id);
+      if (handleApprovalResponse(res, loadHistory)) return;
+      showToast('Service request deleted', 'success');
+      loadHistory();
+    } catch (err) {
+      showToast(err.message || 'Failed to delete service request', 'danger');
+    }
+  };
 
   async function generateRequest(endpoint, body, isFormData) {
     var res = await apiCall('POST', endpoint, body);

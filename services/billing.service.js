@@ -75,11 +75,11 @@ function getActiveBillingDays(rc, billingYear, billingMon, daysInMonth, effectiv
       isActive = false;
     }
 
-    if (rc.pause_billing && rc.pause_start_date && rc.pause_end_date && dateKey >= rc.pause_start_date && dateKey <= rc.pause_end_date) {
+    if (rc.pause_billing && rc.pause_start_date && rc.pause_end_date && dateKey > rc.pause_start_date && dateKey < rc.pause_end_date) {
       isActive = false;
     }
 
-    if (rc.disable_billing && rc.disable_from_date && dateKey >= rc.disable_from_date) {
+    if (rc.disable_billing && rc.disable_from_date && dateKey > rc.disable_from_date) {
       isActive = false;
     }
 
@@ -93,10 +93,10 @@ function getActiveBillingDays(rc, billingYear, billingMon, daysInMonth, effectiv
     : 'Outside SOW Role Duration';
 
   if (rc.pause_billing && rc.pause_start_date && rc.pause_end_date) {
-    notes.push(`Paused ${rc.pause_start_date} to ${rc.pause_end_date}`);
+    notes.push(`Paused (LWD ${rc.pause_start_date}, Return ${rc.pause_end_date})`);
   }
   if (rc.disable_billing && rc.disable_from_date) {
-    notes.push(`Disabled from ${rc.disable_from_date}`);
+    notes.push(`Stopped (LWD ${rc.disable_from_date})`);
   }
   if (rc.sow_item_valid_from || rc.sow_item_valid_to) {
     notes.push(`SOW role duration ${rc.sow_item_valid_from || 'open'} to ${rc.sow_item_valid_to || 'open'}`);

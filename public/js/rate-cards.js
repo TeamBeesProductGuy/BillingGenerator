@@ -108,6 +108,57 @@
     var disableChecked = document.getElementById('rcDisableBilling').checked;
     document.getElementById('rcPauseBillingDates').classList.toggle('hidden', !pauseChecked);
     document.getElementById('rcDisableBillingDates').classList.toggle('hidden', !disableChecked);
+    updateBillingWindowInfoNotes();
+  }
+
+  function formatPrettyDate(value) {
+    if (!value) return '';
+    var parts = String(value).split('-');
+    if (parts.length !== 3) return value;
+    var date = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+
+  function dayAfter(value) {
+    if (!value) return '';
+    var parts = String(value).split('-');
+    if (parts.length !== 3) return '';
+    var d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    if (Number.isNaN(d.getTime())) return '';
+    d.setDate(d.getDate() + 1);
+    return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+
+  function updateBillingWindowInfoNotes() {
+    var pauseNote = document.getElementById('rcPauseInfoNote');
+    var disableNote = document.getElementById('rcDisableInfoNote');
+    if (pauseNote) {
+      var pauseChecked = document.getElementById('rcPauseBilling').checked;
+      var pStart = document.getElementById('rcPauseStartDate').value;
+      var pEnd = document.getElementById('rcPauseEndDate').value;
+      if (pauseChecked && pStart && pEnd) {
+        pauseNote.textContent = 'Billing runs through LWD ' + formatPrettyDate(pStart)
+          + ', paused from ' + dayAfter(pStart)
+          + ', and resumes on Date of Return ' + formatPrettyDate(pEnd) + '. Both endpoint dates are billed.';
+        pauseNote.classList.remove('hidden');
+      } else {
+        pauseNote.textContent = '';
+        pauseNote.classList.add('hidden');
+      }
+    }
+    if (disableNote) {
+      var disableChecked = document.getElementById('rcDisableBilling').checked;
+      var dDate = document.getElementById('rcDisableFromDate').value;
+      if (disableChecked && dDate) {
+        disableNote.textContent = 'Billing continues through LWD ' + formatPrettyDate(dDate)
+          + '. No billing from ' + dayAfter(dDate) + ' onwards.';
+        disableNote.classList.remove('hidden');
+      } else {
+        disableNote.textContent = '';
+        disableNote.classList.add('hidden');
+      }
+    }
   }
 
   function setBillingControlsVisibility(isEditing) {
@@ -647,8 +698,8 @@
     var content = document.getElementById('rcSavePreviewContent');
     if (!box || !content) return;
     var billingStatus = data.disable_billing
-      ? 'Disable billing from ' + (data.disable_from_date || '-')
-      : (data.pause_billing ? 'Pause billing from ' + (data.pause_start_date || '-') + ' to ' + (data.pause_end_date || '-') : 'Active');
+      ? 'Stopped — LWD ' + (data.disable_from_date || '-')
+      : (data.pause_billing ? 'Paused — LWD ' + (data.pause_start_date || '-') + ', Return ' + (data.pause_end_date || '-') : 'Active');
     content.innerHTML = [
       previewField('Emp Code', data.emp_code),
       previewField('Emp Name', data.emp_name),
@@ -1035,6 +1086,11 @@
     }
     setBillingWindowVisibility();
     renderSowRoleCapacityPreview();
+  });
+
+  ['rcPauseStartDate', 'rcPauseEndDate', 'rcDisableFromDate'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('change', updateBillingWindowInfoNotes);
   });
 
   document.getElementById('rcDoj').addEventListener('change', function () {

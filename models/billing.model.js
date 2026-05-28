@@ -363,6 +363,58 @@ const BillingModel = {
     return data;
   },
 
+  async deleteRun(id) {
+    const { data: logs, error: logErr } = await supabase
+      .from('po_consumption_log')
+      .select('po_id, amount')
+      .eq('billing_run_id', id);
+    if (logErr) throw new Error(logErr.message);
+
+    const reversal = {};
+    (logs || []).forEach((log) => {
+      const poId = log.po_id;
+      if (!poId) return;
+      reversal[poId] = (reversal[poId] || 0) + Number(log.amount || 0);
+    });
+
+    for (const [poId, amount] of Object.entries(reversal)) {
+      const { data: po, error: poErr } = await supabase
+        .from('purchase_orders')
+        .select('consumed_value, po_value, status')
+        .eq('id', poId)
+        .maybeSingle();
+      if (poErr) throw new Error(poErr.message);
+      if (!po) continue;
+      const newConsumedValue = Math.max(0, Math.round((Number(po.consumed_value || 0) - Number(amount || 0)) * 100) / 100);
+      const update = {
+        consumed_value: newConsumedValue,
+        updated_at: new Date().toISOString(),
+      };
+      if (po.status === 'Exhausted' && newConsumedValue < Number(po.po_value || 0)) {
+        update.status = 'Active';
+      }
+      const { error: updateErr } = await supabase
+        .from('purchase_orders')
+        .update(update)
+        .eq('id', poId);
+      if (updateErr) throw new Error(updateErr.message);
+    }
+
+    if ((logs || []).length > 0) {
+      const { error: logDelErr } = await supabase
+        .from('po_consumption_log')
+        .delete()
+        .eq('billing_run_id', id);
+      if (logDelErr) throw new Error(logDelErr.message);
+    }
+
+    const { error: delErr } = await supabase
+      .from('billing_runs')
+      .delete()
+      .eq('id', id);
+    if (delErr) throw new Error(delErr.message);
+  },
+
   async updateRunTotals(runId) {
     const { data: items, error: itemsError } = await supabase
       .from('billing_items')

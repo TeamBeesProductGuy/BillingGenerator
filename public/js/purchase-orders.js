@@ -141,11 +141,17 @@
     var start = parseDateInput(startValue);
     var count = parseInt(months, 10);
     if (!start || !Number.isFinite(count) || count <= 0) return '';
+    var startLastDay = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate();
     var targetMonthIndex = start.getMonth() + count;
-    var end = new Date(start.getFullYear(), targetMonthIndex, 1);
-    var lastDay = new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate();
-    end.setDate(Math.min(start.getDate(), lastDay));
-    return toDateInputValue(end);
+    if (start.getDate() === startLastDay) {
+      var endLastDay = new Date(start.getFullYear(), targetMonthIndex + 1, 0).getDate();
+      return toDateInputValue(new Date(start.getFullYear(), targetMonthIndex, endLastDay));
+    }
+    var anniversary = new Date(start.getFullYear(), targetMonthIndex, 1);
+    var anniversaryLastDay = new Date(anniversary.getFullYear(), anniversary.getMonth() + 1, 0).getDate();
+    anniversary.setDate(Math.min(start.getDate(), anniversaryLastDay));
+    anniversary.setDate(anniversary.getDate() - 1);
+    return toDateInputValue(anniversary);
   }
 
   function getInclusiveMonthSpan(startValue, endValue) {

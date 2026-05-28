@@ -15,6 +15,7 @@ const { AppError } = require('../middleware/errorHandler');
 const catchAsync = require('../middleware/catchAsync');
 const { logActivity } = require('../services/activityLog.service');
 const { createManagerApprovalDraft } = require('../services/graphMail.service');
+const { requireAdminApproval, buildBillingRunDeleteRequest } = require('../services/adminApproval.service');
 
 function isWarningError(errorItem) {
   return Boolean(errorItem && typeof errorItem.error_message === 'string' && errorItem.error_message.startsWith('WARNING:'));
@@ -651,13 +652,22 @@ function normalizeSowLabel(value) {
   return raw.replace(/^sow\s*(no\.?|#)?\s*/i, '').trim() || raw;
 }
 
+function toDisplayTitleCase(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/\b([a-z])/g, (match) => match.toUpperCase());
+}
+
 function buildManagerServiceDescription(item) {
-  const role = String(item.service_description || item.role_position || 'Service').trim();
+  const rawRole = String(item.service_description || item.role_position || 'Service').trim();
+  const role = toDisplayTitleCase(rawRole) || 'Service';
   const roleLine = /\bservices$/i.test(role)
     ? role.replace(/\bservices$/i, 'Services')
     : `${role} Services`;
-  const candidate = item.emp_name || 'Candidate';
-  return `${roleLine} for\nSow no. ${normalizeSowLabel(item.sow_number)} (${candidate})`;
+  const candidate = toDisplayTitleCase(item.emp_name) || 'Candidate';
+  return `${roleLine} for\nSOW no. ${normalizeSowLabel(item.sow_number)} (${candidate})`;
 }
 
 function uniqueJoined(values, separator = ', ') {
@@ -1355,6 +1365,27 @@ const billingController = {
         composeUrl: draft.composeUrl,
       },
     });
+  }),
+
+  deleteRun: catchAsync(async (req, res) => {
+    const runId = parseInt(req.params.id, 10);
+    const run = await BillingModel.findRunById(runId);
+    if (!run) throw new AppError(404, 'Service request not found');
+    if (await requireAdminApproval(req, res, await buildBillingRunDeleteRequest(req, run))) return;
+    await BillingModel.deleteRun(runId);
+    await logActivity(req, {
+      module: 'billing',
+      action: 'delete',
+      entityType: 'billing_run',
+      entityId: runId,
+      entityLabel: formatBillingMonthLabel(run.billing_month),
+      details: {
+        summary: 'Deleted service request ' + formatBillingMonthLabel(run.billing_month),
+        billing_month: run.billing_month,
+        client_id: run.client_id,
+      },
+    });
+    res.json({ success: true, data: { message: 'Service request deleted' } });
   }),
 
   downloadManagerAttendance: catchAsync(async (req, res) => {

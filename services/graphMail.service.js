@@ -57,7 +57,7 @@ function formatBillingMonth(value) {
   if (/^\d{6}$/.test(raw)) {
     const year = raw.slice(0, 4);
     const month = parseInt(raw.slice(4, 6), 10) - 1;
-    return new Date(Number(year), month, 1).toLocaleString('en-US', { month: 'short', year: '2-digit' });
+    return new Date(Number(year), month, 1).toLocaleString('en-US', { month: 'short', year: 'numeric' });
   }
   return raw || '-';
 }
@@ -308,42 +308,51 @@ async function sendUserCredentialsEmail(options) {
 }
 
 function buildManagerSummaryTable(rows, billingMonth) {
-  const border = '#1f2937';
+  const border = '#000000';
   const headerBg = '#F4B740';
-  const headerText = '#111111';
+  const headerText = '#000000';
   const cellBg = '#ffffff';
-  const cellPad = '10px 12px';
+  const cellPad = '4px 6px';
   const showHours = rows.some((item) => item && item.billing_method === 'sgtc_hours');
 
+  const colWidths = showHours
+    ? ['6%', '36%', '16%', '10%', '14%', '18%']
+    : ['7%', '42%', '17%', '14%', '20%'];
+  const colgroup = '<colgroup>' + colWidths.map((w) => '<col style="width:' + w + ';"/>').join('') + '</colgroup>';
+
+  const thStyle = 'border:1px solid ' + border + ';padding:' + cellPad + ';text-align:center;background:' + headerBg + ';color:' + headerText + ';font-weight:700;';
+  const tdBase = 'border:1px solid ' + border + ';padding:' + cellPad + ';background:' + cellBg + ';';
+
   const headerCells = [
-    '<th style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:center;background:' + headerBg + ';color:' + headerText + ';font-weight:700;">S.No.</th>',
-    '<th style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:center;background:' + headerBg + ';color:' + headerText + ';font-weight:700;">Service Descriptions</th>',
-    '<th style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:center;background:' + headerBg + ';color:' + headerText + ';font-weight:700;">Manager\'s Name</th>',
+    '<th style="' + thStyle + '">S.No.</th>',
+    '<th style="' + thStyle + '">Service Descriptions</th>',
+    '<th style="' + thStyle + '">Manager\'s Name</th>',
   ];
 
   if (showHours) {
-    headerCells.push('<th style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:center;background:' + headerBg + ';color:' + headerText + ';font-weight:700;">Billable Hours</th>');
+    headerCells.push('<th style="' + thStyle + '">Billable Hours</th>');
   }
 
-  headerCells.push('<th style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:center;background:' + headerBg + ';color:' + headerText + ';font-weight:700;">Service month</th>');
-  headerCells.push('<th style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:center;background:' + headerBg + ';color:' + headerText + ';font-weight:700;">Service billable Amount (INR)</th>');
+  headerCells.push('<th style="' + thStyle + '">Service Month</th>');
+  headerCells.push('<th style="' + thStyle + '">Service Billable Amount (INR)</th>');
 
   const bodyRows = rows.map((item, index) => {
     const hours = item.billing_method === 'sgtc_hours' && item.billing_hours !== null && item.billing_hours !== undefined ? item.billing_hours : '-';
     const cols = [
-      '<td style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:center;background:' + cellBg + ';">' + (index + 1) + '</td>',
-      '<td style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:left;background:' + cellBg + ';line-height:1.45;">' + escapeHtmlWithBreaks(item.service_description_html || '') + '</td>',
-      '<td style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:center;background:' + cellBg + ';">' + escapeHtml(item.reporting_manager || 'Unassigned') + '</td>',
+      '<td style="' + tdBase + 'text-align:center;">' + (index + 1) + '</td>',
+      '<td style="' + tdBase + 'text-align:left;line-height:1.3;word-wrap:break-word;">' + escapeHtmlWithBreaks(item.service_description_html || '') + '</td>',
+      '<td style="' + tdBase + 'text-align:center;word-wrap:break-word;">' + escapeHtml(item.reporting_manager || 'Unassigned') + '</td>',
     ];
     if (showHours) {
-      cols.push('<td style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:center;background:' + cellBg + ';">' + escapeHtml(String(hours)) + '</td>');
+      cols.push('<td style="' + tdBase + 'text-align:center;">' + escapeHtml(String(hours)) + '</td>');
     }
-    cols.push('<td style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:center;background:' + cellBg + ';">' + escapeHtml(formatBillingMonth(billingMonth)) + '</td>');
-    cols.push('<td style="border:1px solid ' + border + ';padding:' + cellPad + ';text-align:right;background:' + cellBg + ';">' + escapeHtml(formatCurrency(item.invoice_amount || 0)) + '</td>');
+    cols.push('<td style="' + tdBase + 'text-align:center;">' + escapeHtml(formatBillingMonth(billingMonth)) + '</td>');
+    cols.push('<td style="' + tdBase + 'text-align:right;">' + escapeHtml(formatCurrency(item.invoice_amount || 0)) + '</td>');
     return '<tr>' + cols.join('') + '</tr>';
   }).join('');
 
-  return '<table style="width:92%;margin:0 auto;border-collapse:collapse;font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#111827;">' +
+  return '<table style="width:100%;border-collapse:collapse;table-layout:fixed;font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#000000;">' +
+    colgroup +
     '<thead><tr>' + headerCells.join('') + '</tr></thead>' +
     '<tbody>' + bodyRows + '</tbody></table>';
 }
@@ -404,18 +413,21 @@ async function createManagerApprovalDraft(options) {
   const billingMonthLabel = formatBillingMonth(options.billingMonth);
   const billingMonthSubjectLabel = formatBillingMonthLong(options.billingMonth);
   const managerName = toSentenceCaseName(options.reportingManager || 'Manager') || 'Manager';
+  const managerFirstName = managerName.split(/\s+/)[0] || managerName;
   const subject = `Approval Requested - Service Request for ${billingMonthSubjectLabel} (${managerName})`;
   const displayRows = rows.map((row) => ({
     ...row,
     reporting_manager: toSentenceCaseName(row.reporting_manager || managerName) || managerName,
   }));
   const tableHtml = buildManagerSummaryTable(displayRows, options.billingMonth);
+  const bodyStyle = 'font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#000000;line-height:1.35;';
   const htmlBody = [
-    `<p>Hi ${escapeHtml(managerName)},</p>`,
-    `<p>Please find below the Attendance Sheet and Service Request for the month of <strong>${escapeHtml(billingMonthLabel)}</strong>.</p>`,
-    '<p>Kindly review the details and provide your approval.</p>',
-    '<br/>',
+    '<div style="' + bodyStyle + 'max-width:720px;">',
+    `<p style="margin:0 0 8px 0;">Hi ${escapeHtml(managerFirstName)},</p>`,
+    `<p style="margin:0 0 8px 0;">Please find below the Attendance Sheet and Service Request for the month of <strong>${escapeHtml(billingMonthLabel)}</strong>.</p>`,
+    '<p style="margin:0 0 10px 0;">Kindly review the details and provide your approval.</p>',
     tableHtml,
+    '</div>',
   ].join('');
 
   const draft = await createDraftMessage({

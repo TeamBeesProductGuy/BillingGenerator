@@ -4,6 +4,7 @@ const QuoteModel = require('../models/quote.model');
 const SOWModel = require('../models/sow.model');
 const POModel = require('../models/purchaseOrder.model');
 const ClientModel = require('../models/client.model');
+const BillingModel = require('../models/billing.model');
 const { AppError } = require('../middleware/errorHandler');
 const { adminSupabase, runWithRequestClient } = require('../config/database');
 const { logActivity } = require('./activityLog.service');
@@ -226,6 +227,35 @@ async function buildPoDeleteRequest(req, po) {
   };
 }
 
+function formatBillingMonthLabel(value) {
+  const raw = String(value || '').trim();
+  if (/^\d{6}$/.test(raw)) {
+    const year = raw.slice(0, 4);
+    const month = parseInt(raw.slice(4, 6), 10) - 1;
+    return new Date(Number(year), month, 1).toLocaleString('en-US', { month: 'short', year: 'numeric' });
+  }
+  return raw || '-';
+}
+
+async function buildBillingRunDeleteRequest(req, run) {
+  const clientName = await getClientAbbreviation(run.client_id) || null;
+  const monthLabel = formatBillingMonthLabel(run.billing_month);
+  const label = clientName ? `${clientName} - ${monthLabel}` : monthLabel;
+  return {
+    module: 'billing',
+    action_key: 'billing_run.delete',
+    action_label: 'Delete Service Request',
+    entity_type: 'billing_run',
+    entity_id: run.id,
+    entity_label: label,
+    client_id: run.client_id,
+    client_name: clientName,
+    role_description: `Service Request for ${monthLabel}`,
+    permission_message: buildMessage(req.user, 'DELETE', 'Service Request', label),
+    request_payload: { id: run.id },
+  };
+}
+
 async function buildPoCrossClientCreateRequest(req, payload, sow) {
   const clientName = await getClientAbbreviation(payload.client_id) || null;
   const sourceClientName = await getClientAbbreviation(sow.client_id) || null;
@@ -326,6 +356,21 @@ async function executeApprovedRequest(req, request) {
         details: { summary: 'Admin approved PO status change to ' + payload.status, approval_request_id: request.id },
       });
       return { id: request.entity_id, status: payload.status };
+    }
+
+    if (request.action_key === 'billing_run.delete') {
+      const run = await BillingModel.findRunById(Number(request.entity_id));
+      if (!run) throw new AppError(404, 'Service request not found');
+      await BillingModel.deleteRun(Number(request.entity_id));
+      await logActivity(req, {
+        module: 'billing',
+        action: 'delete',
+        entityType: 'billing_run',
+        entityId: request.entity_id,
+        entityLabel: request.entity_label,
+        details: { summary: 'Admin approved and deleted service request ' + request.entity_label, approval_request_id: request.id },
+      });
+      return { message: 'Service request deleted' };
     }
 
     if (request.action_key === 'po.delete') {
@@ -447,6 +492,7 @@ module.exports = {
   buildPoRenewRequest,
   buildPoDeleteRequest,
   buildPoCrossClientCreateRequest,
+  buildBillingRunDeleteRequest,
   buildProfileChangeRequest,
   executeApprovedRequest,
 };
