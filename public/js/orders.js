@@ -107,7 +107,7 @@
         : '<span class="table-date-chip">' + (order.next_bill_date ? formatDate(order.next_bill_date) : 'TBD') + '</span>';
       return '<tr>' +
         '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(clientName) + '">' + escapeHtml(clientName) + '</span></div></td>' +
-        '<td><div class="table-cell-box table-cell-stack"><span class="table-cell-primary">' + escapeHtml(order.candidate_name || '') + '</span><span class="table-cell-secondary">' + escapeHtml(order.position_role || '') + '</span></div></td>' +
+        '<td><div class="table-cell-box table-cell-stack"><span class="table-cell-primary">' + escapeHtml(order.candidate_name || '') + '</span></div></td>' +
         '<td><div class="table-cell-box table-cell-text">' + escapeHtml(order.requisition_description || '---') + '</div></td>' +
         '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(order.position_role || '') + '">' + escapeHtml(order.position_role || '---') + '</span></div></td>' +
         '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(order.date_of_joining) + '</span></div></td>' +

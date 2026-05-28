@@ -1,4 +1,4 @@
-<div class="p-5 sm:p-8 space-y-8 max-w-7xl mx-auto w-full fade-in">
+<div class="admin-page p-5 sm:p-8 space-y-8 w-full fade-in">
     <section class="admin-summary-grid stagger-in">
         <div id="adminTotalUsersCard" class="stat-card admin-metric-card admin-clickable-card" role="button" tabindex="0" aria-label="Go to users table">
             <div class="stat-glow bg-success"></div>
@@ -51,7 +51,7 @@
         </div>
     </section>
 
-    <section class="stat-card !p-0 overflow-hidden">
+    <section class="stat-card !p-0 overflow-hidden table-section-card admin-table-card">
         <div class="px-6 py-4 border-b border-outline-variant/8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div class="flex items-center gap-2">
                 <span class="material-symbols-outlined text-warning text-lg">approval_delegation</span>
@@ -61,7 +61,7 @@
                 <span class="material-symbols-outlined text-sm">refresh</span>Refresh
             </button>
         </div>
-        <div class="overflow-x-auto max-h-[62vh] styled-scrollbar">
+        <div class="overflow-x-auto styled-scrollbar admin-table-scroll">
             <table id="adminApprovalsTable" class="stitch-table">
                 <thead class="sticky top-0 z-10">
                     <tr>
@@ -81,7 +81,7 @@
         </div>
     </section>
 
-    <section class="stat-card !p-0 overflow-hidden">
+    <section class="stat-card !p-0 overflow-hidden table-section-card admin-table-card">
         <div class="px-6 py-4 border-b border-outline-variant/8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div class="flex items-center gap-2">
                 <span class="material-symbols-outlined text-success text-lg">manage_accounts</span>
@@ -91,7 +91,7 @@
                 <span class="material-symbols-outlined text-base">person_add</span>Add User
             </button>
         </div>
-        <div class="overflow-x-auto max-h-[340px] styled-scrollbar">
+        <div class="overflow-x-auto styled-scrollbar admin-table-scroll admin-users-table-scroll">
             <table id="adminUsersTable" class="stitch-table">
                 <thead class="sticky top-0 z-10">
                     <tr>

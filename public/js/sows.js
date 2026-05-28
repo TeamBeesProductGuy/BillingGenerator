@@ -470,7 +470,7 @@
     } catch (err) { showToast(err.message, 'danger'); hideLoading(tbody); }
   }
 
-  window.openSOWActions = function (id) {
+  window.openSOWActions = async function (id) {
     var actionState = sowActionMap[id];
     var container = document.getElementById('sowActionList');
     var title = document.getElementById('sowActionTitle');
@@ -479,7 +479,21 @@
     if (!actionState || !container || !title) return;
 
     title.textContent = 'SOW Actions';
-    container.innerHTML = '';
+    container.innerHTML = '<div class="py-3"><div class="loading-spinner"></div></div>';
+    openModal('sowActionModal');
+
+    var linkedPOs = [];
+    try {
+      var associations = await apiCall('GET', '/api/sows/' + actionState.id + '/associations');
+      linkedPOs = ((associations.data && associations.data.purchaseOrders) || []).filter(function (po) {
+        return po && po.po_number;
+      });
+    } catch { /* Keep actions available even if association lookup fails. */ }
+
+    var linkedPoLabel = linkedPOs.map(function (po) { return po.po_number; }).join(', ');
+    container.innerHTML = linkedPOs.length
+      ? '<div class="sow-linked-po-note"><span class="material-symbols-outlined">link</span><span><strong>Linked to ' + escapeHtml(linkedPoLabel) + '</strong><small>Existing purchase order connection</small></span></div>'
+      : '';
     container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runSOWActionView(' + actionState.id + ')"><span class="material-symbols-outlined">visibility</span><span><strong>View details</strong><small>Open SOW summary, line items, and notes</small></span></button>';
 
     if (actionState.status === 'Draft' || actionState.status === 'Amendment Draft' || actionState.status === 'Signed' || actionState.status === 'Active') {
@@ -492,15 +506,15 @@
     });
 
     if (actionState.status === 'Signed' || actionState.status === 'Active') {
-      container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runSOWActionLinkPO(' + actionState.id + ', ' + actionState.clientId + ')"><span class="material-symbols-outlined">receipt_long</span><span><strong>Link to PO</strong><small>Start a purchase order linked to this SOW</small></span></button>';
+      var linkPoLabel = linkedPOs.length ? 'Link new PO' : 'Link PO';
+      var linkPoHelp = linkedPOs.length ? 'Create another purchase order linked to this SOW' : 'Start a purchase order linked to this SOW';
+      container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runSOWActionLinkPO(' + actionState.id + ', ' + actionState.clientId + ')"><span class="material-symbols-outlined">receipt_long</span><span><strong>' + linkPoLabel + '</strong><small>' + linkPoHelp + '</small></span></button>';
       container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runSOWActionAmendment(' + actionState.id + ')"><span class="material-symbols-outlined">edit_document</span><span><strong>Make amendment</strong><small>Create an amendment draft from this SOW</small></span></button>';
     }
 
     if (actionState.status === 'Draft' || actionState.status === 'Amendment Draft') {
       container.innerHTML += '<button type="button" class="action-sheet-btn action-sheet-btn-danger" onclick="runSOWActionDelete(' + actionState.id + ')"><span class="material-symbols-outlined">delete</span><span><strong>Delete SOW</strong><small>Remove this draft SOW from the register</small></span></button>';
     }
-
-    openModal('sowActionModal');
   };
 
   window.closeSOWActions = function () {

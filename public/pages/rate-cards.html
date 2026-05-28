@@ -117,7 +117,10 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Emp Code *</label>
-              <input type="text" id="rcEmpCode" required>
+              <div class="rc-emp-code-input">
+                <button type="button" id="rcEmpCodePrefixButton" class="rc-emp-code-prefix" title="Edit employee code prefix">TBC</button>
+                <input type="text" id="rcEmpCode" required placeholder="122">
+              </div>
             </div>
             <div>
               <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Emp Name</label>
@@ -194,9 +197,17 @@
           <input type="number" id="rcLeaves" value="0" min="0">
         </div>
 
-        <div>
-          <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Date of Reporting</label>
-          <input type="date" id="rcChargingDate">
+        <div class="rc-reporting-date-field">
+          <div class="flex flex-col sm:flex-row sm:items-end gap-3">
+            <div class="rc-reporting-date-input">
+              <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-1.5">Date of Reporting</label>
+              <input type="date" id="rcChargingDate">
+            </div>
+            <label class="rc-same-date-toggle">
+              <input type="checkbox" id="rcSameAsDoj" checked>
+              <span>Same as DOJ</span>
+            </label>
+          </div>
           <p class="mt-1 text-xs text-on-surface-variant">Check Date of Reporting at the Client Side</p>
         </div>
         <div>
@@ -261,8 +272,8 @@
         </div>
       </div>
       <div id="rcModalFooter" class="enterprise-modal-footer">
-        <button type="button" class="btn-secondary enterprise-modal-cancel" onclick="closeRCModal()">Cancel</button>
         <button type="submit" class="btn-primary enterprise-modal-save">Review & Save</button>
+        <button type="button" class="btn-secondary enterprise-modal-cancel" onclick="closeRCModal()">Cancel</button>
       </div>
     </form>
   </div>

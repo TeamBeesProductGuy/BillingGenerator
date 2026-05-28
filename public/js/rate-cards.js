@@ -7,6 +7,56 @@
   var currentSowDetail = null;
   var rcDojEditedByUser = false;
   var pendingRateCardSave = null;
+  var EMP_CODE_PREFIX_STORAGE_KEY = 'rateCardEmpCodePrefix';
+  var DEFAULT_EMP_CODE_PREFIX = 'TBC';
+  var rcEmpCodePrefix = loadEmpCodePrefix();
+
+  function normalizeEmpCodePrefix(value) {
+    return String(value || '').trim().toUpperCase().replace(/\s+/g, '');
+  }
+
+  function loadEmpCodePrefix() {
+    try {
+      var stored = localStorage.getItem(EMP_CODE_PREFIX_STORAGE_KEY);
+      return stored === null ? DEFAULT_EMP_CODE_PREFIX : normalizeEmpCodePrefix(stored);
+    } catch {
+      return DEFAULT_EMP_CODE_PREFIX;
+    }
+  }
+
+  function saveEmpCodePrefix(value) {
+    rcEmpCodePrefix = normalizeEmpCodePrefix(value);
+    try {
+      localStorage.setItem(EMP_CODE_PREFIX_STORAGE_KEY, rcEmpCodePrefix);
+    } catch { /* ignore storage issues */ }
+    updateEmpCodePrefixUI();
+  }
+
+  function updateEmpCodePrefixUI() {
+    var btn = document.getElementById('rcEmpCodePrefixButton');
+    if (!btn) return;
+    btn.textContent = rcEmpCodePrefix || 'None';
+    btn.title = 'Edit employee code prefix';
+  }
+
+  function prefixedEmpCode(rawValue) {
+    var raw = String(rawValue || '').trim().toUpperCase();
+    var prefix = normalizeEmpCodePrefix(rcEmpCodePrefix);
+    if (!raw || !prefix) return raw;
+    return raw.indexOf(prefix) === 0 ? raw : prefix + raw;
+  }
+
+  function getEmpCodeForSave() {
+    var raw = document.getElementById('rcEmpCode').value.trim();
+    return window.rcEdit ? raw.toUpperCase() : prefixedEmpCode(raw);
+  }
+
+  function editEmpCodePrefix() {
+    var next = window.prompt('Employee code prefix for new rate cards', rcEmpCodePrefix);
+    if (next === null) return;
+    saveEmpCodePrefix(next);
+    if (pendingRateCardSave) hideRCSavePreview();
+  }
 
   function normalizeClientKey(value) {
     return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -75,6 +125,34 @@
     setBillingWindowVisibility();
   }
 
+  function updateReportingDateConstraints() {
+    var dojInput = document.getElementById('rcDoj');
+    var reportingInput = document.getElementById('rcChargingDate');
+    var sameAsDoj = document.getElementById('rcSameAsDoj');
+    if (!dojInput || !reportingInput || !sameAsDoj) return;
+    reportingInput.min = dojInput.value || '';
+    reportingInput.disabled = sameAsDoj.checked;
+  }
+
+  function syncReportingDateFromDoj() {
+    var dojInput = document.getElementById('rcDoj');
+    var reportingInput = document.getElementById('rcChargingDate');
+    var sameAsDoj = document.getElementById('rcSameAsDoj');
+    if (!dojInput || !reportingInput || !sameAsDoj) return;
+    if (sameAsDoj.checked) {
+      reportingInput.value = dojInput.value || '';
+    }
+    updateReportingDateConstraints();
+  }
+
+  function setSameAsDoj(checked, options) {
+    var sameAsDoj = document.getElementById('rcSameAsDoj');
+    if (!sameAsDoj) return;
+    sameAsDoj.checked = Boolean(checked);
+    if (!options || options.sync !== false) syncReportingDateFromDoj();
+    updateReportingDateConstraints();
+  }
+
   function isBillingDisabledForCapacity(row) {
     return row.no_invoice || row.billing_active === false || row.disable_billing;
   }
@@ -133,6 +211,8 @@
     hideRCSavePreview();
     setBillingControlsVisibility(false);
     rcDojEditedByUser = false;
+    updateEmpCodePrefixUI();
+    setSameAsDoj(true);
     document.getElementById('rcRateMode').value = 'monthly';
     document.getElementById('rcHourlyRate').value = '';
     document.getElementById('rcHoursWorked').value = '';
@@ -160,6 +240,8 @@
     hideRCSavePreview();
     setBillingControlsVisibility(false);
     rcDojEditedByUser = false;
+    updateEmpCodePrefixUI();
+    setSameAsDoj(true);
     document.getElementById('rcRateMode').value = 'monthly';
     document.getElementById('rcHourlyRate').value = '';
     document.getElementById('rcHoursWorked').value = '';
@@ -331,19 +413,22 @@
   function autofillDojFromSow(sow) {
     var dojInput = document.getElementById('rcDoj');
     var reportingInput = document.getElementById('rcChargingDate');
+    var sameAsDoj = document.getElementById('rcSameAsDoj');
     if (!dojInput || !sow || !sow.effective_start) return;
     if (!rcDojEditedByUser || !dojInput.value) {
       dojInput.value = sow.effective_start;
-      if (reportingInput && !reportingInput.value) {
+      if (reportingInput && (!reportingInput.value || (sameAsDoj && sameAsDoj.checked))) {
         reportingInput.value = sow.effective_start;
       }
     }
+    syncReportingDateFromDoj();
   }
 
   function validateRateCardDates() {
     var doj = document.getElementById('rcDoj').value;
     var reporting = document.getElementById('rcChargingDate').value;
-    if (!reporting && doj) {
+    var sameAsDoj = document.getElementById('rcSameAsDoj');
+    if (sameAsDoj && sameAsDoj.checked) {
       document.getElementById('rcChargingDate').value = doj;
       reporting = doj;
     }
@@ -717,6 +802,7 @@
       document.getElementById('rcSOW').value = r.sow_id || '';
       await autofillPOForSelectedSow(r.sow_id || '', r.po_id || '');
       document.getElementById('rcEmpCode').value = r.emp_code;
+      updateEmpCodePrefixUI();
       document.getElementById('rcEmpName').value = r.emp_name;
       document.getElementById('rcDoj').value = r.doj || '';
       rcDojEditedByUser = Boolean(r.doj);
@@ -744,6 +830,7 @@
       updateRateModeAvailability();
       document.getElementById('rcLeaves').value = r.leaves_allowed;
       document.getElementById('rcChargingDate').value = r.charging_date || '';
+      setSameAsDoj(!r.charging_date || String(r.charging_date) === String(r.doj || ''), { sync: !r.charging_date || String(r.charging_date) === String(r.doj || '') });
       document.getElementById('rcModalTitle').textContent = 'Edit Rate Card';
       window.rcEdit = r.id;
       await renderSowPreview(r.sow_id || '');
@@ -837,7 +924,7 @@
 
     var data = {
       client_id: parseInt(document.getElementById('rcClient').value, 10),
-      emp_code: document.getElementById('rcEmpCode').value.trim(),
+      emp_code: getEmpCodeForSave(),
       emp_name: document.getElementById('rcEmpName').value.trim(),
       doj: document.getElementById('rcDoj').value || null,
       reporting_manager: document.getElementById('rcManager').value.trim(),
@@ -913,6 +1000,7 @@
   document.getElementById('rcHourlyRate').addEventListener('input', recalcHourlyMonthlyRate);
   document.getElementById('rcHoursWorked').addEventListener('input', recalcHourlyMonthlyRate);
   document.getElementById('rcCapHours').addEventListener('input', recalcHourlyMonthlyRate);
+  document.getElementById('rcEmpCodePrefixButton').addEventListener('click', editEmpCodePrefix);
 
   // Load POs when client changes in the form
   document.getElementById('rcClient').addEventListener('change', function () {
@@ -951,10 +1039,17 @@
 
   document.getElementById('rcDoj').addEventListener('change', function () {
     rcDojEditedByUser = Boolean(this.value);
-    if (!document.getElementById('rcChargingDate').value) {
-      document.getElementById('rcChargingDate').value = this.value;
-    }
+    syncReportingDateFromDoj();
   });
+
+  document.getElementById('rcSameAsDoj').addEventListener('change', function () {
+    syncReportingDateFromDoj();
+  });
+
+  document.getElementById('rcChargingDate').addEventListener('change', updateReportingDateConstraints);
+
+  updateEmpCodePrefixUI();
+  setSameAsDoj(true);
 
   // Initialize search
   initTableSearch('rcSearch', 'rcBody');
