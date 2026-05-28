@@ -378,6 +378,64 @@ async function hydrateRunItemsForDecision(run) {
 
   await resolvePoFromSow(run.items);
   normalizeStoredServiceDurations(run);
+  await hydrateChainInfo(run.items);
+}
+
+async function hydrateChainInfo(items) {
+  if (!items || items.length === 0) return;
+
+  const sowIds = Array.from(new Set(items.map((i) => i.sow_id).filter(Boolean)));
+  const poIds = Array.from(new Set(items.map((i) => i.po_id).filter(Boolean)));
+
+  const [sowsRes, posRes] = await Promise.all([
+    sowIds.length > 0
+      ? supabase.from('sows').select('id, sow_number, quote_id').in('id', sowIds)
+      : Promise.resolve({ data: [], error: null }),
+    poIds.length > 0
+      ? supabase.from('purchase_orders').select('id, po_number, quote_id, sow_id').in('id', poIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (sowsRes.error) throw new Error('chain sows: ' + sowsRes.error.message);
+  if (posRes.error) throw new Error('chain pos: ' + posRes.error.message);
+
+  const sowMap = {};
+  (sowsRes.data || []).forEach((s) => { sowMap[s.id] = s; });
+  const poMap = {};
+  (posRes.data || []).forEach((p) => { poMap[p.id] = p; });
+
+  // PO may carry quote_id directly OR via its own sow_id. Resolve to ensure we include both paths.
+  const quoteIds = new Set();
+  Object.values(sowMap).forEach((s) => { if (s.quote_id) quoteIds.add(s.quote_id); });
+  Object.values(poMap).forEach((p) => {
+    if (p.quote_id) quoteIds.add(p.quote_id);
+    else if (p.sow_id && sowMap[p.sow_id] && sowMap[p.sow_id].quote_id) quoteIds.add(sowMap[p.sow_id].quote_id);
+  });
+
+  let quoteMap = {};
+  if (quoteIds.size > 0) {
+    const { data, error } = await supabase
+      .from('quotes')
+      .select('id, quote_number')
+      .in('id', Array.from(quoteIds));
+    if (error) throw new Error('chain quotes: ' + error.message);
+    (data || []).forEach((q) => { quoteMap[q.id] = q; });
+  }
+
+  items.forEach((item) => {
+    let quoteId = null;
+    if (item.po_id && poMap[item.po_id]) {
+      const po = poMap[item.po_id];
+      quoteId = po.quote_id || null;
+      if (!quoteId && po.sow_id && sowMap[po.sow_id]) {
+        quoteId = sowMap[po.sow_id].quote_id || null;
+      }
+    }
+    if (!quoteId && item.sow_id && sowMap[item.sow_id]) {
+      quoteId = sowMap[item.sow_id].quote_id || null;
+    }
+    item.quote_id = quoteId;
+    item.quote_number = quoteId && quoteMap[quoteId] ? quoteMap[quoteId].quote_number : null;
+  });
 }
 
 /**

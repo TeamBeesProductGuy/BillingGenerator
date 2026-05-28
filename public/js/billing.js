@@ -250,9 +250,12 @@
         chargeable_days: item.chargeable_days,
         invoice_amount: item.invoice_amount,
         po_id: item.po_id || null,
+        po_number: item.po_number || null,
         client_id: item.client_id || null,
         sow_id: item.sow_id || null,
         sow_number: item.sow_number || null,
+        quote_id: item.quote_id || null,
+        quote_number: item.quote_number || null,
         billing_month: billingMonth,
         id: item.id || null,
         approval_status: item.approval_status || 'Pending',
@@ -385,6 +388,20 @@
     }).join(separator || ', ');
   }
 
+  function uniqueValues(values) {
+    var seen = {};
+    var out = [];
+    (values || []).forEach(function (v) {
+      var s = String(v == null ? '' : v).trim();
+      if (!s) return;
+      var key = s.toLowerCase();
+      if (seen[key]) return;
+      seen[key] = true;
+      out.push(s);
+    });
+    return out;
+  }
+
   function aggregateManagerRows(rows) {
     var map = {};
     (rows || []).forEach(function (item) {
@@ -398,6 +415,8 @@
           invoice_amount: 0,
           billing_hours: item.billing_hours !== null && item.billing_hours !== undefined ? 0 : null,
           _sowNumbers: [],
+          _poNumbers: [],
+          _quoteNumbers: [],
           _serviceDescriptions: []
         });
       }
@@ -406,16 +425,22 @@
         map[key].billing_hours = Math.round(((parseFloat(map[key].billing_hours) || 0) + (parseFloat(item.billing_hours) || 0)) * 100) / 100;
       }
       map[key]._sowNumbers.push(item.sow_number);
+      map[key]._poNumbers.push(item.po_number);
+      map[key]._quoteNumbers.push(item.quote_number);
       map[key]._serviceDescriptions.push(item.service_description || item.role_position);
     });
     return Object.keys(map).map(function (key) {
       var item = map[key];
       var serviceDescription = uniqueJoined(item._serviceDescriptions) || item.service_description || item.role_position;
       var sowNumber = uniqueJoined(item._sowNumbers.map(sowNumberLabel), ' & ');
+      var poNumber = uniqueJoined(item._poNumbers, ' & ');
+      var quoteNumber = uniqueJoined(item._quoteNumbers, ' & ');
       return Object.assign({}, item, {
         service_description: serviceDescription,
         role_position: serviceDescription,
-        sow_number: sowNumber
+        sow_number: sowNumber,
+        po_number: poNumber,
+        quote_number: quoteNumber
       });
     });
   }
@@ -483,6 +508,15 @@
       var statusText = accepted + ' accepted';
       if (pending) statusText += ', ' + pending + ' pending';
       if (rejected) statusText += ', ' + rejected + ' rejected';
+      var uniquePos = uniqueValues(rows.map(function (r) { return r.po_number; }));
+      var uniqueSows = uniqueValues(rows.map(function (r) { return r.sow_number; }));
+      var uniqueQuotes = uniqueValues(rows.map(function (r) { return r.quote_number; }));
+      var missingPos = rows.filter(function (r) { return !r.po_number; }).length;
+      var chipsHtml = '<div class="flex flex-wrap items-center gap-1.5 text-[11px]">' +
+        '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant"><span class="material-symbols-outlined text-[12px]">local_shipping</span>' + uniquePos.length + ' PO' + (uniquePos.length === 1 ? '' : 's') + (missingPos > 0 ? ' <span class="text-error font-semibold">· ' + missingPos + ' missing</span>' : '') + '</span>' +
+        '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant"><span class="material-symbols-outlined text-[12px]">description</span>' + uniqueSows.length + ' SOW' + (uniqueSows.length === 1 ? '' : 's') + '</span>' +
+        '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant"><span class="material-symbols-outlined text-[12px]">request_quote</span>' + uniqueQuotes.length + ' Quote' + (uniqueQuotes.length === 1 ? '' : 's') + '</span>' +
+      '</div>';
       var actionHtml = approved
         ? '<div class="grid grid-cols-1 sm:grid-cols-3 gap-2">' +
             '<span class="badge-success inline-flex items-center justify-center">Approved</span>' +
@@ -502,6 +536,7 @@
           '<div class="text-right"><div class="text-xs text-on-surface-variant">Amount</div><div class="font-semibold">' + formatCurrency(total) + '</div></div>' +
         '</div>' +
         '<div class="text-xs text-on-surface-variant">' + rows.length + ' candidate(s) | ' + escapeHtml(statusText) + '</div>' +
+        chipsHtml +
         actionHtml +
       '</div>';
     }).join('');
@@ -520,12 +555,102 @@
     closeModal('managerMailModal');
   };
 
+  window.closeConnectionMapModal = function () {
+    closeModal('connectionMapModal');
+  };
+
+  function openConnectionMap() {
+    var items = currentBillingItems || [];
+    if (items.length === 0) {
+      showToast('Generate or load a service request first', 'warning');
+      return;
+    }
+    // Group: quote_number → sow_number → po_number → [items]
+    var tree = {};
+    items.forEach(function (it) {
+      var q = it.quote_number || '__noquote__';
+      var s = it.sow_number || '__nosow__';
+      var p = it.po_number || '__nopo__';
+      if (!tree[q]) tree[q] = {};
+      if (!tree[q][s]) tree[q][s] = {};
+      if (!tree[q][s][p]) tree[q][s][p] = [];
+      tree[q][s][p].push(it);
+    });
+
+    var quotes = Object.keys(tree).sort(function (a, b) {
+      if (a === '__noquote__') return 1;
+      if (b === '__noquote__') return -1;
+      return String(a).localeCompare(String(b));
+    });
+
+    var html = quotes.map(function (q) {
+      var qLabel = q === '__noquote__'
+        ? '<span class="text-error font-semibold">No Quote linked</span>'
+        : '<a href="#quotes" class="inline-flex items-center gap-1 text-tertiary font-semibold hover:underline no-underline"><span class="material-symbols-outlined text-[14px]">request_quote</span>Quote ' + escapeHtml(q) + '</a>';
+      var sowKeys = Object.keys(tree[q]).sort();
+      var sowsHtml = sowKeys.map(function (s) {
+        var sLabel = s === '__nosow__'
+          ? '<span class="text-error font-semibold">No SOW linked</span>'
+          : '<a href="#sows" class="inline-flex items-center gap-1 text-accent font-semibold hover:underline no-underline"><span class="material-symbols-outlined text-[14px]">description</span>SOW ' + escapeHtml(s) + '</a>';
+        var poKeys = Object.keys(tree[q][s]).sort();
+        var posHtml = poKeys.map(function (p) {
+          var pLabel = p === '__nopo__'
+            ? '<span class="inline-flex items-center gap-1 text-error font-semibold"><span class="material-symbols-outlined text-[14px]">error</span>No PO linked</span>'
+            : '<a href="#purchase-orders" class="inline-flex items-center gap-1 text-primary font-semibold hover:underline no-underline"><span class="material-symbols-outlined text-[14px]">local_shipping</span>PO ' + escapeHtml(p) + '</a>';
+          var candidates = tree[q][s][p];
+          var poTotal = candidates.reduce(function (sum, c) { return sum + (parseFloat(c.invoice_amount) || 0); }, 0);
+          var candidatesHtml = candidates.map(function (c) {
+            return '<div class="flex items-center justify-between gap-2 pl-6 py-1 text-xs">' +
+              '<span><span class="font-semibold text-on-surface">' + escapeHtml(c.emp_code || '') + ' — ' + escapeHtml(c.emp_name || '') + '</span>' +
+              '<span class="text-on-surface-variant"> · ' + escapeHtml(c.reporting_manager || 'Unassigned') + '</span></span>' +
+              '<span class="font-semibold">' + formatCurrency(c.invoice_amount || 0) + '</span>' +
+            '</div>';
+          }).join('');
+          return '<div class="pl-5 mt-2 border-l-2 border-outline-variant/30 ml-2">' +
+            '<div class="flex items-center justify-between gap-2 text-xs">' + pLabel + '<span class="text-on-surface-variant">' + candidates.length + ' candidate' + (candidates.length === 1 ? '' : 's') + ' · ' + formatCurrency(poTotal) + '</span></div>' +
+            candidatesHtml +
+          '</div>';
+        }).join('');
+        return '<div class="pl-3 mt-2 border-l-2 border-outline-variant/20 ml-2">' +
+          '<div class="text-sm">' + sLabel + '</div>' +
+          posHtml +
+        '</div>';
+      }).join('');
+      return '<div class="rounded-xl border border-outline-variant/15 bg-surface-container p-4">' +
+        '<div class="text-sm font-bold">' + qLabel + '</div>' +
+        sowsHtml +
+      '</div>';
+    }).join('');
+
+    document.getElementById('connectionMapBody').innerHTML = html || '<div class="text-center text-on-surface-variant py-6">No items to map</div>';
+    openModal('connectionMapModal');
+  }
+
+  var connectionMapBtn = document.getElementById('btnConnectionMap');
+  if (connectionMapBtn) connectionMapBtn.addEventListener('click', openConnectionMap);
+
   function openManagerMail(managerName) {
     document.getElementById('managerMailForm').reset();
     document.getElementById('managerMailManagerName').value = managerName;
     document.getElementById('managerMailSubtitle').textContent = 'Create a draft for ' + managerName;
     document.getElementById('managerMailSubjectPreview').textContent = 'Attendance Sheet and Service Request for ' + monthLabel(currentBillingMonth);
     openModal('managerMailModal');
+  }
+
+  function linkagePillsHtml(item) {
+    var pills = [];
+    if (item.po_number) {
+      pills.push('<a href="#purchase-orders" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-primary/10 text-primary text-[11px] font-semibold no-underline hover:bg-primary/20" title="View Purchase Orders"><span class="material-symbols-outlined text-[12px]">local_shipping</span>' + escapeHtml(item.po_number) + '</a>');
+    } else {
+      pills.push('<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-error/10 text-error text-[11px] font-semibold" title="No PO linked"><span class="material-symbols-outlined text-[12px]">error</span>No PO</span>');
+    }
+    if (item.sow_number) {
+      pills.push('<a href="#sows" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-accent/10 text-accent text-[11px] font-semibold no-underline hover:bg-accent/20" title="View SOWs"><span class="material-symbols-outlined text-[12px]">description</span>' + escapeHtml(item.sow_number) + '</a>');
+    }
+    if (item.quote_number) {
+      pills.push('<a href="#quotes" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-tertiary/10 text-tertiary text-[11px] font-semibold no-underline hover:bg-tertiary/20" title="View Quotes"><span class="material-symbols-outlined text-[12px]">request_quote</span>' + escapeHtml(item.quote_number) + '</a>');
+    }
+    return '<div class="flex flex-wrap gap-1">' + pills.join('') + '</div>';
   }
 
   function openManagerView(managerName) {
@@ -541,6 +666,7 @@
         '<td class="text-center">' + (index + 1) + '</td>' +
         '<td>' + serviceDescriptionHtml(item) + '</td>' +
         '<td class="text-center">' + escapeHtml(managerName) + '</td>' +
+        '<td>' + linkagePillsHtml(item) + '</td>' +
         (showHoursColumn ? '<td class="text-center">' + escapeHtml(String(hours)) + '</td>' : '') +
         '<td class="text-center">' + escapeHtml(monthLabel(currentBillingMonth || item.billing_month || '')) + '</td>' +
         '<td class="text-right">' + formatCurrency(item.invoice_amount || 0) + '</td>' +
