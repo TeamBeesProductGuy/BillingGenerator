@@ -46,13 +46,14 @@
     //  Routes & State
     // -----------------------------------------------------------
     var ADMIN_EMAILS = ["jatinder@teambeescorp.com", "jatinder@teambeescrop.com"];
-    var ROUTES = ["admin", "billing", "rate-cards", "attendance", "quotes", "sows", "purchase-orders", "clients", "orders", "reminders", "activity-logs", "settings"];
+    var ROUTES = ["dashboard", "admin", "billing", "rate-cards", "attendance", "quotes", "sows", "purchase-orders", "clients", "orders", "reminders", "activity-logs", "settings"];
     var DEFAULT_ROUTE = "billing";
     var SIGNIN_PATH = "/signin";
     var currentPage = null;
     var pageCache = {};
 
     var PAGE_TITLES = {
+        "dashboard": "Dashboard",
         "admin": "Admin",
         "billing": "Service Requests",
         "clients": "Clients",
@@ -224,9 +225,6 @@
         document.querySelectorAll('[data-module]').forEach(function (el) {
             el.classList.toggle("hidden", !hasModuleAccess(el.getAttribute("data-module")));
         });
-        document.querySelectorAll('[data-temporary-hidden="true"]').forEach(function (el) {
-            el.classList.add("hidden");
-        });
         setAdminApprovalBadge(document.getElementById("adminPendingApprovalBadge") ? document.getElementById("adminPendingApprovalBadge").textContent : 0);
         document.querySelectorAll('[data-sidebar-section]').forEach(function (section) {
             var hasVisibleLink = Array.from(section.querySelectorAll(".sidebar-link")).some(function (link) {
@@ -296,7 +294,7 @@
         updateRoleBasedNavigation();
 
         var hash = (location.hash || "").replace(/^#\/?/, "").toLowerCase();
-        if (hash === "dashboard") {
+        if (hash === "dashboard" && !isCurrentUserAdmin()) {
             hash = getDefaultRoute();
             history.replaceState(null, "", "/#" + hash);
         }

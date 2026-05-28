@@ -1,204 +1,227 @@
-<div class="p-5 sm:p-8 space-y-8 max-w-7xl mx-auto w-full fade-in">
+<div class="p-5 sm:p-8 space-y-6 max-w-7xl mx-auto w-full fade-in">
 
-    <!-- Statistics Grid -->
-    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 stagger-in">
-        <!-- Total Clients -->
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+            <h2 class="text-2xl font-headline font-bold text-on-surface">Operations Dashboard</h2>
+            <p class="text-sm text-on-surface-variant">Live snapshot of clients, contracts, consumption, and revenue.</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <span id="dashboardLastUpdated" class="text-xs text-on-surface-variant hidden sm:inline"></span>
+            <button id="btnRefreshDashboard" class="btn-secondary inline-flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-base">refresh</span>Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Operations KPI Row -->
+    <section class="grid grid-cols-2 sm:grid-cols-4 gap-3 stagger-in">
         <div class="stat-card">
             <div class="stat-glow bg-primary"></div>
-            <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center justify-between mb-3">
                 <div class="w-9 h-9 rounded-xl bg-primary/12 flex items-center justify-center">
                     <span class="material-symbols-outlined text-accent text-lg">apartment</span>
                 </div>
-                <span class="material-symbols-outlined text-primary/20 text-3xl">trending_up</span>
+                <span class="material-symbols-outlined text-primary/20 text-2xl">trending_up</span>
             </div>
-            <h3 id="statTotalClients" class="text-2xl font-headline font-bold text-on-surface count-up">--</h3>
-            <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mt-1.5 font-semibold">Total Clients</p>
+            <h3 id="kpiClients" class="text-2xl font-headline font-bold text-on-surface">--</h3>
+            <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mt-1 font-semibold">Active Clients</p>
         </div>
-        <!-- Active Employees -->
         <div class="stat-card">
             <div class="stat-glow bg-accent"></div>
-            <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center justify-between mb-3">
                 <div class="w-9 h-9 rounded-xl bg-accent/12 flex items-center justify-center">
                     <span class="material-symbols-outlined text-accent text-lg">badge</span>
                 </div>
-                <span class="material-symbols-outlined text-accent/20 text-3xl">group</span>
+                <span class="material-symbols-outlined text-accent/20 text-2xl">group</span>
             </div>
-            <h3 id="statActiveEmployees" class="text-2xl font-headline font-bold text-on-surface count-up">--</h3>
-            <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mt-1.5 font-semibold">Employees</p>
+            <h3 id="kpiEmployees" class="text-2xl font-headline font-bold text-on-surface">--</h3>
+            <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mt-1 font-semibold">Active Employees</p>
         </div>
-        <!-- Active POs -->
+        <div class="stat-card">
+            <div class="stat-glow bg-success"></div>
+            <div class="flex items-center justify-between mb-3">
+                <div class="w-9 h-9 rounded-xl bg-success/12 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-success text-lg">description</span>
+                </div>
+                <span class="material-symbols-outlined text-success/20 text-2xl">verified</span>
+            </div>
+            <h3 id="kpiSOWs" class="text-2xl font-headline font-bold text-on-surface">--</h3>
+            <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mt-1 font-semibold">Active SOWs</p>
+        </div>
         <div class="stat-card">
             <div class="stat-glow bg-accent"></div>
-            <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center justify-between mb-3">
                 <div class="w-9 h-9 rounded-xl bg-accent/12 flex items-center justify-center">
                     <span class="material-symbols-outlined text-accent text-lg">local_shipping</span>
                 </div>
-                <span class="material-symbols-outlined text-accent/20 text-3xl">inventory_2</span>
+                <span id="kpiPOAlertsBadge" class="hidden text-[10px] font-bold px-2 py-0.5 rounded-full bg-warning/15 text-warning">!</span>
             </div>
-            <h3 id="statActivePOs" class="text-2xl font-headline font-bold text-on-surface count-up">--</h3>
-            <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mt-1.5 font-semibold">Active POs</p>
+            <h3 id="kpiPOs" class="text-2xl font-headline font-bold text-on-surface">--</h3>
+            <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mt-1 font-semibold">Active POs</p>
         </div>
-        <!-- Billing Runs -->
-        <div class="stat-card">
-            <div class="stat-glow bg-success"></div>
-            <div class="flex items-center justify-between mb-4">
-                <div class="w-9 h-9 rounded-xl bg-success/12 flex items-center justify-center">
-                    <span class="material-symbols-outlined text-success text-lg">sync</span>
-                </div>
-                <span class="material-symbols-outlined text-success/20 text-3xl">receipt</span>
-            </div>
-            <h3 id="statBillingRuns" class="text-2xl font-headline font-bold text-on-surface count-up">--</h3>
-            <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mt-1.5 font-semibold">Billing Runs</p>
-        </div>
-        <!-- Pending Quotes -->
-        <div class="stat-card">
-            <div class="stat-glow bg-warning"></div>
-            <div class="flex items-center justify-between mb-4">
-                <div class="w-9 h-9 rounded-xl bg-primary/12 flex items-center justify-center">
-                    <span class="material-symbols-outlined text-primary text-lg">pending_actions</span>
-                </div>
-                <span class="material-symbols-outlined text-warning/20 text-3xl">hourglass_empty</span>
-            </div>
-            <h3 id="statPendingQuotes" class="text-2xl font-headline font-bold text-primary count-up">--</h3>
-            <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mt-1.5 font-semibold">Pending Quotes</p>
-        </div>
-        <!-- Total Revenue -->
+    </section>
+
+    <!-- Financial KPI Row -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 stagger-in">
         <div class="stat-card">
             <div class="stat-glow bg-primary"></div>
-            <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center justify-between mb-3">
                 <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/20 to-accent/15 flex items-center justify-center">
                     <span class="material-symbols-outlined text-secondary text-lg">payments</span>
                 </div>
-                <span class="material-symbols-outlined text-primary/20 text-3xl">account_balance</span>
+                <span class="material-symbols-outlined text-primary/20 text-2xl">account_balance</span>
             </div>
-            <h3 id="statTotalRevenue" class="text-2xl font-headline font-bold gradient-text count-up">--</h3>
-            <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mt-1.5 font-semibold">Total Revenue</p>
+            <h3 id="kpiRevenueMTD" class="text-xl font-headline font-bold gradient-text">--</h3>
+            <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mt-1 font-semibold">Revenue (MTD)</p>
+            <p id="kpiRevenue12M" class="text-[10px] text-on-surface-variant mt-1">Last 12M: --</p>
+        </div>
+        <div class="stat-card">
+            <div class="stat-glow bg-success"></div>
+            <div class="flex items-center justify-between mb-3">
+                <div class="w-9 h-9 rounded-xl bg-success/12 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-success text-lg">savings</span>
+                </div>
+            </div>
+            <h3 id="kpiPOCommitted" class="text-xl font-headline font-bold text-on-surface">--</h3>
+            <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mt-1 font-semibold">PO Committed</p>
+            <p class="text-[10px] text-on-surface-variant mt-1">Across active POs</p>
+        </div>
+        <div class="stat-card">
+            <div class="stat-glow bg-warning"></div>
+            <div class="flex items-center justify-between mb-3">
+                <div class="w-9 h-9 rounded-xl bg-warning/12 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-warning text-lg">data_usage</span>
+                </div>
+                <span id="kpiPOConsumedPct" class="text-xs font-bold text-on-surface-variant">--%</span>
+            </div>
+            <h3 id="kpiPOConsumed" class="text-xl font-headline font-bold text-on-surface">--</h3>
+            <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mt-1 font-semibold">PO Consumed</p>
+            <div class="mt-2 h-1.5 rounded-full bg-surface-container-high overflow-hidden">
+                <div id="kpiPOConsumedBar" class="h-full bg-gradient-to-r from-warning to-error transition-all" style="width:0%"></div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-glow bg-accent"></div>
+            <div class="flex items-center justify-between mb-3">
+                <div class="w-9 h-9 rounded-xl bg-accent/12 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-accent text-lg">request_quote</span>
+                </div>
+            </div>
+            <h3 id="kpiPORemaining" class="text-xl font-headline font-bold text-on-surface">--</h3>
+            <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mt-1 font-semibold">PO Remaining</p>
+            <p class="text-[10px] text-on-surface-variant mt-1">Budget headroom</p>
         </div>
     </section>
 
-    <!-- Middle Section: Quick Actions + Recent + Alerts -->
-    <section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <!-- Left: Actions + Chart -->
-        <div class="lg:col-span-8 space-y-6">
-            <div class="flex items-center gap-2">
-                <span class="material-symbols-outlined text-on-surface-variant text-lg">bolt</span>
-                <h4 class="section-label">Quick Actions</h4>
-            </div>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <a href="#billing" class="action-card flex flex-col items-center gap-3 no-underline">
-                    <div class="action-icon bg-primary/12">
-                        <span class="material-symbols-outlined text-accent text-2xl">receipt_long</span>
-                    </div>
-                    <span class="font-headline font-semibold text-sm text-on-surface">Generate Billing</span>
-                    <span class="text-[11px] text-on-surface-variant">Create invoices from data</span>
-                </a>
-                <a href="#rate-cards" class="action-card flex flex-col items-center gap-3 no-underline">
-                    <div class="action-icon bg-accent/12">
-                        <span class="material-symbols-outlined text-accent text-2xl">credit_card</span>
-                    </div>
-                    <span class="font-headline font-semibold text-sm text-on-surface">Rate Cards</span>
-                    <span class="text-[11px] text-on-surface-variant">Manage employee rates</span>
-                </a>
-                <a href="#attendance" class="action-card flex flex-col items-center gap-3 no-underline">
-                    <div class="action-icon bg-accent/12">
-                        <span class="material-symbols-outlined text-accent text-2xl">fact_check</span>
-                    </div>
-                    <span class="font-headline font-semibold text-sm text-on-surface">Attendance</span>
-                    <span class="text-[11px] text-on-surface-variant">Track daily presence</span>
-                </a>
-            </div>
-
-            <div class="stat-card !p-6">
-                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div class="flex items-start gap-3">
-                        <div class="w-11 h-11 rounded-2xl bg-primary/12 flex items-center justify-center flex-shrink-0">
-                            <span class="material-symbols-outlined text-primary text-2xl">table_view</span>
-                        </div>
-                        <div>
-                            <h4 class="font-headline font-semibold text-base text-on-surface">Tracker</h4>
-                            <p class="text-sm text-on-surface-variant mt-1">Download the live order tracker workbook generated from SOW, rate card, PO, and client data.</p>
-                        </div>
-                    </div>
-                    <button id="btnDownloadTracker" class="btn-primary inline-flex items-center gap-2 self-start sm:self-auto">
-                        <span class="material-symbols-outlined text-base">download</span>Download Tracker
-                    </button>
+    <!-- Alerts Row -->
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <!-- Expiring POs -->
+        <div class="stat-card !p-0 overflow-hidden">
+            <div class="px-5 py-4 border-b border-outline-variant/8 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-warning text-base">schedule</span>
+                    <h4 class="section-label">Expiring POs</h4>
                 </div>
+                <a href="#purchase-orders" class="text-[11px] text-primary font-semibold hover:underline no-underline">All POs</a>
             </div>
+            <div id="expiringPosList" class="px-5 py-3 space-y-2 max-h-[280px] overflow-y-auto styled-scrollbar">
+                <div class="text-on-surface-variant text-sm text-center py-3">Loading...</div>
+            </div>
+        </div>
 
-            <!-- Revenue Chart -->
-            <div class="stat-card !p-6">
-                <div class="flex items-center gap-2 mb-5">
+        <!-- Expiring SOWs -->
+        <div class="stat-card !p-0 overflow-hidden">
+            <div class="px-5 py-4 border-b border-outline-variant/8 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-warning text-base">event_busy</span>
+                    <h4 class="section-label">Expiring SOWs</h4>
+                </div>
+                <a href="#sows" class="text-[11px] text-primary font-semibold hover:underline no-underline">All SOWs</a>
+            </div>
+            <div id="expiringSowsList" class="px-5 py-3 space-y-2 max-h-[280px] overflow-y-auto styled-scrollbar">
+                <div class="text-on-surface-variant text-sm text-center py-3">Loading...</div>
+            </div>
+        </div>
+
+        <!-- High Consumption POs -->
+        <div class="stat-card !p-0 overflow-hidden">
+            <div class="px-5 py-4 border-b border-outline-variant/8 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-error text-base">warning</span>
+                    <h4 class="section-label">High-Consumption POs</h4>
+                </div>
+                <a href="#purchase-orders" class="text-[11px] text-primary font-semibold hover:underline no-underline">All POs</a>
+            </div>
+            <div id="highConsumptionPosList" class="px-5 py-3 space-y-2 max-h-[280px] overflow-y-auto styled-scrollbar">
+                <div class="text-on-surface-variant text-sm text-center py-3">Loading...</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Charts Row -->
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <!-- Revenue Trend -->
+        <div class="stat-card !p-6 lg:col-span-2">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2">
                     <span class="material-symbols-outlined text-on-surface-variant text-lg">show_chart</span>
-                    <h4 class="section-label">Revenue Trend</h4>
+                    <h4 class="section-label">Revenue — Last 12 Months</h4>
                 </div>
-                <div style="height: 200px;">
-                    <canvas id="revenueChart"></canvas>
-                </div>
+                <span id="revenueTrendTotal" class="text-xs text-on-surface-variant"></span>
+            </div>
+            <div style="height: 240px;">
+                <canvas id="revenueChart"></canvas>
             </div>
         </div>
 
-        <!-- Right: Recent Runs + PO Alerts -->
-        <div class="lg:col-span-4 space-y-6">
-            <!-- Recent Runs -->
-            <div class="stat-card !p-0 overflow-hidden">
-                <div class="flex items-center justify-between px-5 py-4 border-b border-outline-variant/8">
-                    <div class="flex items-center gap-2">
-                        <span class="material-symbols-outlined text-on-surface-variant text-base">history</span>
-                        <h4 class="section-label">Recent Runs</h4>
-                    </div>
-                    <a href="#billing" class="text-[11px] text-primary font-semibold hover:underline no-underline">View All</a>
-                </div>
-                <div id="recentRunsList" class="px-5 py-3 space-y-2 max-h-[280px] overflow-y-auto styled-scrollbar">
-                    <div class="loading-spinner"></div>
+        <!-- Top Clients -->
+        <div class="stat-card !p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-on-surface-variant text-lg">leaderboard</span>
+                    <h4 class="section-label">Top Clients (12M)</h4>
                 </div>
             </div>
-
-            <!-- PO Alerts -->
-            <div class="stat-card !p-0 overflow-hidden">
-                <div class="flex items-center gap-2 px-5 py-4 border-b border-outline-variant/8">
-                    <span class="material-symbols-outlined text-warning text-base">warning</span>
-                    <h4 class="section-label">PO Alerts</h4>
-                </div>
-                <div id="poAlertsList" class="px-5 py-3 space-y-2 max-h-[200px] overflow-y-auto styled-scrollbar">
-                    <div class="text-on-surface-variant text-sm text-center py-3">Loading...</div>
-                </div>
+            <div id="topClientsList" class="space-y-3">
+                <div class="text-on-surface-variant text-sm text-center py-3">Loading...</div>
             </div>
         </div>
     </section>
 
-    <!-- Bottom: Billing History (streamlined) -->
-    <section class="stat-card !p-0 overflow-hidden">
-        <div class="px-6 py-4 border-b border-outline-variant/8 flex items-center justify-between">
-            <div class="flex items-center gap-2">
-                <span class="material-symbols-outlined text-on-surface-variant text-lg">table_chart</span>
-                <h4 class="font-headline font-semibold text-sm text-on-surface">Billing History</h4>
-            </div>
-            <div class="flex gap-2 items-center">
-                <div class="relative">
-                    <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-on-surface-variant text-base">search</span>
-                    <input id="billingHistorySearch" class="bg-surface-container border-none rounded-lg pl-9 pr-3 py-1.5 text-xs w-44 focus:ring-1 focus:ring-primary placeholder:text-outline text-on-surface" placeholder="Search runs..." type="text">
+    <!-- Activity Row -->
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <!-- Recent Runs -->
+        <div class="stat-card !p-0 overflow-hidden lg:col-span-2">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-outline-variant/8">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-on-surface-variant text-base">history</span>
+                    <h4 class="section-label">Recent Service Requests</h4>
                 </div>
-                <button id="btnRefreshDashboard" class="px-3 py-1.5 bg-surface-container text-xs font-semibold rounded-lg hover:bg-surface-container-highest transition-all flex items-center gap-1.5 text-on-surface-variant">
-                    <span class="material-symbols-outlined text-sm">refresh</span>Refresh
-                </button>
+                <a href="#billing" class="text-[11px] text-primary font-semibold hover:underline no-underline">View All</a>
+            </div>
+            <div id="recentRunsList" class="divide-y divide-outline-variant/8">
+                <div class="px-5 py-6 text-center text-on-surface-variant text-sm">Loading...</div>
             </div>
         </div>
-        <div class="overflow-x-auto">
-            <table id="billingHistoryTable" class="stitch-table">
-                <thead>
-                    <tr>
-                        <th class="sortable" data-sort-key="0">Billing Month</th>
-                        <th class="sortable text-center" data-sort-key="1" data-sort-type="number">Employees</th>
-                        <th class="sortable text-right" data-sort-key="2" data-sort-type="currency">Amount</th>
-                        <th class="sortable text-center" data-sort-key="3" data-sort-type="number">Errors</th>
-                        <th class="sortable" data-sort-key="4" data-sort-type="date">Date</th>
-                        <th class="text-center">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="billingHistoryBody">
-                    <tr><td colspan="6" class="text-center text-on-surface-variant py-8">Loading...</td></tr>
-                </tbody>
-            </table>
+
+        <!-- Tracker Download -->
+        <div class="stat-card !p-6 flex flex-col justify-between">
+            <div>
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-11 h-11 rounded-2xl bg-primary/12 flex items-center justify-center flex-shrink-0">
+                        <span class="material-symbols-outlined text-primary text-2xl">table_view</span>
+                    </div>
+                    <div>
+                        <h4 class="font-headline font-semibold text-base text-on-surface">Tracker</h4>
+                        <p class="text-[11px] text-on-surface-variant">Live order tracker workbook</p>
+                    </div>
+                </div>
+                <p class="text-xs text-on-surface-variant leading-relaxed">Exports an XLSX with every active client, SOW, PO, and rate card row joined into a single tracker view.</p>
+            </div>
+            <button id="btnDownloadTracker" class="btn-primary inline-flex items-center justify-center gap-2 mt-4">
+                <span class="material-symbols-outlined text-base">download</span>Download Tracker
+            </button>
         </div>
     </section>
 

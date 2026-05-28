@@ -2,7 +2,7 @@
     "use strict";
 
     // -----------------------------------------------------------
-    //  Chart.js Loader
+    //  Chart.js loader
     // -----------------------------------------------------------
     function loadChartJs() {
         return new Promise(function (resolve) {
@@ -18,7 +18,35 @@
         });
     }
 
-    var chartInstance = null;
+    var revenueChart = null;
+
+    // -----------------------------------------------------------
+    //  Helpers
+    // -----------------------------------------------------------
+    var MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+    function formatBillingMonth(m) {
+        if (!m || String(m).length < 6) return m;
+        var s = String(m);
+        var mo = parseInt(s.substring(4, 6), 10) - 1;
+        return MONTH_NAMES[mo] + " " + s.substring(0, 4);
+    }
+
+    function formatBillingMonthShort(m) {
+        if (!m || String(m).length < 6) return m;
+        var s = String(m);
+        var mo = parseInt(s.substring(4, 6), 10) - 1;
+        return MONTH_NAMES[mo] + " '" + s.substring(2, 4);
+    }
+
+    function formatCompactCurrency(value) {
+        var n = Number(value) || 0;
+        var abs = Math.abs(n);
+        if (abs >= 1e7) return "₹" + (n / 1e7).toFixed(2) + "Cr";
+        if (abs >= 1e5) return "₹" + (n / 1e5).toFixed(2) + "L";
+        if (abs >= 1e3) return "₹" + (n / 1e3).toFixed(1) + "K";
+        return "₹" + n.toFixed(0);
+    }
 
     function getThemeColor(name, alpha) {
         var value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -28,40 +56,192 @@
         return value;
     }
 
-    function renderRevenueChart(billingRuns) {
+    function daysLeftBadge(days) {
+        if (days === null || days === undefined) return '';
+        var cls = days <= 3 ? 'badge-error' : days <= 7 ? 'badge-warning' : 'badge-processing';
+        return '<span class="' + cls + '">' + days + 'd left</span>';
+    }
+
+    function pctColor(pct) {
+        if (pct >= 95) return 'text-error';
+        if (pct >= 85) return 'text-warning';
+        if (pct >= 70) return 'text-tertiary';
+        return 'text-success';
+    }
+
+    // -----------------------------------------------------------
+    //  Renderers
+    // -----------------------------------------------------------
+    function renderKPIs(counts, financials) {
+        document.getElementById("kpiClients").textContent = counts.clients || 0;
+        document.getElementById("kpiEmployees").textContent = counts.employees || 0;
+        document.getElementById("kpiSOWs").textContent = counts.activeSOWs || 0;
+        document.getElementById("kpiPOs").textContent = counts.activePOs || 0;
+
+        var alertsBadge = document.getElementById("kpiPOAlertsBadge");
+        if (counts.poAlerts > 0) {
+            alertsBadge.textContent = counts.poAlerts;
+            alertsBadge.classList.remove("hidden");
+        } else {
+            alertsBadge.classList.add("hidden");
+        }
+
+        document.getElementById("kpiRevenueMTD").textContent = formatCurrency(financials.revenueMTD || 0);
+        document.getElementById("kpiRevenue12M").textContent = "Last 12M: " + formatCurrency(financials.revenueLast12M || 0);
+        document.getElementById("kpiPOCommitted").textContent = formatCurrency(financials.poCommitted || 0);
+        document.getElementById("kpiPOConsumed").textContent = formatCurrency(financials.poConsumed || 0);
+        document.getElementById("kpiPORemaining").textContent = formatCurrency(financials.poRemaining || 0);
+
+        var pct = Math.min(100, Math.max(0, Number(financials.poConsumedPct || 0)));
+        var pctEl = document.getElementById("kpiPOConsumedPct");
+        pctEl.textContent = pct.toFixed(1) + "%";
+        pctEl.className = "text-xs font-bold " + pctColor(pct);
+        document.getElementById("kpiPOConsumedBar").style.width = pct + "%";
+    }
+
+    function renderExpiringPos(items) {
+        var el = document.getElementById("expiringPosList");
+        if (!items || items.length === 0) {
+            el.innerHTML = '<div class="flex items-center justify-center gap-2 text-on-surface-variant text-sm py-4">' +
+                '<span class="material-symbols-outlined text-success">check_circle</span>No POs expiring soon</div>';
+            return;
+        }
+        el.innerHTML = items.map(function (p) {
+            return '<a href="#purchase-orders" class="block p-3 rounded-xl bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors no-underline">' +
+                '<div class="flex items-start justify-between gap-2 mb-1">' +
+                '<div class="min-w-0 flex-1">' +
+                '<p class="text-sm font-semibold text-on-surface truncate">' + escapeHtml(p.po_number) + '</p>' +
+                '<p class="text-[11px] text-on-surface-variant truncate">' + escapeHtml(p.client_name) + '</p>' +
+                '</div>' + daysLeftBadge(p.days_left) + '</div>' +
+                '<div class="flex items-center justify-between text-[11px] text-on-surface-variant mt-1">' +
+                '<span>Ends ' + formatDate(p.end_date) + '</span>' +
+                '<span class="font-semibold">' + formatCompactCurrency(p.remaining_value) + ' left</span>' +
+                '</div></a>';
+        }).join("");
+    }
+
+    function renderExpiringSows(items) {
+        var el = document.getElementById("expiringSowsList");
+        if (!items || items.length === 0) {
+            el.innerHTML = '<div class="flex items-center justify-center gap-2 text-on-surface-variant text-sm py-4">' +
+                '<span class="material-symbols-outlined text-success">check_circle</span>No SOWs expiring soon</div>';
+            return;
+        }
+        el.innerHTML = items.map(function (s) {
+            return '<a href="#sows" class="block p-3 rounded-xl bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors no-underline">' +
+                '<div class="flex items-start justify-between gap-2 mb-1">' +
+                '<div class="min-w-0 flex-1">' +
+                '<p class="text-sm font-semibold text-on-surface truncate">' + escapeHtml(s.sow_number) + '</p>' +
+                '<p class="text-[11px] text-on-surface-variant truncate">' + escapeHtml(s.client_name) + '</p>' +
+                '</div>' + daysLeftBadge(s.days_left) + '</div>' +
+                '<div class="flex items-center justify-between text-[11px] text-on-surface-variant mt-1">' +
+                '<span>Ends ' + formatDate(s.effective_end) + '</span>' +
+                '<span class="font-semibold">' + formatCompactCurrency(s.total_value) + ' value</span>' +
+                '</div></a>';
+        }).join("");
+    }
+
+    function renderHighConsumption(items) {
+        var el = document.getElementById("highConsumptionPosList");
+        if (!items || items.length === 0) {
+            el.innerHTML = '<div class="flex items-center justify-center gap-2 text-on-surface-variant text-sm py-4">' +
+                '<span class="material-symbols-outlined text-success">check_circle</span>All POs healthy</div>';
+            return;
+        }
+        el.innerHTML = items.map(function (p) {
+            var pct = Math.min(100, Math.max(0, Number(p.consumption_pct || 0)));
+            var barColor = pct >= 95 ? 'bg-error' : pct >= 85 ? 'bg-warning' : 'bg-tertiary';
+            return '<a href="#purchase-orders" class="block p-3 rounded-xl bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors no-underline">' +
+                '<div class="flex items-start justify-between gap-2 mb-1">' +
+                '<div class="min-w-0 flex-1">' +
+                '<p class="text-sm font-semibold text-on-surface truncate">' + escapeHtml(p.po_number) + '</p>' +
+                '<p class="text-[11px] text-on-surface-variant truncate">' + escapeHtml(p.client_name) + '</p>' +
+                '</div>' +
+                '<span class="font-bold text-sm ' + pctColor(pct) + '">' + pct.toFixed(1) + '%</span>' +
+                '</div>' +
+                '<div class="h-1.5 rounded-full bg-surface-container-highest overflow-hidden mt-2"><div class="h-full ' + barColor + '" style="width:' + pct + '%"></div></div>' +
+                '<p class="text-[11px] text-on-surface-variant mt-1.5">' + formatCompactCurrency(p.consumed_value) + ' of ' + formatCompactCurrency(p.po_value) + '</p>' +
+                '</a>';
+        }).join("");
+    }
+
+    function renderTopClients(items) {
+        var el = document.getElementById("topClientsList");
+        if (!items || items.length === 0) {
+            el.innerHTML = '<div class="text-on-surface-variant text-sm text-center py-4">No revenue in the last 12 months</div>';
+            return;
+        }
+        var max = items.reduce(function (m, c) { return Math.max(m, Number(c.total || 0)); }, 0);
+        el.innerHTML = items.map(function (c, idx) {
+            var pct = max > 0 ? (Number(c.total || 0) / max) * 100 : 0;
+            var rankColors = ['bg-primary', 'bg-accent', 'bg-tertiary', 'bg-success', 'bg-on-surface-variant'];
+            var color = rankColors[idx] || 'bg-on-surface-variant';
+            return '<div>' +
+                '<div class="flex items-center justify-between mb-1">' +
+                '<span class="text-sm font-semibold truncate text-on-surface flex items-center gap-2">' +
+                '<span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-surface-container-high text-[10px] font-bold">' + (idx + 1) + '</span>' +
+                escapeHtml(c.client_name) + '</span>' +
+                '<span class="text-xs font-bold">' + formatCompactCurrency(c.total) + '</span>' +
+                '</div>' +
+                '<div class="h-2 rounded-full bg-surface-container-high overflow-hidden">' +
+                '<div class="h-full ' + color + ' transition-all" style="width:' + pct + '%"></div>' +
+                '</div></div>';
+        }).join("");
+    }
+
+    function renderRecentRuns(items) {
+        var el = document.getElementById("recentRunsList");
+        if (!items || items.length === 0) {
+            el.innerHTML = '<div class="px-5 py-6 text-center text-on-surface-variant text-sm">No service requests yet</div>';
+            return;
+        }
+        el.innerHTML = items.map(function (r) {
+            var monthLabel = formatBillingMonth(r.billing_month);
+            var monthShort = MONTH_NAMES[parseInt(String(r.billing_month).substring(4, 6), 10) - 1] || '';
+            var errorBadge = r.error_count > 0
+                ? '<span class="badge-error">' + r.error_count + ' err</span>'
+                : '<span class="badge-success">Clean</span>';
+            return '<div class="flex items-center justify-between gap-3 px-5 py-3 hover:bg-surface-container-low transition-colors">' +
+                '<div class="flex items-center gap-3 min-w-0">' +
+                '<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center text-[10px] font-bold text-on-surface-variant flex-shrink-0">' + monthShort + '</div>' +
+                '<div class="min-w-0">' +
+                '<p class="text-sm font-semibold truncate">' + monthLabel + '</p>' +
+                '<p class="text-[11px] text-on-surface-variant truncate">' + escapeHtml(r.client_name || '-') + ' • ' + (r.total_employees || 0) + ' emp</p>' +
+                '</div></div>' +
+                '<div class="text-right flex-shrink-0">' +
+                '<p class="text-sm font-bold">' + formatCurrency(r.total_amount) + '</p>' +
+                errorBadge +
+                '</div></div>';
+        }).join("");
+    }
+
+    function renderRevenueChart(trend) {
         var canvas = document.getElementById("revenueChart");
         if (!canvas || !window.Chart) return;
-        if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+        if (revenueChart) { revenueChart.destroy(); revenueChart = null; }
 
-        var monthMap = {};
-        billingRuns.forEach(function (r) {
-            var m = r.billing_month;
-            if (!monthMap[m]) monthMap[m] = 0;
-            monthMap[m] += Number(r.total_amount) || 0;
-        });
+        var labels = (trend || []).map(function (p) { return formatBillingMonthShort(p.billing_month); });
+        var amounts = (trend || []).map(function (p) { return Number(p.total) || 0; });
 
-        var sortedMonths = Object.keys(monthMap).sort();
-        var last6 = sortedMonths.slice(-6);
-        var monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+        var totalEl = document.getElementById("revenueTrendTotal");
+        if (totalEl) totalEl.textContent = "Total: " + formatCurrency(amounts.reduce(function (a, b) { return a + b; }, 0));
 
-        var labels = last6.map(function (m) {
-            var mo = parseInt(m.substring(4, 6), 10) - 1;
-            return monthNames[mo] + " " + m.substring(0, 4);
-        });
-        var amounts = last6.map(function (m) { return monthMap[m]; });
+        var primary = getThemeColor("--color-primary") || "#F4B740";
+        var primaryRgb = getThemeColor("--color-primary-rgb") || "244 183 64";
+        var fillColor = primaryRgb.indexOf(" ") !== -1 ? "rgba(" + primaryRgb.replace(/\s+/g, ",") + ", 0.25)" : primary;
 
-        chartInstance = new Chart(canvas, {
+        revenueChart = new Chart(canvas, {
             type: "bar",
             data: {
                 labels: labels,
                 datasets: [{
                     label: "Revenue",
                     data: amounts,
-                    backgroundColor: getThemeColor("--color-primary-rgb", 0.3),
-                    borderColor: getThemeColor("--color-primary"),
-                    borderWidth: 1,
-                    borderRadius: 8,
-                    barPercentage: 0.6,
+                    backgroundColor: fillColor,
+                    borderColor: primary,
+                    borderWidth: 1.5,
+                    borderRadius: 6,
+                    barPercentage: 0.65,
                 }]
             },
             options: {
@@ -78,15 +258,15 @@
                 scales: {
                     y: {
                         beginAtZero: true,
-                        grid: { color: getThemeColor("--color-border-rgb", 0.9) },
+                        grid: { color: "rgba(120,120,120,0.08)" },
                         ticks: {
-                            color: getThemeColor("--color-text-muted"),
-                            callback: function (value) { return formatCurrency(value); }
+                            color: getThemeColor("--color-text-muted") || "#888",
+                            callback: function (value) { return formatCompactCurrency(value); }
                         }
                     },
                     x: {
                         grid: { display: false },
-                        ticks: { color: getThemeColor("--color-text-muted") }
+                        ticks: { color: getThemeColor("--color-text-muted") || "#888" }
                     }
                 }
             }
@@ -94,111 +274,24 @@
     }
 
     // -----------------------------------------------------------
-    //  Format billing month YYYYMM to readable
-    // -----------------------------------------------------------
-    function formatBillingMonth(m) {
-        if (!m || m.length < 6) return m;
-        var monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-        var mo = parseInt(m.substring(4, 6), 10) - 1;
-        return monthNames[mo] + " " + m.substring(0, 4);
-    }
-
-    // -----------------------------------------------------------
-    //  Load Dashboard
+    //  Load
     // -----------------------------------------------------------
     async function loadDashboard() {
         try {
             var res = await apiCall("GET", "/api/dashboard/stats");
-            var data = res.data;
-            var counts = data.counts;
-            var recentRuns = data.recentRuns;
-            var poAlerts = data.poAlerts;
-
-            // Stats
-            document.getElementById("statTotalClients").textContent = counts.clients;
-            document.getElementById("statActiveEmployees").textContent = counts.employees;
-            document.getElementById("statActivePOs").textContent = counts.activePOs;
-            document.getElementById("statBillingRuns").textContent = counts.billingRuns;
-            document.getElementById("statPendingQuotes").textContent = counts.pendingQuotes;
-
-            // Total revenue
-            var totalRevenue = 0;
-            recentRuns.forEach(function (r) { totalRevenue += Number(r.total_amount) || 0; });
-            var revenueEl = document.getElementById("statTotalRevenue");
-            if (revenueEl) revenueEl.textContent = formatCurrency(totalRevenue);
-
-            // Recent runs sidebar
-            var runsList = document.getElementById("recentRunsList");
-            if (recentRuns.length === 0) {
-                runsList.innerHTML = '<div class="text-on-surface-variant text-sm text-center py-4">No billing runs yet</div>';
-            } else {
-                runsList.innerHTML = recentRuns.slice(0, 5).map(function (r) {
-                    var monthLabel = formatBillingMonth(r.billing_month);
-                    var monthShort = monthLabel.substring(0, 3).toUpperCase();
-                    return '<div class="flex items-center justify-between p-3 rounded-xl hover:bg-surface-container-high transition-colors cursor-pointer group">' +
-                        '<div class="flex items-center gap-3">' +
-                        '<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center text-xs font-bold text-on-surface-variant group-hover:text-primary">' +
-                        monthShort + '</div>' +
-                        '<div><p class="text-sm font-semibold">' + monthLabel + '</p>' +
-                        '<p class="text-[10px] text-on-surface-variant">ID: BR-' + r.id + '</p></div></div>' +
-                        '<div class="text-right">' +
-                        '<p class="text-sm font-bold">' + formatCurrency(r.total_amount) + '</p>' +
-                        (r.error_count > 0
-                            ? '<span class="badge-error">Errors</span>'
-                            : '<span class="badge-success">Success</span>') +
-                        '</div></div>';
-                }).join("");
-            }
-
-            // PO Alerts
-            var alertsList = document.getElementById("poAlertsList");
-            if (poAlerts.length === 0) {
-                alertsList.innerHTML = '<div class="flex items-center justify-center gap-2 text-on-surface-variant text-sm py-2">' +
-                    '<span class="material-symbols-outlined text-success">check_circle</span> No alerts</div>';
-            } else {
-                alertsList.innerHTML = poAlerts.map(function (a) {
-                    var pct = a.consumption_pct || 0;
-                    var colorClass = pct >= 80 ? "text-error" : pct >= 60 ? "text-tertiary" : "text-success";
-                    return '<div class="p-3 rounded-xl bg-surface-container-high/50 border border-outline-variant/10">' +
-                        '<div class="flex justify-between mb-1">' +
-                        '<span class="text-sm font-semibold">' + escapeHtml(a.po_number) + '</span>' +
-                        '<span class="' + colorClass + ' font-bold text-sm">' + pct.toFixed(1) + '%</span></div>' +
-                        '<p class="text-[10px] text-on-surface-variant">' + escapeHtml(a.client_name) + ' | Ends: ' + formatDate(a.end_date) + '</p></div>';
-                }).join("");
-            }
-
-            // Billing History Table
-            var historyBody = document.getElementById("billingHistoryBody");
-            if (recentRuns.length === 0) {
-                historyBody.innerHTML = '<tr><td colspan="6" class="text-center text-on-surface-variant py-8">No billing runs yet</td></tr>';
-            } else {
-                historyBody.innerHTML = recentRuns.map(function (r) {
-                    return '<tr class="hover:bg-surface-container-low transition-colors">' +
-                        '<td class="px-6 py-5 text-sm font-semibold">' + formatBillingMonth(r.billing_month) + '</td>' +
-                        '<td class="px-6 py-5 text-sm text-center">' + r.total_employees + '</td>' +
-                        '<td class="px-6 py-5 text-sm font-bold text-right">' + formatCurrency(r.total_amount) + '</td>' +
-                        '<td class="px-6 py-5 text-center">' +
-                        (r.error_count > 0
-                            ? '<span class="badge-error">' + r.error_count + '</span>'
-                            : '<span class="badge-success">0</span>') +
-                        '</td>' +
-                        '<td class="px-6 py-5 text-sm">' + formatDate(r.created_at) + '</td>' +
-                        '<td class="px-6 py-5 text-center">' +
-                        '<button onclick="downloadFile(\'/api/billing/runs/' + r.id + '/download\')" class="inline-flex items-center justify-center w-8 h-8 rounded-lg hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-colors" title="Download">' +
-                        '<span class="material-symbols-outlined text-lg">download</span></button></td></tr>';
-                }).join("");
-            }
-
-            // Init table search & sort
-            initTableSearch("billingHistorySearch", "billingHistoryBody");
-            initTableSort("billingHistoryTable");
-
-            // Chart
+            var d = res.data || {};
+            renderKPIs(d.counts || {}, d.financials || {});
+            renderExpiringPos(d.expiringPos);
+            renderExpiringSows(d.expiringSows);
+            renderHighConsumption(d.highConsumptionPos);
+            renderTopClients(d.topClients);
+            renderRecentRuns(d.recentRuns);
             await loadChartJs();
-            renderRevenueChart(recentRuns);
-
+            renderRevenueChart(d.revenueTrend);
+            var stamp = document.getElementById("dashboardLastUpdated");
+            if (stamp) stamp.textContent = "Updated " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
         } catch (err) {
-            showToast("Failed to load dashboard: " + err.message, "error");
+            showToast("Failed to load dashboard: " + (err && err.message ? err.message : err), "error");
         }
     }
 
