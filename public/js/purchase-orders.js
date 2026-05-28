@@ -453,6 +453,10 @@
           '<div><span class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Remaining</span><div class="text-on-surface font-bold text-lg mt-1">' + formatCurrency(po.remaining_value) + '</div></div>' +
         '</div>' +
         '<div class="mb-6">' + progressBar(po.consumption_pct || 0) + '</div>' +
+        (po.notes && String(po.notes).trim()
+          ? '<h6 class="text-sm font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-2">Notes</h6>' +
+            '<div class="rounded-xl border border-outline-variant/15 bg-surface-container p-3 text-sm text-on-surface whitespace-pre-wrap mb-6">' + escapeHtml(po.notes) + '</div>'
+          : '') +
         '<h6 class="text-sm font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-3">Consumption Log</h6>' +
         '<div class="overflow-x-auto">' +
         '<table class="stitch-table">' +
