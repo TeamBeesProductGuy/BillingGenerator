@@ -167,7 +167,7 @@
     }
 
     function getDefaultRoute() {
-        return isCurrentUserAdmin() ? "admin" : firstAllowedRoute();
+        return isCurrentUserAdmin() ? "dashboard" : firstAllowedRoute();
     }
 
     async function loadCurrentPermissions() {
