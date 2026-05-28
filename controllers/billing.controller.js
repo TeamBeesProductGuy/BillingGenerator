@@ -710,12 +710,25 @@ function normalizeSowLabel(value) {
   return raw.replace(/^sow\s*(no\.?|#)?\s*/i, '').trim() || raw;
 }
 
+const DISPLAY_ACRONYMS = (() => {
+  const list = ['QA','QC','AI','ML','UI','UX','BI','BA','DBA','API','SDK','SQL','AWS','GCP','CRM','ERP','IT','HR','PM','PMO','NLP','CV','CTO','CEO','CFO','VP','SVP','SaaS','PaaS','IaaS','DevOps','REST','JSON','HTML','CSS','JS','TS','PHP','SOW','PO','VPN','LAN','WAN','HTTP','HTTPS'];
+  const map = {};
+  list.forEach((w) => { map[w.toLowerCase()] = w; });
+  return map;
+})();
+
 function toDisplayTitleCase(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .replace(/\b([a-z])/g, (match) => match.toUpperCase());
+  const s = String(value || '').trim().replace(/\s+/g, ' ');
+  if (!s) return '';
+  // Preserve casing when the user already wrote it with intent (any lowercase present).
+  if (/[a-z]/.test(s)) return s;
+  // Fully uppercase input: title-case each word, keep known acronyms uppercase.
+  return s.split(/(\b)/).map((token) => {
+    if (!/^[A-Z]+$/.test(token)) return token;
+    const lower = token.toLowerCase();
+    if (DISPLAY_ACRONYMS[lower]) return DISPLAY_ACRONYMS[lower];
+    return lower.charAt(0).toUpperCase() + lower.slice(1);
+  }).join('');
 }
 
 function buildManagerServiceDescription(item) {
