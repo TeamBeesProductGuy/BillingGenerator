@@ -26,25 +26,43 @@ async function enrichSowRoles(rows) {
   const sowIds = uniqueStrings(items.map((row) => row.id)).filter(Boolean);
   if (sowIds.length === 0) return items;
 
-  const { data, error } = await adminSupabase
-    .from('sow_items')
-    .select('sow_id, role_position')
-    .in('sow_id', sowIds);
-  if (error) throw new Error(error.message);
+  const [rolesResult, posResult] = await Promise.all([
+    adminSupabase
+      .from('sow_items')
+      .select('sow_id, role_position')
+      .in('sow_id', sowIds),
+    adminSupabase
+      .from('purchase_orders')
+      .select('id, po_number, sow_id, status')
+      .in('sow_id', sowIds)
+      .neq('status', 'Inactive')
+      .order('created_at', { ascending: false }),
+  ]);
+  if (rolesResult.error) throw new Error(rolesResult.error.message);
+  if (posResult.error) throw new Error(posResult.error.message);
 
   const roleMap = {};
-  (data || []).forEach((item) => {
+  (rolesResult.data || []).forEach((item) => {
     const key = String(item.sow_id);
     if (!roleMap[key]) roleMap[key] = [];
     roleMap[key].push(item.role_position);
   });
 
+  const poMap = {};
+  (posResult.data || []).forEach((po) => {
+    const key = String(po.sow_id);
+    if (!poMap[key]) poMap[key] = [];
+    poMap[key].push({ id: po.id, po_number: po.po_number, status: po.status });
+  });
+
   return items.map((row) => {
     const roles = uniqueStrings(roleMap[String(row.id)] || []);
+    const linkedPos = poMap[String(row.id)] || [];
     return {
       ...row,
       roles,
       role_summary: roles.join(', '),
+      linked_purchase_orders: linkedPos,
     };
   });
 }

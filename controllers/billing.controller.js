@@ -317,21 +317,39 @@ async function buildPoCandidates(billingItems) {
   const pos = Array.from(posById.values());
   if (pos.length === 0) return candidatesByEmp;
 
+  const poSowIds = [...new Set(pos.map((po) => po.sow_id).filter(Boolean))];
+  const sowNumberById = new Map();
+  if (poSowIds.length > 0) {
+    const { data: sowRows, error } = await supabase
+      .from('sows')
+      .select('id, sow_number')
+      .in('id', poSowIds);
+    if (!error && sowRows) {
+      for (const sow of sowRows) sowNumberById.set(sow.id, sow.sow_number);
+    }
+  }
+
   for (const item of itemsNeedingPo) {
-    const filtered = pos.filter((po) => {
-      if (item.sow_id) return po.sow_id === item.sow_id;
-      if (item.client_id) return po.client_id === item.client_id;
-      return false;
+    const selectablePos = pos.filter((po) => itemCanUsePo(item, po));
+    const decorated = selectablePos.map((po) => {
+      const sowMatch = Boolean(item.sow_id && po.sow_id && po.sow_id === item.sow_id);
+      return {
+        id: po.id,
+        po_number: po.po_number,
+        sow_id: po.sow_id || null,
+        sow_number: po.sow_id ? (sowNumberById.get(po.sow_id) || null) : null,
+        remaining_value: Number(po.po_value || 0) - Number(po.consumed_value || 0),
+        sow_match: sowMatch,
+      };
+    });
+    decorated.sort((a, b) => {
+      if (a.sow_match !== b.sow_match) return a.sow_match ? -1 : 1;
+      return (b.remaining_value || 0) - (a.remaining_value || 0);
     });
 
     const itemKey = item.id ? `item:${item.id}` : `emp:${item.emp_code}:sow:${item.sow_id || ''}`;
-    candidatesByEmp[itemKey] = filtered.map((po) => ({
-      id: po.id,
-      po_number: po.po_number,
-      sow_id: po.sow_id || null,
-      remaining_value: Number(po.po_value || 0) - Number(po.consumed_value || 0),
-    }));
-    if (!candidatesByEmp[item.emp_code]) candidatesByEmp[item.emp_code] = candidatesByEmp[itemKey];
+    candidatesByEmp[itemKey] = decorated;
+    if (!candidatesByEmp[item.emp_code]) candidatesByEmp[item.emp_code] = decorated;
   }
 
   return candidatesByEmp;
@@ -339,8 +357,8 @@ async function buildPoCandidates(billingItems) {
 
 function itemCanUsePo(item, po) {
   if (!po) return false;
-  if (item.sow_id && po.sow_id) return item.sow_id === po.sow_id;
-  if (item.client_id && po.client_id) return item.client_id === po.client_id;
+  if (item.sow_id && po.sow_id) return po.sow_id === item.sow_id;
+  if (item.client_id && po.client_id) return po.client_id === item.client_id;
   return false;
 }
 
@@ -1434,6 +1452,75 @@ const billingController = {
         subject: draft.subject,
         webLink: draft.webLink,
         composeUrl: draft.composeUrl,
+      },
+    });
+  }),
+
+  validatePoForRun: catchAsync(async (req, res) => {
+    const runId = parseInt(req.params.id, 10);
+    const baseRun = await BillingModel.findRunById(runId);
+    if (!baseRun) throw new AppError(404, 'Billing run not found');
+    await hydrateRunItemsForDecision(baseRun);
+
+    const itemIdRaw = req.body.item_id;
+    const empCodeRaw = req.body.emp_code;
+    const poIdRaw = req.body.po_id;
+    const poNumberRaw = typeof req.body.po_number === 'string' ? req.body.po_number.trim() : '';
+
+    const itemId = itemIdRaw ? parseInt(itemIdRaw, 10) : null;
+    const items = baseRun.items || [];
+    const item = itemId
+      ? items.find((row) => Number(row.id) === itemId)
+      : items.find((row) => String(row.emp_code || '').trim() === String(empCodeRaw || '').trim());
+
+    if (!item) {
+      return res.json({ success: true, data: { valid: false, reason: 'Service request item not found for this row' } });
+    }
+
+    let po;
+    if (poIdRaw) {
+      po = await POModel.findById(parseInt(poIdRaw, 10));
+    } else if (poNumberRaw) {
+      po = await POModel.findByNumber(poNumberRaw);
+    } else {
+      return res.json({ success: true, data: { valid: false, reason: 'Provide a PO number to validate' } });
+    }
+
+    if (!po) {
+      return res.json({ success: true, data: { valid: false, reason: 'PO not found in the system' } });
+    }
+    if (po.status !== 'Active') {
+      return res.json({ success: true, data: { valid: false, reason: `PO is ${po.status}, not Active`, po: { id: po.id, po_number: po.po_number, status: po.status } } });
+    }
+    if ((item.sow_id || item.client_id) && !itemCanUsePo(item, po)) {
+      return res.json({
+        success: true,
+        data: {
+          valid: false,
+          reason: item.sow_id
+            ? 'PO is not linked to the same SOW as this row'
+            : 'PO is not linked to the same client as this row',
+          po: { id: po.id, po_number: po.po_number, status: po.status, sow_id: po.sow_id, client_id: po.client_id },
+        },
+      });
+    }
+
+    const poValue = Number(po.po_value || 0);
+    const consumed = Number(po.consumed_value || 0);
+    res.json({
+      success: true,
+      data: {
+        valid: true,
+        po: {
+          id: po.id,
+          po_number: po.po_number,
+          status: po.status,
+          sow_id: po.sow_id || null,
+          client_id: po.client_id || null,
+          po_value: poValue,
+          consumed_value: consumed,
+          remaining_value: Math.max(poValue - consumed, 0),
+        },
       },
     });
   }),

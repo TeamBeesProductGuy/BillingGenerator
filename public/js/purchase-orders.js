@@ -558,12 +558,39 @@
           return;
         }
         showToast('PO linked', 'success');
+        if (handlePoReturnAfterCreate(createRes && createRes.data)) {
+          closePOModal();
+          return;
+        }
       }
       closePOModal();
       loadPOs();
       loadAlerts();
     } catch (err) { showToast(err.message, 'danger'); }
   });
+
+  function handlePoReturnAfterCreate(createdPo) {
+    var raw = sessionStorage.getItem('pendingPoReturn');
+    if (!raw) return false;
+    sessionStorage.removeItem('pendingPoReturn');
+    try {
+      var ret = JSON.parse(raw);
+      if (!ret || ret.returnTo !== 'billing' || !ret.runId) return false;
+      if (createdPo && (createdPo.po_number || createdPo.id)) {
+        sessionStorage.setItem('pendingPoBillingAttachment', JSON.stringify({
+          itemId: ret.itemId || null,
+          empCode: ret.empCode || null,
+          poId: createdPo.id || null,
+          poNumber: createdPo.po_number || ''
+        }));
+      }
+      sessionStorage.setItem('pendingPoBillingReview', JSON.stringify({ runId: ret.runId }));
+      location.hash = '#billing';
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
 
   document.getElementById('consumeForm').addEventListener('submit', async function (e) {
     e.preventDefault();

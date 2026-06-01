@@ -175,27 +175,175 @@
     body.innerHTML = missing.map(function (item) {
       var itemKey = item.id ? ('item:' + item.id) : ('emp:' + item.emp_code + ':sow:' + (item.sow_id || ''));
       var candidates = (poCandidatesByEmp && (poCandidatesByEmp[itemKey] || poCandidatesByEmp[item.emp_code])) || [];
-      var optionHtml = '<option value="">Select linked PO</option>' + candidates.map(function (po) {
-        var sowSuffix = po.sow_number ? (' | SOW: ' + escapeHtml(po.sow_number)) : '';
-        return '<option value="' + po.id + '">' +
-          escapeHtml(po.po_number || ('PO #' + po.id)) +
-          sowSuffix +
-          ' | Remaining: ' + escapeHtml(formatCurrency(po.remaining_value || 0)) +
-          '</option>';
-      }).join('');
-      var selectorHtml = candidates.length > 0
-        ? '<select class="missing-po-select" data-item-id="' + escapeHtml(item.id || '') + '" data-emp-code="' + escapeHtml(item.emp_code) + '">' + optionHtml + '</select>'
-        : '<div class="text-xs text-on-surface-variant mt-2">No linked purchase orders found. Enter PO number manually below.</div>';
-      var manualInputHtml = '<label class="block text-xs text-on-surface-variant mt-3 mb-1">Manual PO Number</label>' +
-        '<input type="text" class="missing-po-manual-input" data-item-id="' + escapeHtml(item.id || '') + '" data-emp-code="' + escapeHtml(item.emp_code) + '" placeholder="Enter PO number if not linked">';
+      var amountStr = formatCurrency(item.invoice_amount || 0);
+      var rowAttrs = 'data-row-emp="' + escapeHtml(item.emp_code) + '"' +
+        ' data-row-item-id="' + escapeHtml(item.id || '') + '"' +
+        ' data-row-client-id="' + escapeHtml(item.client_id || '') + '"' +
+        ' data-row-sow-id="' + escapeHtml(item.sow_id || '') + '"' +
+        ' data-row-sow-number="' + escapeHtml(item.sow_number || '') + '"' +
+        ' data-row-amount="' + escapeHtml(String(item.invoice_amount || 0)) + '"';
 
-      return '<div class="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-xl bg-surface-container-high p-3">' +
-        '<div><div class="text-xs text-on-surface-variant">Employee</div><div class="font-semibold">' + escapeHtml(item.emp_code) + ' - ' + escapeHtml(item.emp_name) + '</div></div>' +
-        '<div><div class="text-xs text-on-surface-variant">Amount</div><div class="font-semibold">' + formatCurrency(item.invoice_amount) + '</div></div>' +
-        '<div><label class="block text-xs text-on-surface-variant mb-1">Assign Purchase Order</label>' + selectorHtml + manualInputHtml + '</div>' +
+      var sowMatched = candidates.filter(function (po) { return po.sow_match; });
+      var otherClient = candidates.filter(function (po) { return !po.sow_match; });
+
+      function optionHtml(po) {
+        var sowSuffix = po.sow_number ? (' · SOW ' + escapeHtml(po.sow_number)) : ' · No SOW';
+        return '<option value="' + po.id + '" data-po-number="' + escapeHtml(po.po_number || '') + '" data-remaining="' + (po.remaining_value || 0) + '">' +
+          escapeHtml(po.po_number || ('PO #' + po.id)) + sowSuffix + ' · ' + escapeHtml(formatCurrency(po.remaining_value || 0)) + ' left' +
+          '</option>';
+      }
+
+      var selectInner = '<option value="">— select a Purchase Order —</option>';
+      if (sowMatched.length > 0) {
+        selectInner += '<optgroup label="Linked to this SOW">' + sowMatched.map(optionHtml).join('') + '</optgroup>';
+      }
+      if (otherClient.length > 0) {
+        selectInner += '<optgroup label="Other POs for this client">' + otherClient.map(optionHtml).join('') + '</optgroup>';
+      }
+
+      var pickerSection = candidates.length > 0
+        ? '<select class="missing-po-select w-full" data-item-id="' + escapeHtml(item.id || '') + '" data-emp-code="' + escapeHtml(item.emp_code) + '">' + selectInner + '</select>'
+        : '<div class="text-xs text-on-surface-variant py-2 px-3 rounded-lg bg-surface-container">' +
+            '<span class="material-symbols-outlined align-middle text-[14px] mr-1">info</span>' +
+            'No Active POs found for this client. Use "Link New PO" to create one.' +
+          '</div>';
+
+      var sowPill = item.sow_number
+        ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-accent/10 text-accent text-[11px] font-semibold"><span class="material-symbols-outlined text-[12px]">description</span>SOW ' + escapeHtml(item.sow_number) + '</span>'
+        : '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-warning/10 text-warning text-[11px] font-semibold">No SOW linked</span>';
+
+      return '<div class="missing-po-row rounded-xl bg-surface-container-high border border-outline-variant/10 p-4 space-y-3" ' + rowAttrs + '>' +
+        '<div class="flex flex-wrap items-center justify-between gap-2">' +
+          '<div class="flex items-center gap-2">' +
+            '<span class="material-symbols-outlined text-on-surface-variant">person</span>' +
+            '<div>' +
+              '<div class="font-semibold text-sm">' + escapeHtml(item.emp_code) + ' — ' + escapeHtml(item.emp_name || '') + '</div>' +
+              '<div class="text-xs text-on-surface-variant">Invoice amount: <strong class="text-on-surface">' + amountStr + '</strong></div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="flex items-center gap-2 flex-wrap">' + sowPill + '</div>' +
+        '</div>' +
+        '<div class="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-start">' +
+          '<div>' +
+            '<label class="block text-xs text-on-surface-variant mb-1">Choose existing PO</label>' +
+            pickerSection +
+            '<div class="missing-po-status text-xs mt-1.5 min-h-[16px]"></div>' +
+          '</div>' +
+          '<div class="flex flex-col gap-1">' +
+            '<label class="block text-xs text-on-surface-variant invisible">.</label>' +
+            '<button type="button" class="missing-po-create-btn btn-secondary btn-sm inline-flex items-center justify-center gap-1.5 whitespace-nowrap">' +
+              '<span class="material-symbols-outlined text-[16px]">add_circle</span>Link New PO' +
+            '</button>' +
+          '</div>' +
+        '</div>' +
       '</div>';
     }).join('');
     section.classList.remove('hidden');
+    wireMissingPoEvents();
+    consumePendingPoLinkFromBilling();
+  }
+
+  function setRowStatus(row, kind, message) {
+    var el = row.querySelector('.missing-po-status');
+    if (!el) return;
+    var colorClass = 'text-on-surface-variant';
+    var icon = '';
+    if (kind === 'ok') { colorClass = 'text-success'; icon = 'check_circle'; }
+    else if (kind === 'error') { colorClass = 'text-error'; icon = 'error'; }
+    else if (kind === 'warn') { colorClass = 'text-warning'; icon = 'warning'; }
+    el.className = 'missing-po-status text-xs mt-1.5 min-h-[16px] inline-flex items-center gap-1 ' + colorClass;
+    el.innerHTML = message
+      ? (icon ? '<span class="material-symbols-outlined text-[14px]">' + icon + '</span>' : '') + escapeHtml(message)
+      : '';
+  }
+
+  function showSelectBalanceForRow(row, optionEl) {
+    if (!optionEl || !optionEl.value) {
+      setRowStatus(row, '', '');
+      return;
+    }
+    var remaining = Number(optionEl.getAttribute('data-remaining') || 0);
+    var amount = Number(row.getAttribute('data-row-amount') || 0);
+    var poNumber = optionEl.getAttribute('data-po-number') || '';
+    if (remaining < amount) {
+      setRowStatus(row, 'warn', poNumber + ' has only ' + formatCurrency(remaining) + ' remaining vs ' + formatCurrency(amount) + ' invoice.');
+    } else {
+      setRowStatus(row, 'ok', poNumber + ' covers this row · ' + formatCurrency(remaining) + ' remaining.');
+    }
+  }
+
+  function stashPoCreationContext(row) {
+    var clientId = row.getAttribute('data-row-client-id') || '';
+    var sowId = row.getAttribute('data-row-sow-id') || '';
+    if (!clientId) {
+      showToast('No client linked to this row — cannot pre-fill PO form.', 'warning');
+      return;
+    }
+    sessionStorage.setItem('pendingPoLinkContext', JSON.stringify({
+      clientId: parseInt(clientId, 10),
+      sowId: sowId ? parseInt(sowId, 10) : null
+    }));
+    sessionStorage.setItem('pendingPoReturn', JSON.stringify({
+      returnTo: 'billing',
+      runId: currentRunId,
+      itemId: row.getAttribute('data-row-item-id') || null,
+      empCode: row.getAttribute('data-row-emp') || null
+    }));
+    location.hash = '#purchase-orders';
+  }
+
+  function wireMissingPoEvents() {
+    var rows = document.querySelectorAll('#missingPoBody .missing-po-row');
+    rows.forEach(function (row) {
+      var select = row.querySelector('.missing-po-select');
+      var createBtn = row.querySelector('.missing-po-create-btn');
+
+      if (select) {
+        select.addEventListener('change', function () {
+          var optionEl = select.options[select.selectedIndex];
+          showSelectBalanceForRow(row, optionEl);
+        });
+      }
+
+      if (createBtn) {
+        createBtn.addEventListener('click', function () {
+          stashPoCreationContext(row);
+        });
+      }
+    });
+  }
+
+  function consumePendingPoLinkFromBilling() {
+    var raw = sessionStorage.getItem('pendingPoBillingAttachment');
+    if (!raw) return;
+    sessionStorage.removeItem('pendingPoBillingAttachment');
+    try {
+      var info = JSON.parse(raw);
+      if (!info || (!info.poId && !info.poNumber)) return;
+      var row = null;
+      if (info.itemId) row = document.querySelector('#missingPoBody .missing-po-row[data-row-item-id="' + info.itemId + '"]');
+      if (!row && info.empCode) row = document.querySelector('#missingPoBody .missing-po-row[data-row-emp="' + info.empCode + '"]');
+      if (!row) return;
+      var select = row.querySelector('.missing-po-select');
+      if (!select) return;
+      var matched = false;
+      Array.from(select.options).forEach(function (opt) {
+        if (matched) return;
+        if (info.poId && String(opt.value) === String(info.poId)) {
+          select.value = opt.value;
+          matched = true;
+        } else if (info.poNumber && opt.getAttribute('data-po-number') === info.poNumber) {
+          select.value = opt.value;
+          matched = true;
+        }
+      });
+      if (matched) {
+        showSelectBalanceForRow(row, select.options[select.selectedIndex]);
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        setRowStatus(row, 'warn', 'PO ' + (info.poNumber || '#' + info.poId) + ' was created but isn\'t in the dropdown yet. Refresh to reload candidates.');
+      }
+    } catch (e) { /* ignore */ }
   }
 
   function formatDurationDate(dateKey) {
@@ -931,28 +1079,17 @@
     setDecisionButtonsEnabled(false);
     try {
       var poAssignments = [];
-      document.querySelectorAll('#missingPoBody .grid').forEach(function (row) {
+      document.querySelectorAll('#missingPoBody .missing-po-row').forEach(function (row) {
         var select = row.querySelector('.missing-po-select');
-        var manualInput = row.querySelector('.missing-po-manual-input');
-        var empCode = (select || manualInput).getAttribute('data-emp-code');
-        var itemId = (select || manualInput).getAttribute('data-item-id');
-        var selectedPoId = select && select.value.trim() ? parseInt(select.value.trim(), 10) : null;
-        var manualPoNumber = manualInput && manualInput.value.trim() ? manualInput.value.trim() : '';
-
+        if (!select) return;
+        var empCode = row.getAttribute('data-row-emp');
+        var itemId = row.getAttribute('data-row-item-id');
+        var selectedPoId = select.value.trim() ? parseInt(select.value.trim(), 10) : null;
         if (selectedPoId) {
           poAssignments.push({
             emp_code: empCode,
             item_id: itemId ? parseInt(itemId, 10) : null,
             po_id: selectedPoId
-          });
-          return;
-        }
-
-        if (manualPoNumber) {
-          poAssignments.push({
-            emp_code: empCode,
-            item_id: itemId ? parseInt(itemId, 10) : null,
-            po_number: manualPoNumber
           });
         }
       });
@@ -1179,4 +1316,15 @@
 
   loadClients();
   loadHistory();
+  consumePendingPoBillingReview();
+
+  function consumePendingPoBillingReview() {
+    var raw = sessionStorage.getItem('pendingPoBillingReview');
+    if (!raw) return;
+    sessionStorage.removeItem('pendingPoBillingReview');
+    try {
+      var info = JSON.parse(raw);
+      if (info && info.runId) reviewRun(info.runId);
+    } catch (e) { /* ignore */ }
+  }
 })();

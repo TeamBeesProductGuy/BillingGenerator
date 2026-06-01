@@ -19,6 +19,7 @@ router.get('/runs/:id', billingController.getRunDetails);
 router.patch('/runs/:id/items/:itemId', validate(updateRunItem), billingController.updateRunItem);
 router.post('/runs/:id/manager-draft', validate(createManagerDraft), billingController.createManagerDraft);
 router.post('/runs/:id/decision', validate(decideRun), billingController.decideRun);
+router.post('/runs/:id/validate-po', billingController.validatePoForRun);
 router.delete('/runs/:id', billingController.deleteRun);
 router.get('/runs/:id/download', billingController.downloadFile);
 router.get('/runs/:id/manager-attendance', billingController.downloadManagerAttendance);

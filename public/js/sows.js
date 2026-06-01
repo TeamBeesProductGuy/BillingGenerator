@@ -322,6 +322,20 @@
     return '<div class="table-cell-box table-cell-text" title="' + escapeHtml(text) + '">' + escapeHtml(text) + '</div>';
   }
 
+  function formatLinkedPos(linkedPos) {
+    var list = Array.isArray(linkedPos) ? linkedPos.filter(function (po) { return po && po.po_number; }) : [];
+    if (list.length === 0) {
+      return '<span class="text-xs text-on-surface-variant">—</span>';
+    }
+    var titleAttr = list.map(function (po) { return po.po_number + ' (' + (po.status || 'Active') + ')'; }).join(', ');
+    return '<div class="flex flex-wrap items-center gap-1" title="' + escapeHtml(titleAttr) + '">' + list.map(function (po) {
+      var statusClass = po.status === 'Exhausted' || po.status === 'Expired' ? 'bg-warning/10 text-warning' : 'bg-primary/10 text-primary';
+      return '<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-semibold ' + statusClass + '">' +
+        '<span class="material-symbols-outlined text-[12px]">local_shipping</span>' + escapeHtml(po.po_number) +
+        '</span>';
+    }).join('') + '</div>';
+  }
+
   function isCleanPersonName(value) {
     return /^[A-Za-z ]+$/.test(String(value || '').trim());
   }
@@ -420,7 +434,7 @@
       var approvalMap = await loadMyPendingApprovalMap('sows');
       updateSowsSummary(res.data || []);
       if (res.data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-on-surface-variant py-8">No SOWs found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-on-surface-variant py-8">No SOWs found</td></tr>';
       } else {
         sowActionMap = {};
         tbody.innerHTML = res.data.map(function (s) {
@@ -438,6 +452,7 @@
           };
 
           var actionsHtml = '<button class="btn-secondary btn-sm table-action-trigger inline-flex items-center justify-center" title="Open SOW actions" aria-label="Open SOW actions" onclick="openSOWActions(' + s.id + ')"><span class="material-symbols-outlined text-base">more_horiz</span></button>';
+          var linkedPoCell = formatLinkedPos(s.linked_purchase_orders);
 
           return '<tr>' +
             '<td><div class="table-cell-box table-cell-stack"><span class="entity-pill entity-pill-strong">' + escapeHtml(s.sow_number) + '</span></div></td>' +
@@ -447,6 +462,7 @@
             '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(s.effective_start) + '</span></div></td>' +
             '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(s.effective_end) + '</span></div></td>' +
             '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(s.total_value) + '</span></div></td>' +
+            '<td><div class="table-cell-box">' + linkedPoCell + '</div></td>' +
             '<td><div class="table-cell-box flex-col gap-1">' + statusBadge(s.status) + approvalBadge + '</div></td>' +
             '<td class="text-center"><div class="table-cell-box table-cell-center">' + actionsHtml + '</div></td>' +
             '</tr>';
