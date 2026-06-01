@@ -212,8 +212,8 @@
       }
 
       var pickerSection = candidates.length > 0
-        ? '<select class="missing-po-select w-full" data-item-id="' + escapeHtml(item.id || '') + '" data-emp-code="' + escapeHtml(item.emp_code) + '">' + selectInner + '</select>'
-        : '<div class="inline-flex items-center gap-2 w-full px-3 py-2.5 rounded-lg bg-warning/5 border border-warning/20 text-warning text-xs">' +
+        ? '<select class="missing-po-select w-full max-w-sm" data-item-id="' + escapeHtml(item.id || '') + '" data-emp-code="' + escapeHtml(item.emp_code) + '">' + selectInner + '</select>'
+        : '<div class="inline-flex items-center gap-2 max-w-sm px-3 py-2.5 rounded-lg bg-warning/5 border border-warning/20 text-warning text-xs">' +
             '<span class="material-symbols-outlined text-[16px]">info</span>' +
             '<span>No Active POs for this client yet — use <strong>Link New PO</strong> to add one.</span>' +
           '</div>';
