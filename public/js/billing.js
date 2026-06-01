@@ -162,15 +162,25 @@
     }
   }
 
+  function getInitials(name, fallback) {
+    var parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return String(fallback || '?').slice(0, 2).toUpperCase();
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
   function renderMissingPoInputs(items, poCandidatesByEmp) {
     var missing = items.filter(function (item) { return !item.po_id && (item.approval_status || 'Pending') === 'Pending'; });
     var section = document.getElementById('missingPoSection');
     var body = document.getElementById('missingPoBody');
+    var countEl = document.getElementById('missingPoCount');
     if (missing.length === 0) {
       section.classList.add('hidden');
       body.innerHTML = '';
+      if (countEl) countEl.textContent = '';
       return;
     }
+    if (countEl) countEl.textContent = '· ' + missing.length + ' row' + (missing.length === 1 ? '' : 's') + ' need a PO';
 
     body.innerHTML = missing.map(function (item) {
       var itemKey = item.id ? ('item:' + item.id) : ('emp:' + item.emp_code + ':sow:' + (item.sow_id || ''));
@@ -193,9 +203,9 @@
           '</option>';
       }
 
-      var selectInner = '<option value="">— select a Purchase Order —</option>';
+      var selectInner = '<option value="">Select a Purchase Order…</option>';
       if (sowMatched.length > 0) {
-        selectInner += '<optgroup label="Linked to this SOW">' + sowMatched.map(optionHtml).join('') + '</optgroup>';
+        selectInner += '<optgroup label="✓ Linked to this SOW">' + sowMatched.map(optionHtml).join('') + '</optgroup>';
       }
       if (otherClient.length > 0) {
         selectInner += '<optgroup label="Other POs for this client">' + otherClient.map(optionHtml).join('') + '</optgroup>';
@@ -203,38 +213,45 @@
 
       var pickerSection = candidates.length > 0
         ? '<select class="missing-po-select w-full" data-item-id="' + escapeHtml(item.id || '') + '" data-emp-code="' + escapeHtml(item.emp_code) + '">' + selectInner + '</select>'
-        : '<div class="text-xs text-on-surface-variant py-2 px-3 rounded-lg bg-surface-container">' +
-            '<span class="material-symbols-outlined align-middle text-[14px] mr-1">info</span>' +
-            'No Active POs found for this client. Use "Link New PO" to create one.' +
+        : '<div class="inline-flex items-center gap-2 w-full px-3 py-2.5 rounded-lg bg-warning/5 border border-warning/20 text-warning text-xs">' +
+            '<span class="material-symbols-outlined text-[16px]">info</span>' +
+            '<span>No Active POs for this client yet — use <strong>Link New PO</strong> to add one.</span>' +
           '</div>';
 
       var sowPill = item.sow_number
-        ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-accent/10 text-accent text-[11px] font-semibold"><span class="material-symbols-outlined text-[12px]">description</span>SOW ' + escapeHtml(item.sow_number) + '</span>'
-        : '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-warning/10 text-warning text-[11px] font-semibold">No SOW linked</span>';
+        ? '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-accent/10 text-accent text-[11px] font-semibold"><span class="material-symbols-outlined text-[13px]">description</span>SOW ' + escapeHtml(item.sow_number) + '</span>'
+        : '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-warning/10 text-warning text-[11px] font-semibold"><span class="material-symbols-outlined text-[13px]">link_off</span>No SOW</span>';
 
-      return '<div class="missing-po-row rounded-xl bg-surface-container-high border border-outline-variant/10 p-4 space-y-3" ' + rowAttrs + '>' +
-        '<div class="flex flex-wrap items-center justify-between gap-2">' +
-          '<div class="flex items-center gap-2">' +
-            '<span class="material-symbols-outlined text-on-surface-variant">person</span>' +
-            '<div>' +
-              '<div class="font-semibold text-sm">' + escapeHtml(item.emp_code) + ' — ' + escapeHtml(item.emp_name || '') + '</div>' +
-              '<div class="text-xs text-on-surface-variant">Invoice amount: <strong class="text-on-surface">' + amountStr + '</strong></div>' +
+      var initials = getInitials(item.emp_name, item.emp_code);
+
+      return '<div class="missing-po-row group rounded-2xl bg-surface-container shadow-sm border border-outline-variant/15 overflow-hidden transition-all hover:shadow-md hover:border-primary/25" ' + rowAttrs + '>' +
+        '<div class="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 bg-gradient-to-r from-surface-container-high to-surface-container border-b border-outline-variant/10">' +
+          '<div class="flex items-center gap-3 min-w-0">' +
+            '<div class="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold ring-2 ring-primary/5 shrink-0">' + escapeHtml(initials) + '</div>' +
+            '<div class="min-w-0">' +
+              '<div class="font-semibold text-sm text-on-surface leading-tight truncate">' + escapeHtml(item.emp_name || item.emp_code) + '</div>' +
+              '<div class="text-[11px] text-on-surface-variant font-mono mt-0.5">' + escapeHtml(item.emp_code) + '</div>' +
             '</div>' +
           '</div>' +
-          '<div class="flex items-center gap-2 flex-wrap">' + sowPill + '</div>' +
-        '</div>' +
-        '<div class="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-start">' +
-          '<div>' +
-            '<label class="block text-xs text-on-surface-variant mb-1">Choose existing PO</label>' +
-            pickerSection +
-            '<div class="missing-po-status text-xs mt-1.5 min-h-[16px]"></div>' +
+          '<div class="flex items-center gap-2 flex-wrap">' +
+            '<div class="inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-md bg-surface-container-highest">' +
+              '<span class="text-[10px] uppercase tracking-wider text-on-surface-variant font-semibold">Invoice</span>' +
+              '<span class="font-semibold text-sm text-on-surface">' + amountStr + '</span>' +
+            '</div>' +
+            sowPill +
           '</div>' +
-          '<div class="flex flex-col gap-1">' +
-            '<label class="block text-xs text-on-surface-variant invisible">.</label>' +
-            '<button type="button" class="missing-po-create-btn btn-secondary btn-sm inline-flex items-center justify-center gap-1.5 whitespace-nowrap">' +
-              '<span class="material-symbols-outlined text-[16px]">add_circle</span>Link New PO' +
+        '</div>' +
+        '<div class="px-5 py-4 space-y-2.5">' +
+          '<div class="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 sm:items-end">' +
+            '<div>' +
+              '<label class="block text-[11px] font-semibold text-on-surface-variant mb-1.5 uppercase tracking-wider">Assign Purchase Order</label>' +
+              pickerSection +
+            '</div>' +
+            '<button type="button" class="missing-po-create-btn btn-secondary inline-flex items-center justify-center gap-1.5 whitespace-nowrap font-semibold shrink-0">' +
+              '<span class="material-symbols-outlined text-[18px]">add_circle</span>Link New PO' +
             '</button>' +
           '</div>' +
+          '<div class="missing-po-status text-xs min-h-[18px] inline-flex items-center gap-1.5"></div>' +
         '</div>' +
       '</div>';
     }).join('');
