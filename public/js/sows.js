@@ -425,7 +425,7 @@
         sowActionMap = {};
         tbody.innerHTML = res.data.map(function (s) {
           var client = sowClientMap[String(s.client_id)] || null;
-          var clientDisplay = client ? getClientDisplayName(client) : (s.client_name || '');
+          var clientDisplay = client ? (client.abbreviation || getClientDisplayName(client)) : (s.client_abbreviation || s.client_name || '');
           var clientFullName = client ? (client.client_name || clientDisplay) : (s.client_name || clientDisplay);
           var VALID_TRANSITIONS = { Draft: ['Signed'], 'Amendment Draft': ['Signed'], Signed: ['Inactive'], Active: ['Inactive'], Inactive: ['Active'], Expired: [], Terminated: [] };
           var allowed = VALID_TRANSITIONS[s.status] || [];
@@ -441,7 +441,7 @@
 
           return '<tr>' +
             '<td><div class="table-cell-box table-cell-stack"><span class="entity-pill entity-pill-strong">' + escapeHtml(s.sow_number) + '</span></div></td>' +
-            '<td><div class="table-cell-box table-cell-stack"><span class="entity-pill" title="' + escapeHtml(clientFullName) + '">' + escapeHtml(clientDisplay) + '</span><span class="table-cell-secondary" title="' + escapeHtml(clientFullName) + '">' + escapeHtml(clientFullName) + '</span></div></td>' +
+            '<td><div class="table-cell-box table-cell-stack"><span class="entity-pill" title="' + escapeHtml(clientFullName) + '">' + escapeHtml(clientDisplay) + '</span></div></td>' +
             '<td>' + formatRoleSummary(s) + '</td>' +
             '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(s.sow_date) + '</span></div></td>' +
             '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(s.effective_start) + '</span></div></td>' +

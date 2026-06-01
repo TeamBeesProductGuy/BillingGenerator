@@ -60,6 +60,37 @@
       </table>
     </div>
   </div>
+
+  <div class="stat-card !p-0 overflow-hidden table-section-card">
+    <div class="table-section-header">
+      <h3 class="table-section-title">Cancelled Orders</h3>
+      <div class="table-section-count" id="cancelledOrdersTableCount">0 rows</div>
+    </div>
+    <div class="overflow-x-auto styled-scrollbar orders-table-scroll">
+      <table class="stitch-table" id="cancelledOrdersTable">
+        <thead>
+          <tr>
+            <th class="sortable" data-sort-key="0">Client</th>
+            <th class="sortable" data-sort-key="1">Candidate</th>
+            <th class="sortable" data-sort-key="2">Requisition / Description</th>
+            <th class="sortable" data-sort-key="3">Position / Role</th>
+            <th class="sortable" data-sort-key="4" data-sort-type="date">Date of Joining</th>
+            <th class="sortable text-right" data-sort-key="5" data-sort-type="currency">CTC Offered</th>
+            <th class="sortable" data-sort-key="6" data-sort-type="date">Invoice Due On</th>
+            <th class="sortable text-right" data-sort-key="7" data-sort-type="currency">Invoice Amount</th>
+            <th class="sortable" data-sort-key="8">Invoice No.</th>
+            <th class="sortable" data-sort-key="9" data-sort-type="date">Invoice Date</th>
+            <th class="sortable" data-sort-key="10">Invoice / Payment</th>
+            <th class="sortable" data-sort-key="11">Remarks</th>
+            <th class="sortable text-center" data-sort-key="12" data-sort-type="date">Cancelled On</th>
+          </tr>
+        </thead>
+        <tbody id="cancelledOrdersBody">
+          <tr><td colspan="13" class="text-center text-on-surface-variant py-8">No cancelled orders yet.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
 <div id="orderActionModal" class="fixed inset-0 z-[220] hidden items-center justify-center bg-black/60 backdrop-blur-sm">

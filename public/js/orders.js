@@ -52,10 +52,27 @@
     document.getElementById('orderBillAmount').value = billAmount > 0 ? formatCurrency(billAmount) : '';
   }
 
+  function isOrderCancelled(order) {
+    return Boolean(order && (order.is_cancelled || order.cancelled_at));
+  }
+
+  function splitOrders(data) {
+    var groups = { active: [], cancelled: [] };
+    (data || []).forEach(function (order) {
+      groups[isOrderCancelled(order) ? 'cancelled' : 'active'].push(order);
+    });
+    return groups;
+  }
+
+  function updateCountLabel(id, value) {
+    var count = document.getElementById(id);
+    if (count) count.textContent = value === 1 ? '1 row' : value + ' rows';
+  }
+
   function updateOrdersSummary(data) {
-    var items = data || [];
+    var groups = splitOrders(data);
+    var items = groups.active;
     var summary = document.getElementById('ordersSummary');
-    var count = document.getElementById('ordersTableCount');
     var clientCount = new Set(items.map(function (order) { return order.client_id; }).filter(Boolean)).size;
     var upcomingCount = items.filter(function (order) {
       var invoiceStatus = order.reminder ? String(order.reminder.invoice_status || 'pending').toLowerCase() : 'pending';
@@ -67,30 +84,25 @@
       if (cards[1]) cards[1].textContent = clientCount;
       if (cards[2]) cards[2].textContent = upcomingCount;
     }
-    if (count) count.textContent = items.length === 1 ? '1 row' : items.length + ' rows';
+    updateCountLabel('ordersTableCount', items.length);
+    updateCountLabel('cancelledOrdersTableCount', groups.cancelled.length);
   }
 
   function updateOrdersVisibleCount() {
-    var tbody = document.getElementById('ordersBody');
-    var count = document.getElementById('ordersTableCount');
-    if (!tbody || !count) return;
-    var visible = Array.from(tbody.querySelectorAll('tr')).filter(function (row) {
-      return !row.querySelector('td[colspan]') && row.style.display !== 'none';
-    }).length;
-    count.textContent = visible === 1 ? '1 row' : visible + ' rows';
+    function visibleRows(tbodyId) {
+      var tbody = document.getElementById(tbodyId);
+      if (!tbody) return 0;
+      return Array.from(tbody.querySelectorAll('tr')).filter(function (row) {
+        return !row.querySelector('td[colspan]') && row.style.display !== 'none';
+      }).length;
+    }
+    updateCountLabel('ordersTableCount', visibleRows('ordersBody'));
+    updateCountLabel('cancelledOrdersTableCount', visibleRows('cancelledOrdersBody'));
   }
 
-  function renderOrders(data) {
-    var tbody = document.getElementById('ordersBody');
-    updateOrdersSummary(data);
-    if (!data || data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="13" class="text-center text-on-surface-variant py-8">No orders found. Create one!</td></tr>';
-      return;
-    }
-
-    orderActionMap = {};
-    tbody.innerHTML = data.map(function (order) {
-      var clientName = order.client ? getClientDisplayName(order.client) : ('Client #' + order.client_id);
+  function renderOrderRow(order, isCancelled) {
+    var clientName = order.client ? getClientDisplayName(order.client) : ('Client #' + order.client_id);
+    if (!isCancelled) {
       orderActionMap[order.id] = {
         id: order.id,
         reminderId: order.reminder ? order.reminder.id : null,
@@ -100,31 +112,76 @@
         invoiceStatus: order.reminder ? (order.reminder.invoice_status || 'pending') : 'pending',
         paymentStatus: order.reminder ? (order.reminder.payment_status || 'pending') : 'pending',
       };
-      var invoiceStatus = order.reminder ? String(order.reminder.invoice_status || 'pending').toLowerCase() : 'pending';
-      var paymentStatus = order.reminder ? String(order.reminder.payment_status || 'pending').toLowerCase() : 'pending';
-      var invoiceDueDisplay = invoiceStatus === 'sent'
+    }
+    var invoiceStatus = order.reminder ? String(order.reminder.invoice_status || 'pending').toLowerCase() : 'pending';
+    var paymentStatus = order.reminder ? String(order.reminder.payment_status || 'pending').toLowerCase() : 'pending';
+    var invoiceDueDisplay = isCancelled
+      ? '<span class="badge-error">Cancelled</span>'
+      : (invoiceStatus === 'sent'
         ? '<span class="badge-success">Invoice Sent</span>'
-        : '<span class="table-date-chip">' + (order.next_bill_date ? formatDate(order.next_bill_date) : 'TBD') + '</span>';
-      return '<tr>' +
-        '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(clientName) + '">' + escapeHtml(clientName) + '</span></div></td>' +
-        '<td><div class="table-cell-box table-cell-stack"><span class="table-cell-primary">' + escapeHtml(order.candidate_name || '') + '</span></div></td>' +
-        '<td><div class="table-cell-box table-cell-text">' + escapeHtml(order.requisition_description || '---') + '</div></td>' +
-        '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(order.position_role || '') + '">' + escapeHtml(order.position_role || '---') + '</span></div></td>' +
-        '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(order.date_of_joining) + '</span></div></td>' +
-        '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(order.ctc_offered) + '</span></div></td>' +
-        '<td><div class="table-cell-box">' + invoiceDueDisplay + '</div></td>' +
-        '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(order.bill_amount) + '</span></div></td>' +
-        '<td><div class="table-cell-box table-cell-text">' + escapeHtml(order.reminder && order.reminder.invoice_number ? order.reminder.invoice_number : '---') + '</div></td>' +
-        '<td><div class="table-cell-box"><span class="table-date-chip">' + (order.reminder && order.reminder.invoice_date ? formatDate(order.reminder.invoice_date) : '-') + '</span></div></td>' +
-        '<td><div class="table-cell-box table-cell-stack"><span class="table-cell-primary">' + escapeHtml(invoiceStatus === 'sent' ? 'Sent' : 'Pending') + '</span><span class="table-cell-secondary">' + escapeHtml(paymentStatus === 'paid' ? 'Paid' : 'Pending') + '</span></div></td>' +
-        '<td><div class="table-cell-box table-cell-text table-cell-remarks">' + escapeHtml(order.remarks || '---') + '</div></td>' +
-        '<td class="text-center"><div class="table-cell-box table-cell-center">' +
-          '<button class="btn-secondary btn-sm table-action-trigger inline-flex items-center justify-center" title="Open order actions" aria-label="Open order actions" onclick="openOrderActions(' + order.id + ')"><span class="material-symbols-outlined text-base">more_horiz</span></button>' +
-        '</div></td>' +
-      '</tr>';
-    }).join('');
+        : '<span class="table-date-chip">' + (order.next_bill_date ? formatDate(order.next_bill_date) : 'TBD') + '</span>');
+    var statusPrimary = isCancelled ? 'Cancelled' : (invoiceStatus === 'sent' ? 'Sent' : 'Pending');
+    var finalCell = isCancelled
+      ? '<span class="table-date-chip">' + (order.cancelled_at ? formatDate(order.cancelled_at) : '-') + '</span>'
+      : '<button class="btn-secondary btn-sm table-action-trigger inline-flex items-center justify-center" title="Open order actions" aria-label="Open order actions" onclick="openOrderActions(' + order.id + ')"><span class="material-symbols-outlined text-base">more_horiz</span></button>';
+    return '<tr>' +
+      '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(clientName) + '">' + escapeHtml(clientName) + '</span></div></td>' +
+      '<td><div class="table-cell-box table-cell-stack"><span class="table-cell-primary">' + escapeHtml(order.candidate_name || '') + '</span></div></td>' +
+      '<td><div class="table-cell-box table-cell-text">' + escapeHtml(order.requisition_description || '---') + '</div></td>' +
+      '<td><div class="table-cell-box"><span class="entity-pill" title="' + escapeHtml(order.position_role || '') + '">' + escapeHtml(order.position_role || '---') + '</span></div></td>' +
+      '<td><div class="table-cell-box"><span class="table-date-chip">' + formatDate(order.date_of_joining) + '</span></div></td>' +
+      '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(order.ctc_offered) + '</span></div></td>' +
+      '<td><div class="table-cell-box">' + invoiceDueDisplay + '</div></td>' +
+      '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(order.bill_amount) + '</span></div></td>' +
+      '<td><div class="table-cell-box table-cell-text">' + escapeHtml(order.reminder && order.reminder.invoice_number ? order.reminder.invoice_number : '---') + '</div></td>' +
+      '<td><div class="table-cell-box"><span class="table-date-chip">' + (order.reminder && order.reminder.invoice_date ? formatDate(order.reminder.invoice_date) : '-') + '</span></div></td>' +
+      '<td><div class="table-cell-box table-cell-stack"><span class="table-cell-primary">' + escapeHtml(statusPrimary) + '</span><span class="table-cell-secondary">' + escapeHtml(paymentStatus === 'paid' ? 'Paid' : 'Pending') + '</span></div></td>' +
+      '<td><div class="table-cell-box table-cell-text table-cell-remarks">' + escapeHtml(order.remarks || '---') + '</div></td>' +
+      '<td class="text-center"><div class="table-cell-box table-cell-center">' + finalCell + '</div></td>' +
+    '</tr>';
+  }
+
+  function applyOrdersSearch() {
+    var input = document.getElementById('ordersSearch');
+    var query = input ? input.value.toLowerCase().trim() : '';
+    ['ordersBody', 'cancelledOrdersBody'].forEach(function (tbodyId) {
+      var tbody = document.getElementById(tbodyId);
+      if (!tbody) return;
+      tbody.querySelectorAll('tr').forEach(function (row) {
+        if (row.querySelector('td[colspan]')) {
+          row.style.display = '';
+          return;
+        }
+        row.style.display = row.textContent.toLowerCase().indexOf(query) !== -1 ? '' : 'none';
+      });
+    });
+    updateOrdersVisibleCount();
+  }
+
+  function renderOrders(data) {
+    var tbody = document.getElementById('ordersBody');
+    var cancelledTbody = document.getElementById('cancelledOrdersBody');
+    var groups = splitOrders(data);
+    updateOrdersSummary(data);
+    orderActionMap = {};
+
+    if (!groups.active.length) {
+      tbody.innerHTML = '<tr><td colspan="13" class="text-center text-on-surface-variant py-8">No active orders found. Create one!</td></tr>';
+    } else {
+      tbody.innerHTML = groups.active.map(function (order) { return renderOrderRow(order, false); }).join('');
+    }
+
+    if (cancelledTbody) {
+      if (!groups.cancelled.length) {
+        cancelledTbody.innerHTML = '<tr><td colspan="13" class="text-center text-on-surface-variant py-8">No cancelled orders yet.</td></tr>';
+      } else {
+        cancelledTbody.innerHTML = groups.cancelled.map(function (order) { return renderOrderRow(order, true); }).join('');
+      }
+    }
 
     initTableSort('ordersTable');
+    initTableSort('cancelledOrdersTable');
+    applyOrdersSearch();
     updateOrdersVisibleCount();
   }
 
@@ -171,7 +228,7 @@
       var paymentLabel = nextPaymentStatus === 'paid' ? 'Mark paid' : 'Mark pending';
       container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runOrderActionPayment(' + id + ', \'' + nextPaymentStatus + '\')"><span class="material-symbols-outlined">payments</span><span><strong>' + paymentLabel + '</strong><small>Change the payment status for this order</small></span></button>';
     }
-    container.innerHTML += '<button type="button" class="action-sheet-btn action-sheet-btn-danger" onclick="runOrderActionDelete(' + id + ')"><span class="material-symbols-outlined">delete</span><span><strong>Delete order</strong><small>Remove this order from the active list</small></span></button>';
+    container.innerHTML += '<button type="button" class="action-sheet-btn action-sheet-btn-danger" onclick="runOrderActionDelete(' + id + ')"><span class="material-symbols-outlined">delete</span><span><strong>Cancel order</strong><small>Move this order to the cancelled list</small></span></button>';
     openModal('orderActionModal');
   };
 
@@ -268,11 +325,11 @@
   };
 
   window.deleteOrder = async function (id) {
-    var confirmed = await confirmAction('Delete Order', 'Are you sure you want to delete this order?');
+    var confirmed = await confirmAction('Cancel Order', 'Move this order to the Cancelled Orders table?');
     if (!confirmed) return;
     try {
       await apiCall('DELETE', '/api/permanent/orders/' + id);
-      showToast('Order deleted', 'success');
+      showToast('Order moved to cancelled orders', 'success');
       loadOrders();
     } catch (err) {
       showToast(err.message, 'danger');
@@ -334,10 +391,14 @@
     }
   });
 
-  initTableSearch('ordersSearch', 'ordersBody');
-  document.getElementById('ordersSearch').addEventListener('input', function () {
-    setTimeout(updateOrdersVisibleCount, 250);
-  });
+  var ordersSearchInput = document.getElementById('ordersSearch');
+  if (ordersSearchInput) {
+    var ordersSearchTimer = null;
+    ordersSearchInput.addEventListener('input', function () {
+      clearTimeout(ordersSearchTimer);
+      ordersSearchTimer = setTimeout(applyOrdersSearch, 200);
+    });
+  }
 
   loadPermanentClients()
     .then(loadOrders)

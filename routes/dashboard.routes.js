@@ -98,6 +98,22 @@ function isoDateOnly(date) {
   return date.toISOString().slice(0, 10);
 }
 
+function isPermanentOrderCancelled(order) {
+  return Boolean(
+    order &&
+    (
+      order.is_cancelled ||
+      order.cancelled_at ||
+      /^\[CANCELLED_ORDER:/.test(String(order.remarks || ''))
+    )
+  );
+}
+
+function permanentOrderMonth(order) {
+  const date = toDate(order.next_bill_date) || toDate(order.date_of_joining) || toDate(order.created_at);
+  return date ? yyyymm(date) : '';
+}
+
 function expect(result, label) {
   if (result && result.error) throw new Error(label + ': ' + result.error.message);
   return result ? result.data : null;
@@ -118,6 +134,7 @@ router.get('/stats', catchAsync(async (req, res) => {
   const [
     clientsCountR, employeesCountR, sowsCountR, posCountR, quotesCountR,
     activePosR, expiringPosR, expiringSowsR, runsAllR, clientsListR,
+    permanentClientsCountR, permanentClientsListR, permanentOrdersR,
   ] = await Promise.all([
     supabase.from('clients').select('id', { count: 'exact', head: true }).eq('is_active', true),
     supabase.from('rate_cards').select('id', { count: 'exact', head: true }).eq('is_active', true),
@@ -129,6 +146,9 @@ router.get('/stats', catchAsync(async (req, res) => {
     supabase.from('sows').select('id, sow_number, effective_end, client_id, total_value').in('status', ['Signed', 'Active']).gte('effective_end', todayKey).lte('effective_end', horizonKey),
     supabase.from('billing_runs').select('id, billing_month, total_amount, total_employees, error_count, created_at, client_id').order('created_at', { ascending: false }),
     supabase.from('clients').select('id, client_name, abbreviation'),
+    supabase.from('permanent_clients').select('id', { count: 'exact', head: true }).eq('is_active', true),
+    supabase.from('permanent_clients').select('id, client_name, abbreviation, is_active'),
+    supabase.from('permanent_orders').select('*'),
   ]);
 
   if (clientsCountR.error) throw new Error('clients count: ' + clientsCountR.error.message);
@@ -136,15 +156,23 @@ router.get('/stats', catchAsync(async (req, res) => {
   if (sowsCountR.error) throw new Error('sows count: ' + sowsCountR.error.message);
   if (posCountR.error) throw new Error('pos count: ' + posCountR.error.message);
   if (quotesCountR.error) throw new Error('quotes count: ' + quotesCountR.error.message);
+  if (permanentClientsCountR.error) throw new Error('permanent clients count: ' + permanentClientsCountR.error.message);
   const activePos = expect(activePosR, 'active POs') || [];
   const expiringPosRaw = expect(expiringPosR, 'expiring POs') || [];
   const expiringSowsRaw = expect(expiringSowsR, 'expiring SOWs') || [];
   const allRuns = expect(runsAllR, 'billing runs') || [];
   const clientsList = expect(clientsListR, 'clients list') || [];
+  const permanentClientsList = expect(permanentClientsListR, 'permanent clients list') || [];
+  const permanentOrders = (expect(permanentOrdersR, 'permanent orders') || []).filter((order) => !isPermanentOrderCancelled(order));
 
   const clientMap = {};
   clientsList.forEach((c) => { clientMap[c.id] = c; });
   const clientNameFor = (id) => (id && clientMap[id]) ? (clientMap[id].abbreviation || clientMap[id].client_name) : 'Multi-client';
+  const permanentClientMap = {};
+  permanentClientsList.forEach((c) => { permanentClientMap[c.id] = c; });
+  const permanentClientNameFor = (id) => (id && permanentClientMap[id])
+    ? (permanentClientMap[id].abbreviation || permanentClientMap[id].client_name)
+    : 'Permanent client #' + id;
 
   // PO rollup
   const poCommitted = activePos.reduce((s, p) => s + Number(p.po_value || 0), 0);
@@ -210,13 +238,20 @@ router.get('/stats', catchAsync(async (req, res) => {
   const poAlertsCount = highConsumptionPos.length + expiringPos.length;
 
   // Revenue calculations
+  const permanentRevenueMTD = permanentOrders
+    .filter((order) => permanentOrderMonth(order) === currentYM)
+    .reduce((s, order) => s + Number(order.bill_amount || 0), 0);
+  const permanentLast12Orders = permanentOrders.filter((order) => permanentOrderMonth(order) >= twelveAgoYM);
+  const permanentRevenueLast12M = permanentLast12Orders.reduce((s, order) => s + Number(order.bill_amount || 0), 0);
+  const permanentRevenueAllTime = permanentOrders.reduce((s, order) => s + Number(order.bill_amount || 0), 0);
+
   const revenueMTD = allRuns
     .filter((r) => String(r.billing_month) === currentYM)
-    .reduce((s, r) => s + Number(r.total_amount || 0), 0);
+    .reduce((s, r) => s + Number(r.total_amount || 0), 0) + permanentRevenueMTD;
 
   const last12Runs = allRuns.filter((r) => String(r.billing_month) >= twelveAgoYM);
-  const revenueLast12M = last12Runs.reduce((s, r) => s + Number(r.total_amount || 0), 0);
-  const revenueAllTime = allRuns.reduce((s, r) => s + Number(r.total_amount || 0), 0);
+  const revenueLast12M = last12Runs.reduce((s, r) => s + Number(r.total_amount || 0), 0) + permanentRevenueLast12M;
+  const revenueAllTime = allRuns.reduce((s, r) => s + Number(r.total_amount || 0), 0) + permanentRevenueAllTime;
 
   // Revenue trend - 12 months
   const trendMap = {};
@@ -229,15 +264,28 @@ router.get('/stats', catchAsync(async (req, res) => {
       trendMap[r.billing_month] += Number(r.total_amount || 0);
     }
   });
+  permanentLast12Orders.forEach((order) => {
+    const month = permanentOrderMonth(order);
+    if (trendMap[month] !== undefined) {
+      trendMap[month] += Number(order.bill_amount || 0);
+    }
+  });
   const revenueTrend = Object.entries(trendMap).map(([k, v]) => ({ billing_month: k, total: v }));
 
   // Top clients by revenue (last 12M) - distribute multi-client runs via items
   const clientRevMap = {};
+  const addClientRevenue = (key, total) => {
+    clientRevMap[key] = (clientRevMap[key] || 0) + Number(total || 0);
+  };
+  const clientNameForKey = (key) => {
+    const [type, id] = String(key).split(':');
+    if (type === 'permanent') return permanentClientNameFor(Number(id)) + ' (Permanent)';
+    return clientNameFor(Number(id));
+  };
   const multiClientRunIds = [];
   last12Runs.forEach((r) => {
     if (r.client_id) {
-      const cid = r.client_id;
-      clientRevMap[cid] = (clientRevMap[cid] || 0) + Number(r.total_amount || 0);
+      addClientRevenue('contract:' + r.client_id, r.total_amount);
     } else {
       multiClientRunIds.push(r.id);
     }
@@ -251,14 +299,18 @@ router.get('/stats', catchAsync(async (req, res) => {
     if (itemsErr) throw new Error('billing items: ' + itemsErr.message);
     (items || []).forEach((it) => {
       if (!it.client_id) return;
-      clientRevMap[it.client_id] = (clientRevMap[it.client_id] || 0) + Number(it.invoice_amount || 0);
+      addClientRevenue('contract:' + it.client_id, it.invoice_amount);
     });
   }
+  permanentLast12Orders.forEach((order) => {
+    if (!order.client_id) return;
+    addClientRevenue('permanent:' + order.client_id, order.bill_amount);
+  });
 
   const topClients = Object.entries(clientRevMap)
-    .map(([cid, total]) => ({
-      client_id: Number(cid),
-      client_name: clientNameFor(Number(cid)),
+    .map(([key, total]) => ({
+      client_id: key,
+      client_name: clientNameForKey(key),
       total,
     }))
     .sort((a, b) => b.total - a.total)
@@ -273,7 +325,7 @@ router.get('/stats', catchAsync(async (req, res) => {
     success: true,
     data: {
       counts: {
-        clients: clientsCountR.count || 0,
+        clients: (clientsCountR.count || 0) + (permanentClientsCountR.count || 0),
         employees: employeesCountR.count || 0,
         activeSOWs: sowsCountR.count || 0,
         activePOs: posCountR.count || 0,

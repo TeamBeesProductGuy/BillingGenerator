@@ -94,16 +94,20 @@ const permanentOrderController = {
     if (!existing) throw new AppError(404, 'Order not found');
     await requirePermanentClientAccess(req, 'orders', existing.client_id);
 
-    await PermanentOrderModel.remove(id);
+    await PermanentOrderModel.cancel(id, existing);
+    const reminder = await PermanentReminderModel.findOpenByOrderId(id);
+    if (reminder) {
+      await PermanentReminderModel.close(reminder.id);
+    }
     await logActivity(req, {
       module: 'permanent_orders',
-      action: 'delete',
+      action: 'cancel',
       entityType: 'permanent_order',
       entityId: id,
       entityLabel: (existing.candidate_name || '') + ' - ' + (existing.position_role || ''),
-      details: { summary: 'Deleted permanent order for ' + existing.candidate_name },
+      details: { summary: 'Moved permanent order to cancelled orders for ' + existing.candidate_name },
     });
-    res.json({ success: true, data: { message: 'Order deleted' } });
+    res.json({ success: true, data: { message: 'Order moved to cancelled orders' } });
   }),
 };
 

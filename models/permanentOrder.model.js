@@ -1,6 +1,40 @@
 const { adminSupabase } = require('../config/database');
 
 const TABLE = 'permanent_orders';
+const CANCELLED_ORDER_MARKER = /^\[CANCELLED_ORDER:([^\]]+)\]\s*/;
+
+function isMissingCancellationColumn(error) {
+  return Boolean(
+    error &&
+    (
+      error.code === '42703' ||
+      /is_cancelled|cancelled_at|cancellation_reason/i.test(error.message || '')
+    )
+  );
+}
+
+function stripCancellationMarker(value) {
+  return String(value || '').replace(CANCELLED_ORDER_MARKER, '').trim();
+}
+
+function normalizeCancelledOrder(order) {
+  if (!order) return order;
+  const markerMatch = String(order.remarks || '').match(CANCELLED_ORDER_MARKER);
+  if (!markerMatch) {
+    return {
+      ...order,
+      is_cancelled: Boolean(order.is_cancelled),
+    };
+  }
+
+  return {
+    ...order,
+    is_cancelled: true,
+    cancelled_at: order.cancelled_at || markerMatch[1],
+    cancellation_reason: order.cancellation_reason || 'Cancelled order archive',
+    remarks: stripCancellationMarker(order.remarks),
+  };
+}
 
 async function mapOrdersWithClients(orders) {
   if (!orders || orders.length === 0) return [];
@@ -34,7 +68,7 @@ async function mapOrdersWithClients(orders) {
   });
 
   return orders.map((order) => ({
-    ...order,
+    ...normalizeCancelledOrder(order),
     client: clientMap[order.client_id] || null,
     reminder: reminderMap[order.id] || null,
   }));
@@ -108,11 +142,32 @@ const PermanentOrderModel = {
     if (error) throw new Error(error.message);
   },
 
-  async remove(id) {
+  async cancel(id, existing) {
+    const now = new Date().toISOString();
     const { error } = await adminSupabase
       .from(TABLE)
-      .delete()
+      .update({
+        is_cancelled: true,
+        cancelled_at: now,
+        cancellation_reason: 'Deleted from orders UI',
+        updated_at: now,
+      })
       .eq('id', id);
+
+    if (isMissingCancellationColumn(error)) {
+      const remarks = stripCancellationMarker(existing && existing.remarks);
+      const fallbackRemarks = '[CANCELLED_ORDER:' + now + ']' + (remarks ? '\n' + remarks : '');
+      const fallback = await adminSupabase
+        .from(TABLE)
+        .update({
+          remarks: fallbackRemarks,
+          updated_at: now,
+        })
+        .eq('id', id);
+      if (fallback.error) throw new Error(fallback.error.message);
+      return;
+    }
+
     if (error) throw new Error(error.message);
   },
 };

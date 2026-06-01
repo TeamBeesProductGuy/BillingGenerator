@@ -68,6 +68,9 @@ CREATE TABLE IF NOT EXISTS permanent_orders (
     ctc_offered     NUMERIC(15,2) NOT NULL CHECK(ctc_offered > 0),
     bill_amount     NUMERIC(15,2) NOT NULL CHECK(bill_amount >= 0),
     next_bill_date  TEXT NOT NULL,
+    is_cancelled    BOOLEAN NOT NULL DEFAULT FALSE,
+    cancelled_at    TIMESTAMPTZ,
+    cancellation_reason TEXT,
     remarks         TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -75,6 +78,7 @@ CREATE TABLE IF NOT EXISTS permanent_orders (
 
 CREATE INDEX IF NOT EXISTS idx_permanent_orders_client ON permanent_orders(client_id);
 CREATE INDEX IF NOT EXISTS idx_permanent_orders_next_bill_date ON permanent_orders(next_bill_date);
+CREATE INDEX IF NOT EXISTS idx_permanent_orders_cancelled ON permanent_orders(is_cancelled);
 
 CREATE TABLE IF NOT EXISTS permanent_reminders (
     id               SERIAL PRIMARY KEY,
