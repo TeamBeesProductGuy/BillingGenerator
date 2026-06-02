@@ -252,6 +252,51 @@ async function resolveClientIdsByName(records) {
   }
 }
 
+async function verifyCrossBranchSowLinks(records) {
+  const checks = records.filter((r) => r.sow_id && r.client_id);
+  if (checks.length === 0) return [];
+
+  const sowIds = [...new Set(checks.map((r) => r.sow_id))];
+  const { data: sows, error: sowErr } = await supabase
+    .from('sows')
+    .select('id, sow_number, client_id')
+    .in('id', sowIds);
+  if (sowErr || !sows) return [];
+
+  const sowOwnerById = new Map(sows.map((s) => [s.id, s]));
+  const mismatches = checks.filter((r) => {
+    const sow = sowOwnerById.get(r.sow_id);
+    return sow && Number(sow.client_id) !== Number(r.client_id);
+  });
+  if (mismatches.length === 0) return [];
+
+  const linkSet = new Set();
+  try {
+    const mismatchSowIds = [...new Set(mismatches.map((r) => r.sow_id))];
+    const mismatchClientIds = [...new Set(mismatches.map((r) => r.client_id))];
+    const { data: links, error: linkErr } = await supabase
+      .from('sow_client_links')
+      .select('sow_id, linked_client_id')
+      .in('sow_id', mismatchSowIds)
+      .in('linked_client_id', mismatchClientIds);
+    if (!linkErr && links) {
+      links.forEach((link) => linkSet.add(link.sow_id + ':' + link.linked_client_id));
+    }
+  } catch (_err) {
+    // sow_client_links table missing — every mismatch becomes an error below.
+  }
+
+  return mismatches
+    .filter((r) => !linkSet.has(r.sow_id + ':' + r.client_id))
+    .map((r) => ({
+      client_id: r.client_id,
+      client_name: r.client_name || null,
+      emp_code: r.emp_code,
+      emp_name: r.emp_name || null,
+      error_message: `SOW ${r.sow_number} belongs to a different client and has no cross-branch link to ${r.client_name || 'this client'}`,
+    }));
+}
+
 async function resolvePoFromSow(records) {
   const sowIds = [...new Set(records.filter((r) => r.sow_id && !r.po_id).map((r) => r.sow_id))];
   if (sowIds.length === 0) return;
@@ -932,13 +977,17 @@ const billingController = {
         rateCards: rateCardResult.records,
       });
 
+      // Resolve client_id from Excel client_name first so cross-branch SOW rows
+      // keep the typed client instead of being silently re-assigned to the SOW owner.
+      await resolveClientIdsByName(rateCardResult.records);
       await resolveSowNumbers(rateCardResult.records);
+      const crossBranchErrors = await verifyCrossBranchSowLinks(rateCardResult.records);
       // Resolve po_number strings from Excel to po_id integers from DB
       await resolvePoNumbers(rateCardResult.records);
       await resolvePoFromSow(rateCardResult.records);
 
       const warningErrors = [];
-      const fatalErrors = [...rateCardResult.errors, ...attendanceResult.errors];
+      const fatalErrors = [...rateCardResult.errors, ...attendanceResult.errors, ...crossBranchErrors];
 
       // Warn about rate cards without PO linkage
       for (const rc of rateCardResult.records) {
