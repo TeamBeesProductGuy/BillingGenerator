@@ -177,18 +177,19 @@ function isForeignKeyReferenceError(error) {
 
 const SOWModel = {
   async findAll(clientId, status, options) {
-    const includeLinked = Boolean(options && options.includeLinked && clientId && !Array.isArray(clientId));
+    const clientIdArray = Array.isArray(clientId)
+      ? clientId.filter((id) => id !== null && id !== undefined)
+      : (clientId !== null && clientId !== undefined ? [clientId] : []);
+    const includeLinked = Boolean(options && options.includeLinked && clientIdArray.length > 0);
     let query = adminSupabase.from('sows_view').select('*').eq('is_latest', true);
-    if (Array.isArray(clientId) && clientId.length > 0) query = query.in('client_id', clientId);
-    else if (clientId) query = query.eq('client_id', clientId);
+    if (clientIdArray.length > 0) query = query.in('client_id', clientIdArray);
     if (status) query = query.eq('status', toDatabaseSowStatus(status));
     query = query.order('created_at', { ascending: false });
     let { data, error } = await query;
 
     if (isMissingColumnError(error, 'is_latest')) {
       let fallbackQuery = adminSupabase.from('sows_view').select('*');
-      if (Array.isArray(clientId) && clientId.length > 0) fallbackQuery = fallbackQuery.in('client_id', clientId);
-      else if (clientId) fallbackQuery = fallbackQuery.eq('client_id', clientId);
+      if (clientIdArray.length > 0) fallbackQuery = fallbackQuery.in('client_id', clientIdArray);
       if (status) fallbackQuery = fallbackQuery.eq('status', toDatabaseSowStatus(status));
       fallbackQuery = fallbackQuery.order('created_at', { ascending: false });
       const fallback = await fallbackQuery;
@@ -203,7 +204,7 @@ const SOWModel = {
       const { data: links, error: linkErr } = await adminSupabase
         .from('sow_client_links')
         .select('sow_id')
-        .eq('linked_client_id', clientId);
+        .in('linked_client_id', clientIdArray);
       if (linkErr && !isMissingRelationError(linkErr, 'sow_client_links')) throw new Error(linkErr.message);
 
       const linkedIds = Array.from(new Set(((links || [])).map((row) => row.sow_id).filter(Boolean)));
