@@ -1113,5 +1113,43 @@
     setTimeout(updateRateCardVisibleCount, 250);
   });
 
-  loadClients().then(loadRateCards);
+  // Value-chain journey: when arriving from a SOW's "Add rate card" step, open the
+  // form pre-filled with the originating client + SOW so the next link is one step away.
+  async function consumePendingRateCardContext() {
+    var raw = sessionStorage.getItem('pendingRateCardContext');
+    if (!raw) return;
+    sessionStorage.removeItem('pendingRateCardContext');
+    var ctx;
+    try { ctx = JSON.parse(raw); } catch (e) { return; }
+    if (!ctx || !ctx.clientId) return;
+    var clientSel = document.getElementById('rcClient');
+    if (!clientSel) return;
+
+    openRCModal();
+    clientSel.value = String(ctx.clientId);
+    if (!clientSel.value) {
+      showToast('That client is not available here — pick it manually to continue.', 'warning');
+      return;
+    }
+    // Mirror the side-effects of the client <select> change handler.
+    await loadSOWsForClient(ctx.clientId);
+    loadPOsForClient(ctx.clientId);
+    applyClientDefaultLeaves(true);
+    updateRateModeAvailability();
+
+    if (ctx.sowId) {
+      var sowSel = document.getElementById('rcSOW');
+      sowSel.value = String(ctx.sowId);
+      if (sowSel.value === String(ctx.sowId)) {
+        sowSel.dispatchEvent(new Event('change'));
+      } else {
+        showToast('Linked SOW is not selectable for rate cards in its current status.', 'warning');
+      }
+    }
+  }
+
+  loadClients().then(function () {
+    loadRateCards();
+    return consumePendingRateCardContext();
+  });
 })();

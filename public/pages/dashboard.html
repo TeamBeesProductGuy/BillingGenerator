@@ -159,6 +159,33 @@
         </div>
     </section>
 
+    <!-- Value Chain Health -->
+    <section class="stat-card !p-0 overflow-hidden">
+        <div class="px-5 py-4 border-b border-outline-variant/8 flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary text-base">account_tree</span>
+                <div>
+                    <h4 class="section-label">Value Chain Health</h4>
+                    <p class="text-[11px] text-on-surface-variant">Quote → SOW → PO → Rate Card across live (Signed/Active) SOWs</p>
+                </div>
+            </div>
+            <a href="#sows" class="text-[11px] text-primary font-semibold hover:underline no-underline whitespace-nowrap">Open SOWs</a>
+        </div>
+        <div id="valueChainSummary" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 px-5 py-4">
+            <div class="text-on-surface-variant text-sm col-span-full text-center py-2">Loading...</div>
+        </div>
+        <div class="px-5 flex items-center justify-between gap-2 flex-wrap">
+            <div class="inline-flex rounded-lg bg-surface-container-high/50 p-0.5">
+                <button type="button" id="vcTabAttention" class="px-3 py-1 text-[11px] font-semibold rounded-md transition-colors">Needs attention</button>
+                <button type="button" id="vcTabAll" class="px-3 py-1 text-[11px] font-semibold rounded-md transition-colors">All links</button>
+            </div>
+            <span id="valueChainListMeta" class="text-[11px] text-on-surface-variant"></span>
+        </div>
+        <div id="valueChainList" class="px-5 py-3 space-y-2 max-h-[320px] overflow-y-auto styled-scrollbar">
+            <div class="text-on-surface-variant text-sm text-center py-3">Loading...</div>
+        </div>
+    </section>
+
     <!-- Charts Row -->
     <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <!-- Revenue Trend -->

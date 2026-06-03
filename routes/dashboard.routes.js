@@ -321,6 +321,95 @@ router.get('/stats', catchAsync(async (req, res) => {
     client_name: clientNameFor(r.client_id),
   }));
 
+  // ---- Value-chain health: Quote -> SOW -> PO -> Rate Card for live (Signed/Active) SOWs ----
+  const [liveSowsR, chainPosR, chainRateCardsR] = await Promise.all([
+    supabase.from('sows').select('id, sow_number, client_id, quote_id, status').in('status', ['Signed', 'Active']),
+    supabase.from('purchase_orders').select('id, po_number, sow_id, status').neq('status', 'Inactive'),
+    supabase.from('rate_cards').select('sow_id').eq('is_active', true),
+  ]);
+  const liveSows = expect(liveSowsR, 'value-chain sows') || [];
+  const chainPoRows = expect(chainPosR, 'value-chain pos') || [];
+  const chainRcRows = expect(chainRateCardsR, 'value-chain rate cards') || [];
+
+  // Map each SOW to its linked POs and active rate-card count for the all-links view.
+  const poBySow = {};
+  chainPoRows.forEach((row) => {
+    if (!row.sow_id) return;
+    (poBySow[row.sow_id] = poBySow[row.sow_id] || []).push({ id: row.id, po_number: row.po_number, status: row.status });
+  });
+  const rcCountBySow = {};
+  chainRcRows.forEach((row) => {
+    if (!row.sow_id) return;
+    rcCountBySow[row.sow_id] = (rcCountBySow[row.sow_id] || 0) + 1;
+  });
+
+  // Resolve quote numbers for SOWs that carry a quote_id (defensive; never block the dashboard on it).
+  const quoteIds = Array.from(new Set(liveSows.map((sow) => sow.quote_id).filter(Boolean)));
+  const quoteNumberById = {};
+  if (quoteIds.length) {
+    const quotesR = await supabase.from('quotes').select('id, quote_number').in('id', quoteIds);
+    if (!quotesR.error) {
+      (quotesR.data || []).forEach((q) => { quoteNumberById[q.id] = q.quote_number; });
+    }
+  }
+
+  let vcComplete = 0;
+  let vcMissingQuote = 0;
+  let vcMissingPo = 0;
+  let vcMissingRateCard = 0;
+  const vcIncomplete = [];
+  const vcAll = [];
+  liveSows.forEach((sow) => {
+    const linkedPos = poBySow[sow.id] || [];
+    const rateCardCount = rcCountBySow[sow.id] || 0;
+    const hasQuote = Boolean(sow.quote_id);
+    const hasPo = linkedPos.length > 0;
+    const hasRateCard = rateCardCount > 0;
+    if (!hasQuote) vcMissingQuote += 1;
+    if (!hasPo) vcMissingPo += 1;
+    if (!hasRateCard) vcMissingRateCard += 1;
+    const complete = hasQuote && hasPo && hasRateCard;
+    if (complete) vcComplete += 1;
+
+    const row = {
+      sow_id: sow.id,
+      sow_number: sow.sow_number,
+      client_id: sow.client_id,
+      client_name: clientNameFor(sow.client_id),
+      status: sow.status,
+      hasQuote,
+      hasPo,
+      hasRateCard,
+      complete,
+      quote_number: hasQuote ? (quoteNumberById[sow.quote_id] || null) : null,
+      po_count: linkedPos.length,
+      po_numbers: linkedPos.slice(0, 5).map((p) => p.po_number).filter(Boolean),
+      rate_card_count: rateCardCount,
+    };
+    vcAll.push(row);
+    if (!complete) vcIncomplete.push(row);
+  });
+  // Most broken chains first (more missing links = higher priority).
+  const missingScore = (row) => (row.hasQuote ? 0 : 1) + (row.hasPo ? 0 : 1) + (row.hasRateCard ? 0 : 1);
+  vcIncomplete.sort((a, b) => missingScore(b) - missingScore(a));
+  // All-links view groups by client, then SOW number, for easy scanning.
+  vcAll.sort((a, b) => {
+    const byClient = String(a.client_name || '').localeCompare(String(b.client_name || ''));
+    if (byClient !== 0) return byClient;
+    return String(a.sow_number || '').localeCompare(String(b.sow_number || ''));
+  });
+  const valueChain = {
+    total: liveSows.length,
+    complete: vcComplete,
+    missingQuote: vcMissingQuote,
+    missingPo: vcMissingPo,
+    missingRateCard: vcMissingRateCard,
+    incompleteTotal: vcIncomplete.length,
+    incomplete: vcIncomplete.slice(0, 12),
+    allTotal: vcAll.length,
+    all: vcAll.slice(0, 100),
+  };
+
   res.json({
     success: true,
     data: {
@@ -348,6 +437,7 @@ router.get('/stats', catchAsync(async (req, res) => {
       topClients,
       recentRuns,
       revenueTrend,
+      valueChain,
       meta: {
         horizonDays,
         horizonDate: horizonKey,

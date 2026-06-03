@@ -20,6 +20,10 @@
 
     var revenueChart = null;
 
+    // Value Chain Health card state (toggled between "needs attention" and "all links").
+    var lastValueChain = null;
+    var vcView = "attention";
+
     // -----------------------------------------------------------
     //  Helpers
     // -----------------------------------------------------------
@@ -69,6 +73,16 @@
         return 'text-success';
     }
 
+    // Deep-link from a dashboard card straight to a specific SOW or PO. The destination
+    // page consumes `pendingOpenEntity` on load and opens that exact record.
+    window.openEntityFromDashboard = function (type, id) {
+        try {
+            sessionStorage.setItem("pendingOpenEntity", JSON.stringify({ type: type, id: id }));
+        } catch (e) { /* sessionStorage unavailable — fall back to plain navigation */ }
+        location.hash = type === "po" ? "#purchase-orders" : "#sows";
+        return false;
+    };
+
     // -----------------------------------------------------------
     //  Renderers
     // -----------------------------------------------------------
@@ -107,7 +121,7 @@
             return;
         }
         el.innerHTML = items.map(function (p) {
-            return '<a href="#purchase-orders" class="block p-3 rounded-xl bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors no-underline">' +
+            return '<a href="#purchase-orders" onclick="return openEntityFromDashboard(\'po\',' + p.id + ')" class="block p-3 rounded-xl bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors no-underline">' +
                 '<div class="flex items-start justify-between gap-2 mb-1">' +
                 '<div class="min-w-0 flex-1">' +
                 '<p class="text-sm font-semibold text-on-surface truncate">' + escapeHtml(p.po_number) + '</p>' +
@@ -128,7 +142,7 @@
             return;
         }
         el.innerHTML = items.map(function (s) {
-            return '<a href="#sows" class="block p-3 rounded-xl bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors no-underline">' +
+            return '<a href="#sows" onclick="return openEntityFromDashboard(\'sow\',' + s.id + ')" class="block p-3 rounded-xl bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors no-underline">' +
                 '<div class="flex items-start justify-between gap-2 mb-1">' +
                 '<div class="min-w-0 flex-1">' +
                 '<p class="text-sm font-semibold text-on-surface truncate">' + escapeHtml(s.sow_number) + '</p>' +
@@ -151,7 +165,7 @@
         el.innerHTML = items.map(function (p) {
             var pct = Math.min(100, Math.max(0, Number(p.consumption_pct || 0)));
             var barColor = pct >= 95 ? 'bg-error' : pct >= 85 ? 'bg-warning' : 'bg-tertiary';
-            return '<a href="#purchase-orders" class="block p-3 rounded-xl bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors no-underline">' +
+            return '<a href="#purchase-orders" onclick="return openEntityFromDashboard(\'po\',' + p.id + ')" class="block p-3 rounded-xl bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors no-underline">' +
                 '<div class="flex items-start justify-between gap-2 mb-1">' +
                 '<div class="min-w-0 flex-1">' +
                 '<p class="text-sm font-semibold text-on-surface truncate">' + escapeHtml(p.po_number) + '</p>' +
@@ -213,6 +227,151 @@
                 errorBadge +
                 '</div></div>';
         }).join("");
+    }
+
+    function vcStepDots(row) {
+        var steps = [
+            { label: "Quote", done: row.hasQuote },
+            { label: "SOW", done: true },
+            { label: "PO", done: row.hasPo },
+            { label: "Rate Card", done: row.hasRateCard }
+        ];
+        return steps.map(function (st, i) {
+            var color = st.done ? "bg-success/15 text-success" : "bg-warning/15 text-warning";
+            var dot = '<span class="inline-flex items-center justify-center w-5 h-5 rounded-full ' + color + '" title="' + st.label + (st.done ? " linked" : " missing") + '">' +
+                '<span class="material-symbols-outlined" style="font-size:13px;line-height:1">' + (st.done ? "check" : "priority_high") + "</span></span>";
+            var conn = i < steps.length - 1
+                ? '<span class="inline-block w-2 h-px ' + (st.done && steps[i + 1].done ? "bg-success/40" : "bg-outline-variant/40") + '"></span>'
+                : "";
+            return dot + conn;
+        }).join("");
+    }
+
+    function vcMissingList(row) {
+        var missing = [];
+        if (!row.hasQuote) missing.push("Quote");
+        if (!row.hasPo) missing.push("PO");
+        if (!row.hasRateCard) missing.push("Rate Card");
+        return missing;
+    }
+
+    // A small labelled pill showing whether a link exists and, when it does, what it points to.
+    function vcChip(done, label, icon) {
+        var cls = done ? "bg-success/12 text-success" : "bg-warning/12 text-warning";
+        return '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium ' + cls + '">' +
+            '<span class="material-symbols-outlined" style="font-size:12px;line-height:1">' + icon + "</span>" +
+            escapeHtml(label) + "</span>";
+    }
+
+    function renderValueChain(vc) {
+        lastValueChain = vc || {};
+        var summaryEl = document.getElementById("valueChainSummary");
+        if (!summaryEl) return;
+
+        var tiles = [
+            { label: "Live SOWs", value: lastValueChain.total || 0, accent: "text-on-surface", icon: "description" },
+            { label: "Complete", value: lastValueChain.complete || 0, accent: "text-success", icon: "verified" },
+            { label: "No Quote", value: lastValueChain.missingQuote || 0, accent: (lastValueChain.missingQuote ? "text-warning" : "text-on-surface-variant"), icon: "request_quote" },
+            { label: "No PO", value: lastValueChain.missingPo || 0, accent: (lastValueChain.missingPo ? "text-warning" : "text-on-surface-variant"), icon: "local_shipping" },
+            { label: "No Rate Card", value: lastValueChain.missingRateCard || 0, accent: (lastValueChain.missingRateCard ? "text-warning" : "text-on-surface-variant"), icon: "badge" }
+        ];
+        summaryEl.innerHTML = tiles.map(function (t) {
+            return '<div class="rounded-xl bg-surface-container-high/40 border border-outline-variant/10 p-3">' +
+                '<div class="flex items-center gap-1.5 mb-1"><span class="material-symbols-outlined text-[14px] text-on-surface-variant">' + t.icon + "</span>" +
+                '<span class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant font-semibold">' + t.label + "</span></div>" +
+                '<div class="text-xl font-headline font-bold ' + t.accent + '">' + t.value + "</div>" +
+                "</div>";
+        }).join("");
+
+        renderValueChainList();
+    }
+
+    function renderValueChainList() {
+        var listEl = document.getElementById("valueChainList");
+        var metaEl = document.getElementById("valueChainListMeta");
+        if (!listEl) return;
+        if (!lastValueChain) return; // data not loaded yet — keep the placeholder
+        var vc = lastValueChain;
+
+        if (vcView === "all") {
+            var allRows = vc.all || [];
+            var allTotal = vc.allTotal || allRows.length;
+            if (metaEl) {
+                metaEl.textContent = allTotal + " live SOW" + (allTotal === 1 ? "" : "s") +
+                    (allTotal > allRows.length ? " (showing " + allRows.length + ")" : "");
+            }
+            if (allRows.length === 0) {
+                listEl.innerHTML = '<div class="flex items-center justify-center gap-2 text-on-surface-variant text-sm py-4">' +
+                    '<span class="material-symbols-outlined">info</span>No live (Signed/Active) SOWs yet</div>';
+                return;
+            }
+            listEl.innerHTML = allRows.map(function (row) {
+                var statusBadge = row.complete
+                    ? '<span class="badge-success whitespace-nowrap">Complete</span>'
+                    : '<span class="badge-warning whitespace-nowrap">Missing: ' + escapeHtml(vcMissingList(row).join(", ")) + "</span>";
+                var quoteLabel = row.hasQuote ? (row.quote_number || "Quote linked") : "No quote";
+                var poLabel;
+                if (!row.hasPo) {
+                    poLabel = "No PO";
+                } else if (row.po_numbers && row.po_numbers.length) {
+                    poLabel = row.po_numbers.join(", ");
+                    if (row.po_count > row.po_numbers.length) poLabel += " +" + (row.po_count - row.po_numbers.length);
+                } else {
+                    poLabel = row.po_count + " linked";
+                }
+                var rcLabel = row.hasRateCard ? (row.rate_card_count + " rate card" + (row.rate_card_count === 1 ? "" : "s")) : "No rate card";
+                return '<a href="#sows" onclick="return openEntityFromDashboard(\'sow\',' + row.sow_id + ')" class="block p-3 rounded-xl bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors no-underline">' +
+                    '<div class="flex items-center justify-between gap-2 mb-2">' +
+                    '<div class="min-w-0">' +
+                    '<p class="text-sm font-semibold text-on-surface truncate">' + escapeHtml(row.sow_number || "—") + "</p>" +
+                    '<p class="text-[11px] text-on-surface-variant truncate">' + escapeHtml(row.client_name || "") + " · " + escapeHtml(row.status || "") + "</p>" +
+                    "</div>" + statusBadge + "</div>" +
+                    '<div class="flex flex-wrap items-center gap-1.5">' +
+                    vcChip(row.hasQuote, quoteLabel, "request_quote") +
+                    '<span class="text-on-surface-variant text-[11px]">→</span>' +
+                    vcChip(row.hasPo, poLabel, "local_shipping") +
+                    '<span class="text-on-surface-variant text-[11px]">→</span>' +
+                    vcChip(row.hasRateCard, rcLabel, "badge") +
+                    "</div>" +
+                    "</a>";
+            }).join("");
+            return;
+        }
+
+        // Default: chains needing attention.
+        var rows = vc.incomplete || [];
+        if (metaEl) {
+            var totalIncomplete = vc.incompleteTotal || rows.length;
+            metaEl.textContent = totalIncomplete + " need attention" + (totalIncomplete > rows.length ? " (showing " + rows.length + ")" : "");
+        }
+        if (rows.length === 0) {
+            listEl.innerHTML = '<div class="flex items-center justify-center gap-2 text-on-surface-variant text-sm py-4">' +
+                '<span class="material-symbols-outlined text-success">check_circle</span>All live SOWs have a complete value chain</div>';
+            return;
+        }
+        listEl.innerHTML = rows.map(function (row) {
+            return '<a href="#sows" onclick="return openEntityFromDashboard(\'sow\',' + row.sow_id + ')" class="block p-3 rounded-xl bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors no-underline">' +
+                '<div class="flex items-center justify-between gap-2 mb-2">' +
+                '<div class="min-w-0">' +
+                '<p class="text-sm font-semibold text-on-surface truncate">' + escapeHtml(row.sow_number || "—") + "</p>" +
+                '<p class="text-[11px] text-on-surface-variant truncate">' + escapeHtml(row.client_name || "") + " · " + escapeHtml(row.status || "") + "</p>" +
+                "</div>" +
+                '<span class="badge-warning whitespace-nowrap">Missing: ' + escapeHtml(vcMissingList(row).join(", ")) + "</span>" +
+                "</div>" +
+                '<div class="inline-flex items-center">' + vcStepDots(row) + "</div>" +
+                "</a>";
+        }).join("");
+    }
+
+    function setVcTab(view) {
+        vcView = view === "all" ? "all" : "attention";
+        var attentionBtn = document.getElementById("vcTabAttention");
+        var allBtn = document.getElementById("vcTabAll");
+        var active = "px-3 py-1 text-[11px] font-semibold rounded-md transition-colors bg-surface text-on-surface shadow-sm";
+        var inactive = "px-3 py-1 text-[11px] font-semibold rounded-md transition-colors text-on-surface-variant hover:text-on-surface";
+        if (attentionBtn) attentionBtn.className = vcView === "attention" ? active : inactive;
+        if (allBtn) allBtn.className = vcView === "all" ? active : inactive;
+        renderValueChainList();
     }
 
     function renderRevenueChart(trend) {
@@ -284,6 +443,7 @@
             renderExpiringPos(d.expiringPos);
             renderExpiringSows(d.expiringSows);
             renderHighConsumption(d.highConsumptionPos);
+            renderValueChain(d.valueChain);
             renderTopClients(d.topClients);
             renderRecentRuns(d.recentRuns);
             await loadChartJs();
@@ -296,6 +456,13 @@
     }
 
     loadDashboard();
+
+    // Value Chain Health view toggle.
+    setVcTab(vcView);
+    var vcTabAttention = document.getElementById("vcTabAttention");
+    var vcTabAll = document.getElementById("vcTabAll");
+    if (vcTabAttention) vcTabAttention.addEventListener("click", function () { setVcTab("attention"); });
+    if (vcTabAll) vcTabAll.addEventListener("click", function () { setVcTab("all"); });
 
     var refreshBtn = document.getElementById("btnRefreshDashboard");
     if (refreshBtn) refreshBtn.addEventListener("click", loadDashboard);

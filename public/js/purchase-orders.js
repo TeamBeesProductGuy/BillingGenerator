@@ -659,9 +659,29 @@
     setTimeout(updatePOVisibleCount, 250);
   });
 
+  // Deep-link target: when the dashboard sends us here to open a specific PO, open it
+  // once the register (and its action map) has finished loading.
+  function consumePendingOpenEntity() {
+    var raw = sessionStorage.getItem('pendingOpenEntity');
+    if (!raw) return;
+    sessionStorage.removeItem('pendingOpenEntity');
+    try {
+      var ctx = JSON.parse(raw);
+      if (!ctx || ctx.type !== 'po' || !ctx.id) return;
+      if (poActionMap[ctx.id]) {
+        window.openPOActions(ctx.id);
+      } else if (typeof window.viewPO === 'function') {
+        window.viewPO(ctx.id);
+      }
+    } catch (e) { /* ignore malformed pending state */ }
+  }
+
   loadClients().then(function () {
-    loadPOs();
     loadAlerts();
+    return loadPOs();
+  }).then(function () {
     return consumePendingPoLinkContext();
+  }).then(function () {
+    consumePendingOpenEntity();
   });
 })();

@@ -336,6 +336,81 @@
     }).join('') + '</div>';
   }
 
+  // Statuses where the value chain can still be extended (link PO / add rate card).
+  var CHAIN_EDITABLE_STATUSES = ['Draft', 'Amendment Draft', 'Signed', 'Active'];
+  function isChainEditableStatus(status) {
+    return CHAIN_EDITABLE_STATUSES.indexOf(status) !== -1;
+  }
+
+  // Normalise a chain state (works from a SOW register row or from explicit flags).
+  function buildChainSteps(state) {
+    return [
+      { key: 'quote', label: 'Quote', icon: 'request_quote', done: Boolean(state.hasQuote) },
+      { key: 'sow', label: 'SOW', icon: 'description', done: true },
+      { key: 'po', label: 'PO', icon: 'local_shipping', done: Boolean(state.hasPo) },
+      { key: 'rate', label: 'Rate Card', icon: 'badge', done: Boolean(state.hasRateCard) },
+    ];
+  }
+
+  // Compact 4-step indicator shown in the SOW register "Value Chain" column.
+  function formatValueChain(s) {
+    var pos = Array.isArray(s.linked_purchase_orders)
+      ? s.linked_purchase_orders.filter(function (po) { return po && po.po_number; })
+      : [];
+    var steps = buildChainSteps({
+      hasQuote: Boolean(s.quote_id),
+      hasPo: pos.length > 0,
+      hasRateCard: Number(s.linked_rate_card_count || 0) > 0,
+    });
+    var missing = steps.filter(function (st) { return !st.done; }).map(function (st) { return st.label; });
+    var summary = steps.map(function (st) { return st.label + (st.done ? ' ✓' : ' ✗'); }).join(' · ');
+    var tip = summary + (missing.length ? '  —  Missing: ' + missing.join(', ') : '  —  Complete chain');
+    var dots = steps.map(function (st, i) {
+      var color = st.done ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning';
+      var dot = '<span class="inline-flex items-center justify-center w-5 h-5 rounded-full ' + color + '">' +
+        '<span class="material-symbols-outlined" style="font-size:13px;line-height:1">' + (st.done ? 'check' : 'priority_high') + '</span></span>';
+      var conn = i < steps.length - 1
+        ? '<span class="inline-block w-2 h-px ' + (st.done && steps[i + 1].done ? 'bg-success/40' : 'bg-outline-variant/40') + '"></span>'
+        : '';
+      return dot + conn;
+    }).join('');
+    return '<div class="inline-flex items-center" title="' + escapeHtml(tip) + '">' + dots + '</div>';
+  }
+
+  // Rich, labelled stepper + status line used inside the SOW actions sheet.
+  function renderChainPanel(state) {
+    var steps = buildChainSteps(state);
+    var details = {
+      quote: state.hasQuote ? 'Linked' : 'Not linked',
+      sow: state.sowStatus || 'Created',
+      po: state.hasPo ? (state.poLabel || 'Linked') : 'Not linked',
+      rate: state.hasRateCard ? ((state.rateCardCount || 0) + ' linked') : 'Not added',
+    };
+    var stepperHtml = steps.map(function (st, i) {
+      var circle = st.done ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning';
+      var textColor = st.done ? 'text-on-surface' : 'text-on-surface-variant';
+      var conn = i < steps.length - 1
+        ? '<div class="flex-1 h-0.5 mx-1 rounded-full ' + (st.done && steps[i + 1].done ? 'bg-success/40' : 'bg-outline-variant/30') + '"></div>'
+        : '';
+      var node = '<div class="flex flex-col items-center text-center" style="min-width:54px">' +
+        '<span class="inline-flex items-center justify-center w-9 h-9 rounded-full ' + circle + '">' +
+        '<span class="material-symbols-outlined text-[18px]">' + (st.done ? 'check' : st.icon) + '</span></span>' +
+        '<span class="text-[11px] font-semibold mt-1 ' + textColor + '">' + st.label + '</span>' +
+        '<span class="text-[10px] ' + (st.done ? 'text-on-surface-variant' : 'text-warning') + '">' + escapeHtml(details[st.key]) + '</span>' +
+        '</div>';
+      return node + conn;
+    }).join('');
+    var missing = steps.filter(function (st) { return !st.done; }).map(function (st) { return st.label; });
+    var banner = missing.length
+      ? '<div class="flex items-center gap-1.5 text-[11px] text-warning mt-2"><span class="material-symbols-outlined text-[14px]">link_off</span>Missing link: ' + escapeHtml(missing.join(', ')) + '</div>'
+      : '<div class="flex items-center gap-1.5 text-[11px] text-success mt-2"><span class="material-symbols-outlined text-[14px]">verified</span>Value chain complete</div>';
+    return '<div class="rounded-xl border border-outline-variant/15 bg-surface-container p-3 mb-2">' +
+      '<div class="text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant mb-2">Value Chain</div>' +
+      '<div class="flex items-start justify-between">' + stepperHtml + '</div>' +
+      banner +
+      '</div>';
+  }
+
   function isCleanPersonName(value) {
     return /^[A-Za-z ]+$/.test(String(value || '').trim());
   }
@@ -434,7 +509,7 @@
       var approvalMap = await loadMyPendingApprovalMap('sows');
       updateSowsSummary(res.data || []);
       if (res.data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-on-surface-variant py-8">No SOWs found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center text-on-surface-variant py-8">No SOWs found</td></tr>';
       } else {
         sowActionMap = {};
         tbody.innerHTML = res.data.map(function (s) {
@@ -444,15 +519,23 @@
           var VALID_TRANSITIONS = { Draft: ['Signed'], 'Amendment Draft': ['Signed'], Signed: ['Inactive'], Active: ['Inactive'], Inactive: ['Active'], Expired: [], Terminated: [] };
           var allowed = VALID_TRANSITIONS[s.status] || [];
           var approvalBadge = adminApprovalAwaitedBadge(approvalMap['sow:' + s.id]);
+          var rowPos = Array.isArray(s.linked_purchase_orders)
+            ? s.linked_purchase_orders.filter(function (po) { return po && po.po_number; })
+            : [];
           sowActionMap[s.id] = {
             id: s.id,
             clientId: s.client_id,
             status: s.status,
-            allowed: allowed.slice()
+            allowed: allowed.slice(),
+            sowNumber: s.sow_number,
+            quoteId: s.quote_id || null,
+            poCount: rowPos.length,
+            rateCardCount: Number(s.linked_rate_card_count || 0)
           };
 
           var actionsHtml = '<button class="btn-secondary btn-sm table-action-trigger inline-flex items-center justify-center" title="Open SOW actions" aria-label="Open SOW actions" onclick="openSOWActions(' + s.id + ')"><span class="material-symbols-outlined text-base">more_horiz</span></button>';
           var linkedPoCell = formatLinkedPos(s.linked_purchase_orders);
+          var valueChainCell = formatValueChain(s);
 
           return '<tr>' +
             '<td><div class="table-cell-box table-cell-stack"><span class="entity-pill entity-pill-strong">' + escapeHtml(s.sow_number) + '</span></div></td>' +
@@ -464,6 +547,7 @@
             '<td class="text-right"><div class="table-cell-box table-cell-amount"><span class="table-amount-pill">' + formatCurrency(s.total_value) + '</span></div></td>' +
             '<td><div class="table-cell-box">' + linkedPoCell + '</div></td>' +
             '<td><div class="table-cell-box flex-col gap-1">' + statusBadge(s.status) + approvalBadge + '</div></td>' +
+            '<td class="text-center"><div class="table-cell-box table-cell-center">' + valueChainCell + '</div></td>' +
             '<td class="text-center"><div class="table-cell-box table-cell-center">' + actionsHtml + '</div></td>' +
             '</tr>';
         }).join('');
@@ -505,17 +589,32 @@
     openModal('sowActionModal');
 
     var linkedPOs = [];
+    var linkedRateCards = [];
     try {
       var associations = await apiCall('GET', '/api/sows/' + actionState.id + '/associations');
       linkedPOs = ((associations.data && associations.data.purchaseOrders) || []).filter(function (po) {
         return po && po.po_number;
       });
+      linkedRateCards = (associations.data && associations.data.rateCards) || [];
     } catch { /* Keep actions available even if association lookup fails. */ }
 
+    var hasQuote = Boolean(actionState.quoteId);
+    var hasPo = linkedPOs.length > 0;
+    var hasRateCard = linkedRateCards.length > 0 || Number(actionState.rateCardCount || 0) > 0;
+    var rateCardCount = linkedRateCards.length || Number(actionState.rateCardCount || 0);
     var linkedPoLabel = linkedPOs.map(function (po) { return po.po_number; }).join(', ');
-    container.innerHTML = linkedPOs.length
-      ? '<div class="sow-linked-po-note"><span class="material-symbols-outlined">link</span><span><strong>Linked to ' + escapeHtml(linkedPoLabel) + '</strong><small>Existing purchase order connection</small></span></div>'
-      : '';
+    var chainEditable = isChainEditableStatus(actionState.status);
+
+    // Value-chain panel makes the Quote -> SOW -> PO -> Rate Card status visible at a glance.
+    container.innerHTML = renderChainPanel({
+      hasQuote: hasQuote,
+      hasPo: hasPo,
+      hasRateCard: hasRateCard,
+      poLabel: linkedPoLabel,
+      rateCardCount: rateCardCount,
+      sowStatus: actionState.status,
+    });
+
     container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runSOWActionView(' + actionState.id + ')"><span class="material-symbols-outlined">visibility</span><span><strong>View details</strong><small>Open SOW summary, line items, and notes</small></span></button>';
 
     if (actionState.status === 'Draft' || actionState.status === 'Amendment Draft' || actionState.status === 'Signed' || actionState.status === 'Active') {
@@ -527,10 +626,30 @@
       container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runSOWActionStatus(' + actionState.id + ', \'' + st + '\')"><span class="material-symbols-outlined">' + icon + '</span><span><strong>' + (STATUS_LABELS[st] || st) + '</strong><small>Change the lifecycle status for this SOW</small></span></button>';
     });
 
-    if (actionState.status === 'Signed' || actionState.status === 'Active') {
-      var linkPoLabel = linkedPOs.length ? 'Link new PO' : 'Link PO';
-      var linkPoHelp = linkedPOs.length ? 'Create another purchase order linked to this SOW' : 'Start a purchase order linked to this SOW';
+    // ---- Value-chain journey: surface the next missing link as the recommended step ----
+    if (chainEditable) {
+      container.innerHTML += '<div class="text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant px-1 pt-2 pb-1">Build value chain</div>';
+
+      // Quote link is only nudged for drafts, where editing updates the SOW in place.
+      if (!hasQuote && (actionState.status === 'Draft' || actionState.status === 'Amendment Draft')) {
+        container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runSOWActionLinkQuote(' + actionState.id + ')"><span class="material-symbols-outlined">request_quote</span><span><strong>Link a quote</strong><small>Connect the originating quote to this SOW</small></span></button>';
+      }
+
+      var linkPoLabel = hasPo ? 'Link another PO' : 'Link PO';
+      var linkPoHelp = hasPo
+        ? 'Create another purchase order linked to this SOW'
+        : 'Next step — start a purchase order linked to this SOW';
       container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runSOWActionLinkPO(' + actionState.id + ', ' + actionState.clientId + ')"><span class="material-symbols-outlined">receipt_long</span><span><strong>' + linkPoLabel + '</strong><small>' + linkPoHelp + '</small></span></button>';
+
+      if (!hasRateCard) {
+        var rcHelp = hasPo
+          ? 'Next step — add a billable resource on this SOW'
+          : 'Add a billable resource (link a PO first for consumption)';
+        container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runSOWActionAddRateCard(' + actionState.id + ', ' + actionState.clientId + ')"><span class="material-symbols-outlined">badge</span><span><strong>Add rate card</strong><small>' + rcHelp + '</small></span></button>';
+      }
+    }
+
+    if (actionState.status === 'Signed' || actionState.status === 'Active') {
       container.innerHTML += '<button type="button" class="action-sheet-btn" onclick="runSOWActionAmendment(' + actionState.id + ')"><span class="material-symbols-outlined">edit_document</span><span><strong>Make amendment</strong><small>Create an amendment draft from this SOW</small></span></button>';
     }
 
@@ -590,6 +709,17 @@
     linkSOWToPO(sowId, clientId);
   };
 
+  window.runSOWActionLinkQuote = function (id) {
+    closeSOWActions();
+    // The SOW edit modal exposes the quote dropdown; for drafts this updates in place.
+    editSOW(id);
+  };
+
+  window.runSOWActionAddRateCard = function (sowId, clientId) {
+    closeSOWActions();
+    linkSOWToRateCard(sowId, clientId);
+  };
+
   window.runSOWActionAmendment = function (id) {
     closeSOWActions();
     makeSOWAmendment(id);
@@ -607,6 +737,23 @@
     }));
     location.hash = '#purchase-orders';
   };
+
+  window.linkSOWToRateCard = function (sowId, clientId) {
+    sessionStorage.setItem('pendingRateCardContext', JSON.stringify({
+      sowId: sowId,
+      clientId: clientId
+    }));
+    location.hash = '#rate-cards';
+  };
+
+  async function maybeStartChainJourney(sowId, clientId) {
+    if (typeof confirmAction !== 'function') return;
+    var proceed = await confirmAction(
+      'Continue the value chain',
+      'SOW created and linked to a quote.\n\nNext link: connect a Purchase Order so this SOW can be consumed for billing.\n\nOpen PO creation now? (You can also do this later from the SOW actions menu.)'
+    );
+    if (proceed) linkSOWToPO(sowId, clientId);
+  }
 
   function addSowItemRow(item) {
     var tbody = document.getElementById('sowItemsBody');
@@ -793,6 +940,7 @@
     };
     try {
       setSowFormSubmitting(true);
+      var createdSow = null;
       if (window.sowAmend) {
         await apiCall('POST', '/api/sows/' + window.sowAmend + '/amend', data);
         showToast('Amendment draft created', 'success');
@@ -800,11 +948,16 @@
         await apiCall('PUT', '/api/sows/' + window.sowEdit, data);
         showToast('New SOW version created', 'success');
       } else {
-        await apiCall('POST', '/api/sows', data);
+        var createRes = await apiCall('POST', '/api/sows', data);
+        createdSow = (createRes && createRes.data) ? createRes.data : null;
         showToast('SOW created', 'success');
       }
       closeSOWModal();
       loadSOWs();
+      // Guided journey: once a SOW is linked to a quote, walk the user to the next link (PO).
+      if (createdSow && createdSow.id && data.quote_id) {
+        maybeStartChainJourney(createdSow.id, data.client_id);
+      }
     } catch (err) { showToast(err.message, 'danger'); }
     finally { setSowFormSubmitting(false); }
   });
@@ -922,8 +1075,27 @@
     setTimeout(applySowSearch, 120);
   });
 
+  // Deep-link target: when the dashboard sends us here to open a specific SOW, open it
+  // once the register (and its action map) has finished loading.
+  function consumePendingOpenEntity() {
+    var raw = sessionStorage.getItem('pendingOpenEntity');
+    if (!raw) return;
+    sessionStorage.removeItem('pendingOpenEntity');
+    try {
+      var ctx = JSON.parse(raw);
+      if (!ctx || ctx.type !== 'sow' || !ctx.id) return;
+      if (sowActionMap[ctx.id]) {
+        window.openSOWActions(ctx.id);
+      } else if (typeof window.viewSOW === 'function') {
+        window.viewSOW(ctx.id);
+      }
+    } catch (e) { /* ignore malformed pending state */ }
+  }
+
   loadClients().then(function () {
-    loadSOWs();
     loadLinkedDocumentLibrary();
+    return loadSOWs();
+  }).then(function () {
+    consumePendingOpenEntity();
   });
 })();

@@ -26,7 +26,7 @@ async function enrichSowRoles(rows) {
   const sowIds = uniqueStrings(items.map((row) => row.id)).filter(Boolean);
   if (sowIds.length === 0) return items;
 
-  const [rolesResult, posResult] = await Promise.all([
+  const [rolesResult, posResult, rateCardsResult] = await Promise.all([
     adminSupabase
       .from('sow_items')
       .select('sow_id, role_position')
@@ -37,9 +37,16 @@ async function enrichSowRoles(rows) {
       .in('sow_id', sowIds)
       .neq('status', 'Inactive')
       .order('created_at', { ascending: false }),
+    adminSupabase
+      .from('rate_cards')
+      .select('sow_id')
+      .in('sow_id', sowIds)
+      .eq('is_active', true),
   ]);
   if (rolesResult.error) throw new Error(rolesResult.error.message);
   if (posResult.error) throw new Error(posResult.error.message);
+  // Rate-card linkage is only used for value-chain hints; never block the SOW list on it.
+  const rateCardRows = rateCardsResult.error ? [] : (rateCardsResult.data || []);
 
   const roleMap = {};
   (rolesResult.data || []).forEach((item) => {
@@ -55,6 +62,12 @@ async function enrichSowRoles(rows) {
     poMap[key].push({ id: po.id, po_number: po.po_number, status: po.status });
   });
 
+  const rateCardCountMap = {};
+  rateCardRows.forEach((rc) => {
+    const key = String(rc.sow_id);
+    rateCardCountMap[key] = (rateCardCountMap[key] || 0) + 1;
+  });
+
   return items.map((row) => {
     const roles = uniqueStrings(roleMap[String(row.id)] || []);
     const linkedPos = poMap[String(row.id)] || [];
@@ -63,6 +76,7 @@ async function enrichSowRoles(rows) {
       roles,
       role_summary: roles.join(', '),
       linked_purchase_orders: linkedPos,
+      linked_rate_card_count: rateCardCountMap[String(row.id)] || 0,
     };
   });
 }
