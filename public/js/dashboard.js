@@ -229,24 +229,6 @@
         }).join("");
     }
 
-    function vcStepDots(row) {
-        var steps = [
-            { label: "Quote", done: row.hasQuote },
-            { label: "SOW", done: true },
-            { label: "PO", done: row.hasPo },
-            { label: "Rate Card", done: row.hasRateCard }
-        ];
-        return steps.map(function (st, i) {
-            var color = st.done ? "bg-success/15 text-success" : "bg-warning/15 text-warning";
-            var dot = '<span class="inline-flex items-center justify-center w-5 h-5 rounded-full ' + color + '" title="' + st.label + (st.done ? " linked" : " missing") + '">' +
-                '<span class="material-symbols-outlined" style="font-size:13px;line-height:1">' + (st.done ? "check" : "priority_high") + "</span></span>";
-            var conn = i < steps.length - 1
-                ? '<span class="inline-block w-2 h-px ' + (st.done && steps[i + 1].done ? "bg-success/40" : "bg-outline-variant/40") + '"></span>'
-                : "";
-            return dot + conn;
-        }).join("");
-    }
-
     function vcMissingList(row) {
         var missing = [];
         if (!row.hasQuote) missing.push("Quote");
@@ -255,33 +237,105 @@
         return missing;
     }
 
-    // A small labelled pill showing whether a link exists and, when it does, what it points to.
-    function vcChip(done, label, icon) {
-        var cls = done ? "bg-success/12 text-success" : "bg-warning/12 text-warning";
-        return '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium ' + cls + '">' +
-            '<span class="material-symbols-outlined" style="font-size:12px;line-height:1">' + icon + "</span>" +
+    // One labelled link in a chain track: green when present (shows what it points to),
+    // amber when missing.
+    function vcSegment(done, label, icon) {
+        var cls = done ? "bg-success/10 text-success" : "bg-warning/10 text-warning";
+        return '<span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold whitespace-nowrap ' + cls + '">' +
+            '<span class="material-symbols-outlined" style="font-size:12px;line-height:1">' + (done ? "check" : icon) + "</span>" +
             escapeHtml(label) + "</span>";
+    }
+
+    function vcConnector(flowing) {
+        return '<span class="material-symbols-outlined shrink-0 ' + (flowing ? "text-success/50" : "text-on-surface-variant/30") + '" style="font-size:14px;line-height:1">chevron_right</span>';
+    }
+
+    // A single value-chain row shared by both the "needs attention" and "all links" views.
+    function renderVcRow(row) {
+        var complete = row.complete || (row.hasQuote && row.hasPo && row.hasRateCard);
+        var missingCount = vcMissingList(row).length;
+
+        var quoteLabel = row.hasQuote ? (row.quote_number || "Quote") : "No quote";
+        var poLabel;
+        if (!row.hasPo) {
+            poLabel = "No PO";
+        } else if (row.po_numbers && row.po_numbers.length) {
+            poLabel = row.po_numbers.join(", ");
+            if (row.po_count > row.po_numbers.length) poLabel += " +" + (row.po_count - row.po_numbers.length);
+        } else {
+            poLabel = (row.po_count || 0) + " PO";
+        }
+        var rcLabel = row.hasRateCard ? (row.rate_card_count + " rate card" + (row.rate_card_count === 1 ? "" : "s")) : "No rate card";
+
+        var leadIcon = complete ? "bg-success/12 text-success" : "bg-warning/12 text-warning";
+        var badge = complete
+            ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-success/12 text-success whitespace-nowrap"><span class="material-symbols-outlined" style="font-size:13px;line-height:1">check</span>Complete</span>'
+            : '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-warning/12 text-warning whitespace-nowrap"><span class="material-symbols-outlined" style="font-size:13px;line-height:1">link_off</span>' + missingCount + " missing</span>";
+
+        return '<a href="#sows" onclick="return openEntityFromDashboard(\'sow\',' + row.sow_id + ')" class="block p-3 rounded-xl bg-surface-container-high/40 border border-outline-variant/10 hover:border-primary/25 hover:bg-surface-container-high transition-all no-underline">' +
+            '<div class="flex items-center justify-between gap-3 mb-2.5">' +
+                '<div class="flex items-center gap-2.5 min-w-0">' +
+                    '<span class="inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0 ' + leadIcon + '"><span class="material-symbols-outlined text-[18px]">' + (complete ? "verified" : "link_off") + "</span></span>" +
+                    '<div class="min-w-0">' +
+                        '<p class="text-sm font-semibold text-on-surface truncate">' + escapeHtml(row.sow_number || "—") + "</p>" +
+                        '<p class="text-[11px] text-on-surface-variant truncate">' + escapeHtml(row.client_name || "") + " · " + escapeHtml(row.status || "") + "</p>" +
+                    "</div>" +
+                "</div>" + badge +
+            "</div>" +
+            '<div class="flex items-center gap-1 overflow-x-auto styled-scrollbar pb-0.5">' +
+                vcSegment(row.hasQuote, quoteLabel, "request_quote") + vcConnector(row.hasQuote) +
+                vcSegment(true, "SOW", "description") + vcConnector(row.hasPo) +
+                vcSegment(row.hasPo, poLabel, "local_shipping") + vcConnector(row.hasPo && row.hasRateCard) +
+                vcSegment(row.hasRateCard, rcLabel, "badge") +
+            "</div>" +
+            "</a>";
     }
 
     function renderValueChain(vc) {
         lastValueChain = vc || {};
+        var completionEl = document.getElementById("valueChainCompletion");
         var summaryEl = document.getElementById("valueChainSummary");
-        if (!summaryEl) return;
+        var total = lastValueChain.total || 0;
+        var complete = lastValueChain.complete || 0;
+        var pct = total > 0 ? Math.round((complete / total) * 100) : 0;
 
-        var tiles = [
-            { label: "Live SOWs", value: lastValueChain.total || 0, accent: "text-on-surface", icon: "description" },
-            { label: "Complete", value: lastValueChain.complete || 0, accent: "text-success", icon: "verified" },
-            { label: "No Quote", value: lastValueChain.missingQuote || 0, accent: (lastValueChain.missingQuote ? "text-warning" : "text-on-surface-variant"), icon: "request_quote" },
-            { label: "No PO", value: lastValueChain.missingPo || 0, accent: (lastValueChain.missingPo ? "text-warning" : "text-on-surface-variant"), icon: "local_shipping" },
-            { label: "No Rate Card", value: lastValueChain.missingRateCard || 0, accent: (lastValueChain.missingRateCard ? "text-warning" : "text-on-surface-variant"), icon: "badge" }
-        ];
-        summaryEl.innerHTML = tiles.map(function (t) {
-            return '<div class="rounded-xl bg-surface-container-high/40 border border-outline-variant/10 p-3">' +
-                '<div class="flex items-center gap-1.5 mb-1"><span class="material-symbols-outlined text-[14px] text-on-surface-variant">' + t.icon + "</span>" +
-                '<span class="text-[10px] uppercase tracking-[0.15em] text-on-surface-variant font-semibold">' + t.label + "</span></div>" +
-                '<div class="text-xl font-headline font-bold ' + t.accent + '">' + t.value + "</div>" +
+        if (completionEl) {
+            var pctColorClass = pct >= 80 ? "text-success" : pct >= 50 ? "text-primary" : "text-warning";
+            completionEl.innerHTML =
+                '<div class="rounded-xl border border-outline-variant/10 bg-gradient-to-br from-primary/10 via-surface-container-high/30 to-accent/5 p-4">' +
+                    '<div class="flex items-end justify-between gap-3 mb-2.5">' +
+                        '<div>' +
+                            '<div class="text-[10px] uppercase tracking-[0.18em] text-on-surface-variant font-bold">Chain completion</div>' +
+                            '<div class="text-2xl font-headline font-bold text-on-surface mt-0.5">' + complete +
+                                '<span class="text-base font-medium text-on-surface-variant"> / ' + total + " live SOW" + (total === 1 ? "" : "s") + "</span></div>" +
+                        "</div>" +
+                        '<div class="text-3xl font-headline font-bold ' + pctColorClass + '">' + pct + "%</div>" +
+                    "</div>" +
+                    '<div class="h-2.5 rounded-full bg-surface-container-highest overflow-hidden">' +
+                        '<div class="h-full rounded-full bg-gradient-to-r from-primary to-accent transition-all" style="width:' + pct + '%"></div>' +
+                    "</div>" +
                 "</div>";
-        }).join("");
+        }
+
+        if (summaryEl) {
+            var pills = [
+                { label: "Complete", value: complete, tone: "success", icon: "verified" },
+                { label: "No Quote", value: lastValueChain.missingQuote || 0, tone: (lastValueChain.missingQuote ? "warning" : "muted"), icon: "request_quote" },
+                { label: "No PO", value: lastValueChain.missingPo || 0, tone: (lastValueChain.missingPo ? "warning" : "muted"), icon: "local_shipping" },
+                { label: "No Rate Card", value: lastValueChain.missingRateCard || 0, tone: (lastValueChain.missingRateCard ? "warning" : "muted"), icon: "badge" }
+            ];
+            summaryEl.innerHTML = pills.map(function (p) {
+                var chipCls = p.tone === "success" ? "bg-success/12 text-success" : p.tone === "warning" ? "bg-warning/12 text-warning" : "bg-surface-container-highest text-on-surface-variant";
+                var numCls = p.tone === "success" ? "text-success" : p.tone === "warning" ? "text-warning" : "text-on-surface";
+                return '<div class="rounded-xl bg-surface-container-high/40 border border-outline-variant/10 px-3 py-2.5 flex items-center gap-2.5">' +
+                    '<span class="inline-flex items-center justify-center w-9 h-9 rounded-lg shrink-0 ' + chipCls + '"><span class="material-symbols-outlined text-[18px]">' + p.icon + "</span></span>" +
+                    '<div class="min-w-0">' +
+                        '<div class="text-lg font-bold leading-none ' + numCls + '">' + p.value + "</div>" +
+                        '<div class="text-[10px] uppercase tracking-wider text-on-surface-variant font-semibold mt-1 truncate">' + p.label + "</div>" +
+                    "</div>" +
+                "</div>";
+            }).join("");
+        }
 
         renderValueChainList();
     }
@@ -305,36 +359,7 @@
                     '<span class="material-symbols-outlined">info</span>No live (Signed/Active) SOWs yet</div>';
                 return;
             }
-            listEl.innerHTML = allRows.map(function (row) {
-                var statusBadge = row.complete
-                    ? '<span class="badge-success whitespace-nowrap">Complete</span>'
-                    : '<span class="badge-warning whitespace-nowrap">Missing: ' + escapeHtml(vcMissingList(row).join(", ")) + "</span>";
-                var quoteLabel = row.hasQuote ? (row.quote_number || "Quote linked") : "No quote";
-                var poLabel;
-                if (!row.hasPo) {
-                    poLabel = "No PO";
-                } else if (row.po_numbers && row.po_numbers.length) {
-                    poLabel = row.po_numbers.join(", ");
-                    if (row.po_count > row.po_numbers.length) poLabel += " +" + (row.po_count - row.po_numbers.length);
-                } else {
-                    poLabel = row.po_count + " linked";
-                }
-                var rcLabel = row.hasRateCard ? (row.rate_card_count + " rate card" + (row.rate_card_count === 1 ? "" : "s")) : "No rate card";
-                return '<a href="#sows" onclick="return openEntityFromDashboard(\'sow\',' + row.sow_id + ')" class="block p-3 rounded-xl bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors no-underline">' +
-                    '<div class="flex items-center justify-between gap-2 mb-2">' +
-                    '<div class="min-w-0">' +
-                    '<p class="text-sm font-semibold text-on-surface truncate">' + escapeHtml(row.sow_number || "—") + "</p>" +
-                    '<p class="text-[11px] text-on-surface-variant truncate">' + escapeHtml(row.client_name || "") + " · " + escapeHtml(row.status || "") + "</p>" +
-                    "</div>" + statusBadge + "</div>" +
-                    '<div class="flex flex-wrap items-center gap-1.5">' +
-                    vcChip(row.hasQuote, quoteLabel, "request_quote") +
-                    '<span class="text-on-surface-variant text-[11px]">→</span>' +
-                    vcChip(row.hasPo, poLabel, "local_shipping") +
-                    '<span class="text-on-surface-variant text-[11px]">→</span>' +
-                    vcChip(row.hasRateCard, rcLabel, "badge") +
-                    "</div>" +
-                    "</a>";
-            }).join("");
+            listEl.innerHTML = allRows.map(renderVcRow).join("");
             return;
         }
 
@@ -345,30 +370,20 @@
             metaEl.textContent = totalIncomplete + " need attention" + (totalIncomplete > rows.length ? " (showing " + rows.length + ")" : "");
         }
         if (rows.length === 0) {
-            listEl.innerHTML = '<div class="flex items-center justify-center gap-2 text-on-surface-variant text-sm py-4">' +
-                '<span class="material-symbols-outlined text-success">check_circle</span>All live SOWs have a complete value chain</div>';
+            listEl.innerHTML = '<div class="flex flex-col items-center justify-center gap-1.5 text-on-surface-variant text-sm py-6">' +
+                '<span class="material-symbols-outlined text-success text-3xl">verified</span>' +
+                '<span>Every live SOW has a complete value chain</span></div>';
             return;
         }
-        listEl.innerHTML = rows.map(function (row) {
-            return '<a href="#sows" onclick="return openEntityFromDashboard(\'sow\',' + row.sow_id + ')" class="block p-3 rounded-xl bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors no-underline">' +
-                '<div class="flex items-center justify-between gap-2 mb-2">' +
-                '<div class="min-w-0">' +
-                '<p class="text-sm font-semibold text-on-surface truncate">' + escapeHtml(row.sow_number || "—") + "</p>" +
-                '<p class="text-[11px] text-on-surface-variant truncate">' + escapeHtml(row.client_name || "") + " · " + escapeHtml(row.status || "") + "</p>" +
-                "</div>" +
-                '<span class="badge-warning whitespace-nowrap">Missing: ' + escapeHtml(vcMissingList(row).join(", ")) + "</span>" +
-                "</div>" +
-                '<div class="inline-flex items-center">' + vcStepDots(row) + "</div>" +
-                "</a>";
-        }).join("");
+        listEl.innerHTML = rows.map(renderVcRow).join("");
     }
 
     function setVcTab(view) {
         vcView = view === "all" ? "all" : "attention";
         var attentionBtn = document.getElementById("vcTabAttention");
         var allBtn = document.getElementById("vcTabAll");
-        var active = "px-3 py-1 text-[11px] font-semibold rounded-md transition-colors bg-surface text-on-surface shadow-sm";
-        var inactive = "px-3 py-1 text-[11px] font-semibold rounded-md transition-colors text-on-surface-variant hover:text-on-surface";
+        var active = "px-3 py-1.5 text-[11px] font-bold rounded-md transition-all bg-surface text-on-surface shadow-sm";
+        var inactive = "px-3 py-1.5 text-[11px] font-semibold rounded-md transition-all text-on-surface-variant hover:text-on-surface";
         if (attentionBtn) attentionBtn.className = vcView === "attention" ? active : inactive;
         if (allBtn) allBtn.className = vcView === "all" ? active : inactive;
         renderValueChainList();

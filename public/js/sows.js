@@ -378,34 +378,39 @@
   }
 
   // Rich, labelled stepper + status line used inside the SOW actions sheet.
+  // Each node shows the actual linked identifier (quote / SOW number / PO / rate card).
   function renderChainPanel(state) {
     var steps = buildChainSteps(state);
     var details = {
       quote: state.hasQuote ? 'Linked' : 'Not linked',
-      sow: state.sowStatus || 'Created',
+      sow: state.sowNumber || 'This SOW',
       po: state.hasPo ? (state.poLabel || 'Linked') : 'Not linked',
-      rate: state.hasRateCard ? ((state.rateCardCount || 0) + ' linked') : 'Not added',
+      rate: state.hasRateCard ? ((state.rateCardCount || 0) + ' rate card' + ((state.rateCardCount || 0) === 1 ? '' : 's')) : 'Not added',
     };
+    var allDone = steps.every(function (st) { return st.done; });
     var stepperHtml = steps.map(function (st, i) {
-      var circle = st.done ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning';
+      var circle = st.done ? 'bg-success text-white' : 'bg-warning/15 text-warning border border-warning/40';
       var textColor = st.done ? 'text-on-surface' : 'text-on-surface-variant';
       var conn = i < steps.length - 1
-        ? '<div class="flex-1 h-0.5 mx-1 rounded-full ' + (st.done && steps[i + 1].done ? 'bg-success/40' : 'bg-outline-variant/30') + '"></div>'
+        ? '<div class="flex-1 h-0.5 rounded-full ' + (st.done && steps[i + 1].done ? 'bg-success/50' : 'bg-outline-variant/30') + '" style="margin-top:19px"></div>'
         : '';
-      var node = '<div class="flex flex-col items-center text-center" style="min-width:54px">' +
-        '<span class="inline-flex items-center justify-center w-9 h-9 rounded-full ' + circle + '">' +
-        '<span class="material-symbols-outlined text-[18px]">' + (st.done ? 'check' : st.icon) + '</span></span>' +
-        '<span class="text-[11px] font-semibold mt-1 ' + textColor + '">' + st.label + '</span>' +
-        '<span class="text-[10px] ' + (st.done ? 'text-on-surface-variant' : 'text-warning') + '">' + escapeHtml(details[st.key]) + '</span>' +
+      var node = '<div class="flex flex-col items-center text-center" style="width:76px">' +
+        '<span class="inline-flex items-center justify-center w-10 h-10 rounded-full shadow-sm ' + circle + '">' +
+        '<span class="material-symbols-outlined text-[20px]">' + (st.done ? 'check' : st.icon) + '</span></span>' +
+        '<span class="text-[11px] font-bold mt-1.5 ' + textColor + '">' + st.label + '</span>' +
+        '<span class="text-[10px] leading-tight mt-0.5 px-0.5 w-full truncate ' + (st.done ? 'text-on-surface-variant' : 'text-warning') + '" title="' + escapeHtml(details[st.key]) + '">' + escapeHtml(details[st.key]) + '</span>' +
         '</div>';
       return node + conn;
     }).join('');
     var missing = steps.filter(function (st) { return !st.done; }).map(function (st) { return st.label; });
-    var banner = missing.length
-      ? '<div class="flex items-center gap-1.5 text-[11px] text-warning mt-2"><span class="material-symbols-outlined text-[14px]">link_off</span>Missing link: ' + escapeHtml(missing.join(', ')) + '</div>'
-      : '<div class="flex items-center gap-1.5 text-[11px] text-success mt-2"><span class="material-symbols-outlined text-[14px]">verified</span>Value chain complete</div>';
-    return '<div class="rounded-xl border border-outline-variant/15 bg-surface-container p-3 mb-2">' +
-      '<div class="text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant mb-2">Value Chain</div>' +
+    var banner = allDone
+      ? '<div class="flex items-center justify-center gap-1.5 text-[11px] font-semibold text-success mt-3 pt-2.5 border-t border-outline-variant/10"><span class="material-symbols-outlined text-[15px]">verified</span>Value chain complete</div>'
+      : '<div class="flex items-center justify-center gap-1.5 text-[11px] font-semibold text-warning mt-3 pt-2.5 border-t border-outline-variant/10"><span class="material-symbols-outlined text-[15px]">link_off</span>Missing link: ' + escapeHtml(missing.join(', ')) + '</div>';
+    return '<div class="rounded-xl border border-outline-variant/15 bg-surface-container p-3.5 mb-3">' +
+      '<div class="flex items-center gap-1.5 mb-3">' +
+        '<span class="material-symbols-outlined text-[15px] text-primary">account_tree</span>' +
+        '<span class="text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant">Value Chain</span>' +
+      '</div>' +
       '<div class="flex items-start justify-between">' + stepperHtml + '</div>' +
       banner +
       '</div>';
@@ -612,6 +617,7 @@
       hasRateCard: hasRateCard,
       poLabel: linkedPoLabel,
       rateCardCount: rateCardCount,
+      sowNumber: actionState.sowNumber,
       sowStatus: actionState.status,
     });
 

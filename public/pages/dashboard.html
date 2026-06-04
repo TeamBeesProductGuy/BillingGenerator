@@ -171,17 +171,20 @@
             </div>
             <a href="#sows" class="text-[11px] text-primary font-semibold hover:underline no-underline whitespace-nowrap">Open SOWs</a>
         </div>
-        <div id="valueChainSummary" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 px-5 py-4">
-            <div class="text-on-surface-variant text-sm col-span-full text-center py-2">Loading...</div>
+        <div class="px-5 py-4 space-y-3">
+            <div id="valueChainCompletion"></div>
+            <div id="valueChainSummary" class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div class="text-on-surface-variant text-sm col-span-full text-center py-2">Loading...</div>
+            </div>
         </div>
-        <div class="px-5 flex items-center justify-between gap-2 flex-wrap">
+        <div class="px-5 pb-1 flex items-center justify-between gap-2 flex-wrap">
             <div class="inline-flex rounded-lg bg-surface-container-high/50 p-0.5">
-                <button type="button" id="vcTabAttention" class="px-3 py-1 text-[11px] font-semibold rounded-md transition-colors">Needs attention</button>
-                <button type="button" id="vcTabAll" class="px-3 py-1 text-[11px] font-semibold rounded-md transition-colors">All links</button>
+                <button type="button" id="vcTabAttention" class="px-3 py-1.5 text-[11px] font-semibold rounded-md transition-all">Needs attention</button>
+                <button type="button" id="vcTabAll" class="px-3 py-1.5 text-[11px] font-semibold rounded-md transition-all">All links</button>
             </div>
             <span id="valueChainListMeta" class="text-[11px] text-on-surface-variant"></span>
         </div>
-        <div id="valueChainList" class="px-5 py-3 space-y-2 max-h-[320px] overflow-y-auto styled-scrollbar">
+        <div id="valueChainList" class="px-5 py-3 space-y-2 max-h-[360px] overflow-y-auto styled-scrollbar">
             <div class="text-on-surface-variant text-sm text-center py-3">Loading...</div>
         </div>
     </section>
