@@ -25,6 +25,21 @@ function isRateCardBillableByLinkedStatus(rc) {
   return rc.sow_status !== 'Inactive' && rc.po_status !== 'Inactive';
 }
 
+function hasPositiveRateCardAmount(rc) {
+  return Number(rc && rc.monthly_rate) > 0;
+}
+
+function buildZeroAmountWarning(rc) {
+  return {
+    client_id: rc.client_id || null,
+    client_name: rc.client_name || null,
+    client_abbreviation: rc.client_abbreviation || rc.abbreviation || null,
+    emp_code: rc.emp_code,
+    emp_name: rc.emp_name || null,
+    error_message: 'WARNING: Rate card amount is 0. Employee skipped from service request.',
+  };
+}
+
 function normalizeEmpCode(value) {
   return String(value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
@@ -988,16 +1003,19 @@ const billingController = {
 
       const warningErrors = [];
       const fatalErrors = [...rateCardResult.errors, ...attendanceResult.errors, ...crossBranchErrors];
+      const positiveRateCards = rateCardResult.records.filter(hasPositiveRateCardAmount);
+      const zeroAmountWarnings = rateCardResult.records.filter((rc) => !hasPositiveRateCardAmount(rc)).map(buildZeroAmountWarning);
+      warningErrors.push(...zeroAmountWarnings);
 
       // Warn about rate cards without PO linkage
-      for (const rc of rateCardResult.records) {
+      for (const rc of positiveRateCards) {
         if (!rc.po_id) {
           warningErrors.push({ emp_code: rc.emp_code, emp_name: rc.emp_name || null, error_message: 'WARNING: PO not assigned' });
         }
       }
 
-      if (rateCardResult.records.length > 0 && attendanceResult.records.length > 0) {
-        const crossErrors = crossValidate(rateCardResult.records, attendanceResult.records);
+      if (positiveRateCards.length > 0 && attendanceResult.records.length > 0) {
+        const crossErrors = crossValidate(positiveRateCards, attendanceResult.records);
         fatalErrors.push(...crossErrors);
       }
 
@@ -1028,7 +1046,7 @@ const billingController = {
         return res.json({ success: true, data: responseData });
       }
 
-      const result = calculateBilling(rateCardResult.records, attendanceResult.records, billingMonth);
+      const result = calculateBilling(positiveRateCards, attendanceResult.records, billingMonth);
       const calcWarnings = result.errors.filter(isWarningError);
       const calcFatalErrors = result.errors.filter((item) => !isWarningError(item));
       warningErrors.push(...calcWarnings);
@@ -1105,7 +1123,9 @@ const billingController = {
 
     await resolvePoFromSow(rateCards);
 
-    const billableRateCards = rateCards.filter((rc) => isRateCardBillableByLinkedStatus(rc) && !(rc.no_invoice || rc.billing_active === false));
+    const activeBillableRateCards = rateCards.filter((rc) => isRateCardBillableByLinkedStatus(rc) && !(rc.no_invoice || rc.billing_active === false));
+    const zeroAmountWarnings = activeBillableRateCards.filter((rc) => !hasPositiveRateCardAmount(rc)).map(buildZeroAmountWarning);
+    const billableRateCards = activeBillableRateCards.filter(hasPositiveRateCardAmount);
     const allowedEmpCodes = new Set(billableRateCards.map((rc) => normalizeEmpCode(rc.emp_code)).filter(Boolean));
     const allowedEmpNames = buildUniqueNameSet(billableRateCards);
     const attendanceSummary = await AttendanceModel.getDetailedByMonth(billingMonth);
@@ -1127,6 +1147,7 @@ const billingController = {
     const warningErrors = [];
     const fatalErrors = [];
     const missingAttendanceErrors = [];
+    warningErrors.push(...zeroAmountWarnings);
     const attendanceEmpCodes = new Set(attendanceRecords.map((a) => normalizeEmpCode(a.emp_code)).filter(Boolean));
     const attendanceEmpNames = buildUniqueNameSet(attendanceRecords);
     const hasAttendance = (rc) => attendanceEmpCodes.has(normalizeEmpCode(rc.emp_code)) || attendanceEmpNames.has(normalizeEmpName(rc.emp_name));
