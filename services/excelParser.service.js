@@ -66,6 +66,18 @@ function normalizeEmployeeName(value) {
     .replace(/[^a-z0-9 ]/g, '');
 }
 
+function normalizeEmployeeCode(value) {
+  return String(value || '').trim().toUpperCase();
+}
+
+function toDateKey(value) {
+  if (!value) return '';
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().split('T')[0];
+  }
+  return String(value).trim().slice(0, 10);
+}
+
 function mapAttendanceCode(rawValue) {
   const code = String(rawValue || '').trim().toUpperCase();
   const compactCode = code.replace(/[\s_/-]+/g, '');
@@ -120,6 +132,44 @@ function buildAttendanceNameLookup(rateCards) {
   });
   duplicateNames.forEach((key) => lookup.delete(key));
   return lookup;
+}
+
+function buildAttendanceRateCardLookup(rateCards) {
+  const byCode = new Map();
+  const byName = new Map();
+  const duplicateNames = new Set();
+
+  (rateCards || []).forEach((record) => {
+    const normalizedRecord = {
+      emp_code: String(record.emp_code || '').trim(),
+      emp_name: String(record.emp_name || '').trim(),
+      reporting_manager: String(record.reporting_manager || '').trim(),
+      charging_date: toDateKey(record.charging_date || record.doj),
+    };
+
+    const codeKey = normalizeEmployeeCode(record.emp_code);
+    if (codeKey && !byCode.has(codeKey)) byCode.set(codeKey, normalizedRecord);
+
+    const nameKey = normalizeEmployeeName(record.emp_name);
+    if (!nameKey) return;
+    if (byName.has(nameKey) && normalizeEmployeeCode(byName.get(nameKey).emp_code) !== codeKey) {
+      duplicateNames.add(nameKey);
+    } else if (!byName.has(nameKey)) {
+      byName.set(nameKey, normalizedRecord);
+    }
+  });
+
+  duplicateNames.forEach((key) => byName.delete(key));
+  return { byCode, byName };
+}
+
+function getAttendanceStartDay(rateCard, billingMonth) {
+  const dateKey = toDateKey(rateCard && rateCard.charging_date);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return 1;
+  const monthKey = dateKey.slice(0, 4) + dateKey.slice(5, 7);
+  if (monthKey !== billingMonth) return 1;
+  const day = parseInt(dateKey.slice(8, 10), 10);
+  return Number.isInteger(day) && day > 1 ? day : 1;
 }
 
 async function parseRateCard(filePath) {
@@ -260,6 +310,7 @@ async function parseAttendance(filePath, billingMonth, options = {}) {
   const dayColumns = {};
   const errors = [];
   const nameLookup = buildAttendanceNameLookup(options.rateCards);
+  const rateCardLookup = buildAttendanceRateCardLookup(options.rateCards);
 
   headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
     const raw = cell.value;
@@ -317,6 +368,10 @@ async function parseAttendance(filePath, billingMonth, options = {}) {
       resolvedManager = resolvedManager || match.reporting_manager;
     }
 
+    const rateCardMatch = rateCardLookup.byCode.get(normalizeEmployeeCode(empCodeStr))
+      || rateCardLookup.byName.get(normalizeEmployeeName(resolvedName || empNameStr));
+    const attendanceStartDay = getAttendanceStartDay(rateCardMatch, billingMonth);
+
     if (empCodes.has(empCodeStr)) {
       errors.push({ emp_code: empCodeStr, emp_name: resolvedName || null, error_message: `Duplicate attendance row at row ${rowNum}` });
       continue;
@@ -330,6 +385,13 @@ async function parseAttendance(filePath, billingMonth, options = {}) {
     let daysPresent = 0;
 
     for (let day = 1; day <= daysInMonth; day++) {
+      if (day < attendanceStartDay) {
+        days[day] = 'WO';
+        dayLeaveUnits[day] = 0;
+        attendanceCodes[day] = 'WO';
+        continue;
+      }
+
       const col = dayColumns[day];
       if (!col) {
         days[day] = 'P';
