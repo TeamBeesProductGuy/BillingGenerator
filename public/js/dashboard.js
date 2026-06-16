@@ -229,18 +229,27 @@
         }).join("");
     }
 
+    // Quote is a nice-to-have paper trail; the contract starts at SOW. So missing
+    // a quote alone shouldn't flag a chain as broken — only PO and rate card count.
+    function vcEffectivelyComplete(row) {
+        return Boolean(row.hasPo && row.hasRateCard);
+    }
+
     function vcMissingList(row) {
         var missing = [];
-        if (!row.hasQuote) missing.push("Quote");
         if (!row.hasPo) missing.push("PO");
         if (!row.hasRateCard) missing.push("Rate Card");
         return missing;
     }
 
     // One labelled link in a chain track: green when present (shows what it points to),
-    // amber when missing.
-    function vcSegment(done, label, icon) {
-        var cls = done ? "bg-success/10 text-success" : "bg-warning/10 text-warning";
+    // amber when missing. The optional `tone` lets us downgrade non-blocking gaps
+    // (like a missing quote) to a muted neutral instead of a loud warning.
+    function vcSegment(done, label, icon, tone) {
+        var missingCls = tone === "muted"
+            ? "bg-surface-container-highest text-on-surface-variant"
+            : "bg-warning/10 text-warning";
+        var cls = done ? "bg-success/10 text-success" : missingCls;
         return '<span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold whitespace-nowrap ' + cls + '">' +
             '<span class="material-symbols-outlined" style="font-size:12px;line-height:1">' + (done ? "check" : icon) + "</span>" +
             escapeHtml(label) + "</span>";
@@ -252,7 +261,7 @@
 
     // A single value-chain row shared by both the "needs attention" and "all links" views.
     function renderVcRow(row) {
-        var complete = row.complete || (row.hasQuote && row.hasPo && row.hasRateCard);
+        var complete = vcEffectivelyComplete(row);
         var missingCount = vcMissingList(row).length;
 
         var quoteLabel = row.hasQuote ? (row.quote_number || "Quote") : "No quote";
@@ -283,7 +292,7 @@
                 "</div>" + badge +
             "</div>" +
             '<div class="flex items-center gap-1 overflow-x-auto styled-scrollbar pb-0.5">' +
-                vcSegment(row.hasQuote, quoteLabel, "request_quote") + vcConnector(row.hasQuote) +
+                vcSegment(row.hasQuote, quoteLabel, "request_quote", "muted") + vcConnector(row.hasQuote) +
                 vcSegment(true, "SOW", "description") + vcConnector(row.hasPo) +
                 vcSegment(row.hasPo, poLabel, "local_shipping") + vcConnector(row.hasPo && row.hasRateCard) +
                 vcSegment(row.hasRateCard, rcLabel, "badge") +
@@ -296,7 +305,12 @@
         var completionEl = document.getElementById("valueChainCompletion");
         var summaryEl = document.getElementById("valueChainSummary");
         var total = lastValueChain.total || 0;
-        var complete = lastValueChain.complete || 0;
+        // Recompute against the relaxed definition (PO + Rate Card required;
+        // missing quote no longer counts against completeness).
+        var allRows = lastValueChain.all || [];
+        var complete = allRows.length
+            ? allRows.filter(vcEffectivelyComplete).length
+            : (lastValueChain.complete || 0);
         var pct = total > 0 ? Math.round((complete / total) * 100) : 0;
 
         if (completionEl) {
@@ -320,7 +334,8 @@
         if (summaryEl) {
             var pills = [
                 { label: "Complete", value: complete, tone: "success", icon: "verified" },
-                { label: "No Quote", value: lastValueChain.missingQuote || 0, tone: (lastValueChain.missingQuote ? "warning" : "muted"), icon: "request_quote" },
+                // Missing-quote is informational only — never tinted as a warning.
+                { label: "No Quote", value: lastValueChain.missingQuote || 0, tone: "muted", icon: "request_quote" },
                 { label: "No PO", value: lastValueChain.missingPo || 0, tone: (lastValueChain.missingPo ? "warning" : "muted"), icon: "local_shipping" },
                 { label: "No Rate Card", value: lastValueChain.missingRateCard || 0, tone: (lastValueChain.missingRateCard ? "warning" : "muted"), icon: "badge" }
             ];
@@ -363,11 +378,13 @@
             return;
         }
 
-        // Default: chains needing attention.
-        var rows = vc.incomplete || [];
+        // Default: chains needing attention. Skip rows whose only gap is a missing
+        // quote — those are intentionally treated as a soft signal, not a blocker.
+        var rows = (vc.incomplete || []).filter(function (row) {
+            return !vcEffectivelyComplete(row);
+        });
         if (metaEl) {
-            var totalIncomplete = vc.incompleteTotal || rows.length;
-            metaEl.textContent = totalIncomplete + " need attention" + (totalIncomplete > rows.length ? " (showing " + rows.length + ")" : "");
+            metaEl.textContent = rows.length + " need attention";
         }
         if (rows.length === 0) {
             listEl.innerHTML = '<div class="flex flex-col items-center justify-center gap-1.5 text-on-surface-variant text-sm py-6">' +

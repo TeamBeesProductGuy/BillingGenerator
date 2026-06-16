@@ -343,10 +343,19 @@ async function resolvePoFromSow(records) {
   }
 }
 
-async function buildPoCandidates(billingItems) {
+async function buildPoCandidates(billingItems, billingMonth) {
   const candidatesByEmp = {};
   const itemsNeedingPo = billingItems.filter((item) => !item.po_id);
   if (itemsNeedingPo.length === 0) return candidatesByEmp;
+
+  // A PO whose end_date has already passed shouldn't appear as a candidate.
+  // For a specific billing month, compare against the first day of that month;
+  // otherwise fall back to today. POs with no end_date set are always allowed.
+  const monthMatch = /^(\d{4})(\d{2})$/.exec(String(billingMonth || ''));
+  const activeAsOf = monthMatch
+    ? `${monthMatch[1]}-${monthMatch[2]}-01`
+    : new Date().toISOString().slice(0, 10);
+  const validityFilter = `end_date.is.null,end_date.gte.${activeAsOf}`;
 
   const clientIds = [...new Set(itemsNeedingPo.map((item) => item.client_id).filter(Boolean))];
   const sowIds = [...new Set(itemsNeedingPo.map((item) => item.sow_id).filter(Boolean))];
@@ -355,9 +364,10 @@ async function buildPoCandidates(billingItems) {
   if (sowIds.length > 0) {
     const { data: sowPos, error } = await supabase
       .from('purchase_orders')
-      .select('id, po_number, client_id, sow_id, status, po_value, consumed_value')
+      .select('id, po_number, client_id, sow_id, status, po_value, consumed_value, end_date')
       .in('sow_id', sowIds)
-      .eq('status', 'Active');
+      .eq('status', 'Active')
+      .or(validityFilter);
     if (!error && sowPos) {
       for (const po of sowPos) posById.set(po.id, po);
     }
@@ -366,9 +376,10 @@ async function buildPoCandidates(billingItems) {
   if (clientIds.length > 0) {
     const { data: clientPos, error } = await supabase
       .from('purchase_orders')
-      .select('id, po_number, client_id, sow_id, status, po_value, consumed_value')
+      .select('id, po_number, client_id, sow_id, status, po_value, consumed_value, end_date')
       .in('client_id', clientIds)
-      .eq('status', 'Active');
+      .eq('status', 'Active')
+      .or(validityFilter);
     if (!error && clientPos) {
       for (const po of clientPos) posById.set(po.id, po);
     }
@@ -946,7 +957,7 @@ async function createStoredRun({
     filename,
     requestStatus: 'Pending',
     poConsumption: [],
-    poCandidatesByEmp: await buildPoCandidates(billingItems),
+    poCandidatesByEmp: await buildPoCandidates(billingItems, billingMonth),
     blockedByErrors,
     message: blockedByErrors ? 'Errors found. Service request was not generated. Please check the error report before proceeding.' : null,
   };
@@ -1301,7 +1312,7 @@ const billingController = {
       data: {
         ...run,
         clientLabel: await deriveRunClientLabel(run),
-        poCandidatesByEmp: await buildPoCandidates(run.items || []),
+        poCandidatesByEmp: await buildPoCandidates(run.items || [], run.billing_month),
       },
     });
   }),
@@ -1462,7 +1473,7 @@ const billingController = {
         requestStatus,
         run: finalRun ? {
           ...finalRun,
-          poCandidatesByEmp: await buildPoCandidates(finalRun.items || []),
+          poCandidatesByEmp: await buildPoCandidates(finalRun.items || [], finalRun.billing_month),
         } : null,
       },
     });
