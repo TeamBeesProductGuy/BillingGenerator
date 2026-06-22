@@ -170,7 +170,21 @@ function calculateBilling(rateCards, attendanceRecords, billingMonth) {
   const billingItems = [];
   const errors = [];
 
-  for (const rc of rateCards) {
+  // Process each employee's SOWs chronologically and cap their TOTAL billable days
+  // at the divisor (one standard billing month). This keeps a back-to-back SOW
+  // renewal (e.g. 1-16 + 17-31) and the calendar's "extra" 31st day from ever
+  // billing more than a single month per employee.
+  const empDayBudget = new Map();
+  const orderedRateCards = [...rateCards].sort((a, b) => {
+    const ka = normalizeEmpCode(a.emp_code) || normalizeEmpName(a.emp_name);
+    const kb = normalizeEmpCode(b.emp_code) || normalizeEmpName(b.emp_name);
+    if (ka !== kb) return ka < kb ? -1 : 1;
+    const sa = String(a.sow_item_valid_from || a.charging_date || '');
+    const sb = String(b.sow_item_valid_from || b.charging_date || '');
+    return sa.localeCompare(sb);
+  });
+
+  for (const rc of orderedRateCards) {
     if (rc.sow_status === 'Inactive' || rc.po_status === 'Inactive') {
       continue;
     }
@@ -231,9 +245,19 @@ function calculateBilling(rateCards, attendanceRecords, billingMonth) {
     }
     const leavesTaken = sumLeaveUnitsForDays(attendance, activeWindow.activeDays, attendance.leaves_taken);
     const presentDays = getAttendancePresentDays(attendance, activeWindow.activeDays, effectiveDays, leavesTaken);
-    let chargeableDays = effectiveDays - leavesTaken + rc.leaves_allowed;
-    chargeableDays = Math.min(chargeableDays, 30, effectiveDays); // Never bill outside the active billing window.
-    chargeableDays = Math.max(chargeableDays, 0);   // Prevent negative
+
+    // Draw this SOW's days from the employee's shared monthly budget, so the
+    // billable days for the whole month never exceed one standard month (divisor).
+    const empKey = normalizeEmpCode(rc.emp_code) || normalizeEmpName(rc.emp_name);
+    const remainingBudget = empDayBudget.has(empKey) ? empDayBudget.get(empKey) : divisor;
+    const billableDays = Math.max(Math.min(effectiveDays, remainingBudget), 0);
+    empDayBudget.set(empKey, remainingBudget - billableDays);
+    if (billableDays < effectiveDays && remainingBudget < divisor) {
+      activeWindow.notes.push(`Capped to ${divisor}-day month (days shared across this employee's SOWs)`);
+    }
+
+    // Bill the budgeted days minus only the UNPAID (excess) leaves.
+    let chargeableDays = Math.max(billableDays - getExtraLeaveDays(leavesTaken, rc.leaves_allowed), 0);
     let billingHours = null;
     let invoiceAmount = roundMoney((chargeableDays / divisor) * rc.monthly_rate);
     let billing_method = 'days';
@@ -275,15 +299,29 @@ function calculateBilling(rateCards, attendanceRecords, billingMonth) {
     });
   }
 
+  // Drop the "SOW role inactive" warning for any employee who is still billed via
+  // another SOW the same month (e.g. a mid-month SOW renewal): the prior period
+  // being inactive is expected, not something to flag.
+  const billedEmpKeys = new Set(
+    billingItems.map((item) => normalizeEmpCode(item.emp_code) || normalizeEmpName(item.emp_name)),
+  );
+  const reportedErrors = errors.filter((err) => {
+    if (typeof err.error_message === 'string' && err.error_message.includes('SOW role inactive')) {
+      const key = normalizeEmpCode(err.emp_code) || normalizeEmpName(err.emp_name);
+      if (billedEmpKeys.has(key)) return false;
+    }
+    return true;
+  });
+
   const totalAmount = Math.round(billingItems.reduce((sum, item) => sum + item.invoice_amount, 0) * 100) / 100;
 
   return {
     billingItems,
-    errors,
+    errors: reportedErrors,
     summary: {
       totalEmployees: billingItems.length,
       totalAmount,
-      errorCount: errors.length,
+      errorCount: reportedErrors.length,
       daysInMonth,
       billingMonth,
       divisor,
