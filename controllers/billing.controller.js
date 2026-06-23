@@ -468,6 +468,27 @@ async function hydrateRunItemsForDecision(run) {
   await resolvePoFromSow(run.items);
   normalizeStoredServiceDurations(run);
   await hydrateChainInfo(run.items);
+  await hydratePoWindows(run.items);
+}
+
+// Attach each PO's validity window (start_date/end_date) to its items so the
+// Service Request sheet can show the real From/To billing period for the month.
+async function hydratePoWindows(items) {
+  const poIds = [...new Set((items || []).map((item) => item.po_id).filter(Boolean))];
+  if (poIds.length === 0) return;
+  const { data, error } = await supabase
+    .from('purchase_orders')
+    .select('id, start_date, end_date')
+    .in('id', poIds);
+  if (error || !data) return;
+  const byId = new Map(data.map((po) => [po.id, po]));
+  for (const item of items) {
+    const po = item.po_id ? byId.get(item.po_id) : null;
+    if (po) {
+      item.po_start_date = po.start_date || null;
+      item.po_end_date = po.end_date || null;
+    }
+  }
 }
 
 async function hydrateChainInfo(items) {

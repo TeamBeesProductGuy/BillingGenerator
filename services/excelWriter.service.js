@@ -83,11 +83,43 @@ function monthEndDate(date) {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0);
 }
 
-function asDateValue(value) {
+// Normalize any date (Date or YYYY-MM-DD string) to UTC midnight of its calendar
+// day. ExcelJS serializes dates via UTC, so a local-midnight Date would land on
+// the previous day in +UTC timezones (e.g. IST); this keeps day-level cells exact.
+function toCalendarDate(value) {
   if (!value) return null;
-  if (value instanceof Date) return value;
+  if (value instanceof Date) {
+    return new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()));
+  }
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Date(Date.UTC(parsed.getFullYear(), parsed.getMonth(), parsed.getDate()));
+}
+
+// From date for a service month = the latest of the month start, the PO start,
+// and the resource's charging date that still falls inside the month.
+function serviceFromDate(item, monthStart, monthEnd) {
+  const start = toCalendarDate(monthStart);
+  const end = toCalendarDate(monthEnd);
+  let from = start;
+  const poStart = toCalendarDate(item.po_start_date);
+  if (poStart && poStart > from && poStart <= end) from = poStart;
+  const charge = toCalendarDate(item.charging_date);
+  if (charge && charge > from && charge <= end) from = charge;
+  return from;
+}
+
+// To date for a service month = the month end, pulled back to the PO end date
+// when the PO finishes part-way through the month.
+function serviceToDate(item, monthStart, monthEnd) {
+  const start = toCalendarDate(monthStart);
+  const end = toCalendarDate(monthEnd);
+  let to = end;
+  const poEnd = toCalendarDate(item.po_end_date);
+  if (poEnd && poEnd < to && poEnd >= start) to = poEnd;
+  return to;
 }
 
 function inferLocation(item) {
@@ -170,42 +202,53 @@ function populateBillingWorkbook(workbook, billingItems, errors, options = {}) {
   if (includeOperationalSheets) {
   // Sheet 1: Service Request
   const billingSheet = workbook.addWorksheet('Service Request');
-  billingSheet.columns = [
-    { key: 'po_number', width: 18 },
-    { key: 'po_date', width: 14 },
-    { key: 'reporting_manager', width: 22 },
-    { key: 'emp_name', width: 24 },
-    { key: 'service_description', width: 45 },
-    { key: 'monthly_rate', width: 20 },
-    { key: 'for_month', width: 14 },
-    { key: 'from_date', width: 14 },
-    { key: 'to_date', width: 14 },
-    { key: 'effective_days', width: 16 },
-    { key: 'leaves_taken', width: 14 },
-    { key: 'leave_deduct', width: 14 },
-    { key: 'chargeable_days', width: 17 },
-    { key: 'actual_work_hours', width: 18 },
-    { key: 'billing_hours', width: 17 },
-    { key: 'invoice_amount', width: 18 },
-    { key: 'sow_number', width: 15 },
-    { key: 'client_name', width: 24 },
-    { key: 'location', width: 14 },
-  ];
-  billingSheet.getCell('D1').value = 'Hours / Day';
-  billingSheet.getCell('F1').value = 8.5;
-  billingSheet.getCell('D2').value = 'Billable Hours / Month (max)';
-  billingSheet.getCell('F2').value = 170;
+
+  // A run is single-client. SGTC clients bill by hours, everyone else by days, so
+  // the whole sheet shows one set: hours columns for SGTC, work-day columns otherwise.
+  const isSgtcSheet = normalizedItems.length > 0
+    && normalizedItems.every((item) => item.billing_method === 'sgtc_hours');
+
+  const columnDefs = [
+    { key: 'sow_number', header: 'SOW No.', width: 15 },
+    { key: 'po_number', header: 'PO', width: 18 },
+    { key: 'po_date', header: 'PO Date', width: 14, numFmt: 'dd-mmm-yyyy' },
+    { key: 'reporting_manager', header: 'Manager', width: 22 },
+    { key: 'emp_name', header: 'Resource Name', width: 24 },
+    { key: 'service_description', header: 'Service Desc', width: 45 },
+    { key: 'monthly_rate', header: 'Monthly Rate (170 hrs)', width: 20, numFmt: '#,##0.00' },
+    { key: 'for_month', header: 'Service Month', width: 14, numFmt: 'mmm-yyyy' },
+    { key: 'from_date', header: 'From Date', width: 14, numFmt: 'dd-mmm-yyyy' },
+    { key: 'to_date', header: 'To Date', width: 14, numFmt: 'dd-mmm-yyyy' },
+    { key: 'effective_days', header: 'Total Work Days', width: 16, mode: 'days' },
+    { key: 'leaves_taken', header: 'Leaves Taken', width: 14 },
+    { key: 'leave_deduct', header: 'Leave Deduct', width: 14 },
+    { key: 'chargeable_days', header: 'Actual Work Days', width: 17, mode: 'days' },
+    { key: 'actual_work_hours', header: 'Actual Work Hours', width: 18, numFmt: '#,##0.00', mode: 'hours' },
+    { key: 'billing_hours', header: 'Bill-able hours', width: 17, numFmt: '#,##0.00', mode: 'hours' },
+    { key: 'invoice_amount', header: 'Bill-able Amt', width: 18, numFmt: '#,##0.00' },
+    { key: 'client_name', header: 'Client', width: 24 },
+    { key: 'location', header: 'Location', width: 14 },
+  ].filter((col) => {
+    if (col.mode === 'days') return !isSgtcSheet; // Total/Actual Work Days: non-SGTC sheets only
+    if (col.mode === 'hours') return isSgtcSheet; // Actual/Bill-able hours: SGTC sheets only
+    return true;
+  });
+
+  billingSheet.columns = columnDefs.map((col) => ({ key: col.key, width: col.width }));
+
+  // The hours/day and monthly-hours constants only apply to SGTC (hours) sheets.
+  if (isSgtcSheet) {
+    billingSheet.getCell('A1').value = 'Hours / Day';
+    billingSheet.getCell('B1').value = 8.5;
+    billingSheet.getCell('A2').value = 'Billable Hours / Month (max)';
+    billingSheet.getCell('B2').value = 170;
+    billingSheet.getRow(1).font = { bold: true };
+    billingSheet.getRow(2).font = { bold: true };
+  }
   billingSheet.getCell('A3').value = 'Service Request:';
-  billingSheet.getRow(4).values = [
-    'PO', 'PO Date', 'Manager', 'Resource Name', 'Service Desc', 'Monthly Rate (170 hrs)',
-    'For Month', 'From Date', 'To Date', 'Total Work Days', 'Leaves Taken', 'Leave Deduct',
-    'Actual Work Days', 'Actual Work Hours', 'Bill-able hours', 'Bill-able Amt', 'SOW No.',
-    'Client', 'Location',
-  ];
-  billingSheet.getRow(1).font = { bold: true };
-  billingSheet.getRow(2).font = { bold: true };
   billingSheet.getRow(3).font = { bold: true };
 
+  billingSheet.getRow(4).values = columnDefs.map((col) => col.header);
   styleHeader(billingSheet.getRow(4), 'FF2F5496');
 
   for (const item of normalizedItems) {
@@ -215,11 +258,11 @@ function populateBillingWorkbook(workbook, billingItems, errors, options = {}) {
     billingSheet.addRow({
       ...item,
       po_number: item.po_number || 'PO to be added',
-      po_date: asDateValue(item.po_date),
+      po_date: toCalendarDate(item.po_date),
       service_description: buildServiceDescription(item),
-      for_month: forMonth,
-      from_date: item.charging_date || forMonth,
-      to_date: toDate,
+      for_month: toCalendarDate(forMonth),
+      from_date: serviceFromDate(item, forMonth, toDate),
+      to_date: serviceToDate(item, forMonth, toDate),
       leave_deduct: 0,
       actual_work_hours: actualHours,
       billing_hours: actualHours,
@@ -228,24 +271,19 @@ function populateBillingWorkbook(workbook, billingItems, errors, options = {}) {
     });
   }
 
-  billingSheet.getColumn('monthly_rate').numFmt = '#,##0.00';
-  billingSheet.getColumn('po_date').numFmt = 'dd-mmm-yyyy';
-  billingSheet.getColumn('for_month').numFmt = 'mmm-yyyy';
-  billingSheet.getColumn('from_date').numFmt = 'dd-mmm-yyyy';
-  billingSheet.getColumn('to_date').numFmt = 'dd-mmm-yyyy';
-  billingSheet.getColumn('actual_work_hours').numFmt = '#,##0.00';
-  billingSheet.getColumn('billing_hours').numFmt = '#,##0.00';
-  billingSheet.getColumn('invoice_amount').numFmt = '#,##0.00';
+  columnDefs.forEach((col) => {
+    if (col.numFmt) billingSheet.getColumn(col.key).numFmt = col.numFmt;
+  });
 
   billingSheet.autoFilter = {
     from: { row: 4, column: 1 },
-    to: { row: billingItems.length + 4, column: 19 },
+    to: { row: billingItems.length + 4, column: columnDefs.length },
   };
 
   if (billingItems.length > 0) {
     const totalInvoice = billingItems.reduce((sum, item) => sum + item.invoice_amount, 0);
     const totalRow = billingSheet.addRow({
-      po_number: 'TOTAL',
+      sow_number: 'TOTAL',
       invoice_amount: totalInvoice,
     });
     totalRow.font = { bold: true };
