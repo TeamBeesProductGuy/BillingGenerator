@@ -247,6 +247,73 @@ const attendanceController = {
     }
   }),
 
+  // Service-to-service import: the HR Ops (HR1) app pushes a client's
+  // consolidated attendance sheet here via the "Export to Billing Gen" button.
+  // Same parse + upsert path as a manual upload, but authenticated by the
+  // integration key (no user session) — see routes/integration.routes.js.
+  importFromHr: catchAsync(async (req, res) => {
+    if (!req.file) throw new AppError(400, 'Consolidated attendance file is required');
+    const billingMonth = req.body.billingMonth;
+    const monthError = validateBillingMonth(billingMonth);
+    if (monthError) throw new AppError(400, monthError);
+    const sourceClient = req.body.client || null;
+
+    try {
+      const RateCardModel = require('../models/rateCard.model');
+      const rateCards = await RateCardModel.findAll();
+      const { records, errors } = await parseAttendance(req.file.path, billingMonth, { rateCards });
+      const daysInMonth = getDaysInMonth(billingMonth);
+
+      const dbRecords = [];
+      for (const rec of records) {
+        for (let day = 1; day <= daysInMonth; day++) {
+          dbRecords.push({
+            emp_code: rec.emp_code,
+            emp_name: rec.emp_name,
+            reporting_manager: rec.reporting_manager,
+            billing_month: billingMonth,
+            day_number: day,
+            status: rec.days[day] || 'P',
+            leave_units: Number(
+              rec.day_leave_units && rec.day_leave_units[day] !== undefined
+                ? rec.day_leave_units[day]
+                : ((rec.days[day] || 'P') === 'L' ? 1 : 0)
+            ),
+            attendance_code: rec.attendance_codes && rec.attendance_codes[day]
+              ? rec.attendance_codes[day]
+              : null,
+          });
+        }
+      }
+
+      if (dbRecords.length > 0) {
+        try {
+          await AttendanceModel.bulkUpsert(dbRecords);
+        } catch (err) {
+          if (err && err.message && (err.message.includes('Half-day attendance requires DB migration 006') || err.message.includes('WO attendance requires DB migration 016'))) {
+            throw new AppError(400, err.message);
+          }
+          throw err;
+        }
+      }
+
+      console.log(`[HR1 import] ${sourceClient || 'client'} ${billingMonth}: ${records.length} employees saved, ${errors.length} parse warnings`);
+
+      res.json({
+        success: true,
+        data: {
+          client: sourceClient,
+          billingMonth,
+          imported: records.length,
+          errors: errors.length,
+          errorDetails: errors,
+        },
+      });
+    } finally {
+      try { fs.unlinkSync(req.file.path); } catch (e) { /* ignore */ }
+    }
+  }),
+
   remove: catchAsync(async (req, res) => {
     const { empCode, billingMonth } = req.body;
     if (!empCode || !billingMonth) throw new AppError(400, 'empCode and billingMonth are required');

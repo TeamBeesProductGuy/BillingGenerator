@@ -60,6 +60,10 @@ app.use('/api', apiLimiter);
 // Static files
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Service-to-service integration routes (HR Ops push). Mounted BEFORE the authed
+// /api router so they use integration-key auth instead of a user session.
+app.use('/api/integrations', require('./routes/integration.routes'));
+
 // API routes
 app.use('/api', routes);
 

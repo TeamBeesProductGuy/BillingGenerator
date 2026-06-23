@@ -10,6 +10,8 @@ module.exports = {
   maxFileSize: parseInt(process.env.MAX_FILE_SIZE, 10) || 10 * 1024 * 1024,
   corsOrigins: process.env.CORS_ORIGINS || '*',
   billingDivisor: process.env.BILLING_DIVISOR || '30',
+  // Shared secret for service-to-service attendance pushes from the HR Ops (HR1) app.
+  integrationApiKey: process.env.INTEGRATION_API_KEY || '',
   supabaseUrl: process.env.SUPABASE_URL,
   supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
