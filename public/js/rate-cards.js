@@ -271,6 +271,7 @@
     document.getElementById('rcComputedMonthlyRate').textContent = formatCurrency(0);
     toggleRateMode('monthly');
     updateRateModeAvailability();
+    hideHrLwdHint();
     window.rcEdit = null;
     openModal('rcModal');
   };
@@ -419,6 +420,47 @@
     if (emp.doj) { var d = document.getElementById('rcDoj'); d.value = emp.doj; d.dispatchEvent(new Event('change')); }
     document.getElementById('rcManager').value = emp.reporting_manager || '';
     showToast('Loaded ' + (emp.emp_name || 'employee') + ' from HR Ops — add rate, SOW & PO', 'success');
+  };
+
+  // ---- HR Ops LWD prefill when stopping an existing rate card ----
+  var rcHrLwdDate = null;
+
+  function hideHrLwdHint() {
+    rcHrLwdDate = null;
+    var hint = document.getElementById('rcHrLwdHint');
+    if (hint) hint.classList.add('hidden');
+  }
+
+  async function checkHrLwd(r) {
+    hideHrLwdHint();
+    if (!r || !r.emp_code) return;
+    var client = rateCardClientMap[String(r.client_id)];
+    var abbr = client && client.abbreviation ? client.abbreviation : '';
+    if (!abbr) return;
+    try {
+      var res = await apiCall('GET', '/api/rate-cards/hr-ops/employee-status?client=' +
+        encodeURIComponent(abbr) + '&emp_code=' + encodeURIComponent(r.emp_code));
+      var d = res.data || {};
+      if (d.found && d.lwd) {
+        rcHrLwdDate = d.lwd;
+        document.getElementById('rcHrLwdText').textContent =
+          'HR Ops marks this employee exited — last working day ' + formatDate(d.lwd) + '.';
+        var hint = document.getElementById('rcHrLwdHint');
+        if (hint) hint.classList.remove('hidden');
+      }
+    } catch (e) { /* never block the edit form if HR Ops is unreachable */ }
+  }
+
+  window.applyHrLwd = function () {
+    if (!rcHrLwdDate) return;
+    var cb = document.getElementById('rcDisableBilling');
+    cb.checked = true;
+    document.getElementById('rcDisableBillingDates').classList.remove('hidden');
+    cb.dispatchEvent(new Event('change'));
+    var dateEl = document.getElementById('rcDisableFromDate');
+    dateEl.value = rcHrLwdDate;
+    dateEl.dispatchEvent(new Event('change'));
+    showToast('Stop date set to HR Ops LWD (' + formatDate(rcHrLwdDate) + ')', 'success');
   };
 
   async function loadClients() {
@@ -1002,6 +1044,7 @@
       }
       renderSowRoleCapacityPreview();
       openModal('rcModal');
+      checkHrLwd(r);
     } catch (err) { showToast(err.message, 'danger'); }
   };
 

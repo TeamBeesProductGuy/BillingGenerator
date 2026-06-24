@@ -125,6 +125,38 @@ const hrOpsController = {
     exits.sort((a, b) => String(b.lwd || '').localeCompare(String(a.lwd || '')));
     res.json({ success: true, data: { exits } });
   }),
+
+  // GET /api/rate-cards/hr-ops/employee-status?client=<billingAbbreviation>&emp_code=<code>
+  // One employee's HR Ops LWD / active flag — used to prefill the stop date when
+  // pausing an existing rate card. Returns { found:false } quietly when the client
+  // isn't linked or HR Ops is unreachable (so the edit form never breaks).
+  employeeStatus: catchAsync(async (req, res) => {
+    const empCode = normCode(req.query.emp_code);
+    if (!empCode) throw new AppError(400, 'emp_code is required.');
+    const link = findLinkByBillingAbbreviation(String(req.query.client || '').trim());
+    if (!link) {
+      res.json({ success: true, data: { found: false } });
+      return;
+    }
+    let hrEmployees;
+    try {
+      hrEmployees = await listHrEmployees(link.hrClient);
+    } catch {
+      res.json({ success: true, data: { found: false } });
+      return;
+    }
+    const match = hrEmployees.find(
+      (e) => employeeMatchesLink(link, e.location) && normCode(e.code) === empCode,
+    );
+    if (!match) {
+      res.json({ success: true, data: { found: false } });
+      return;
+    }
+    res.json({
+      success: true,
+      data: { found: true, lwd: match.lwd || null, active: match.active, name: match.name },
+    });
+  }),
 };
 
 module.exports = hrOpsController;

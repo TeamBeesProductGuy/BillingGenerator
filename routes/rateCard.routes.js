@@ -11,6 +11,7 @@ router.get('/export', rateCardController.exportExcel);
 router.get('/hr-ops/clients', hrOpsController.clients);
 router.get('/hr-ops/employees', hrOpsController.employees);
 router.get('/hr-ops/exits', hrOpsController.exits);
+router.get('/hr-ops/employee-status', hrOpsController.employeeStatus);
 router.get('/:id', rateCardController.getById);
 router.post('/', validate(createRateCard), rateCardController.create);
 router.post('/upload', upload.single('file'), rateCardController.uploadExcel);
