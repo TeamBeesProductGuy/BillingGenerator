@@ -436,8 +436,19 @@
     // -----------------------------------------------------------
     //  API Call (with auth token)
     // -----------------------------------------------------------
-    window.apiCall = async function apiCall(method, url, data) {
+    function apiDelay(ms) {
+        return new Promise(function (resolve) { setTimeout(resolve, ms); });
+    }
+
+    // Transient failures — a session that hasn't finished propagating right after
+    // login/refresh, a brief network blip, or a 5xx/429 while the backend warms up —
+    // are retried with backoff so pages keep showing their loading state instead of
+    // flashing "Failed to load" during the first few seconds.
+    window.apiCall = async function apiCall(method, url, data, attempt) {
+        attempt = attempt || 0;
+        var MAX_RETRY = 3;
         var options = { method: method.toUpperCase(), headers: {} };
+        var isGet = options.method === "GET";
 
         // Require auth token for protected API calls
         var isApiCall = typeof url === "string" && url.indexOf("/api/") === 0;
@@ -446,6 +457,13 @@
             session = await getValidSession();
         }
         if (isApiCall && (!session || !session.access_token)) {
+            // The session can still be settling immediately after login — wait and retry
+            // before treating it as a real auth failure. The request hasn't been sent
+            // yet, so retrying is safe for any method.
+            if (attempt < MAX_RETRY) {
+                await apiDelay(350 * (attempt + 1));
+                return apiCall(method, url, data, attempt + 1);
+            }
             currentSession = null;
             currentPage = null;
             showLoginPage();
@@ -465,14 +483,36 @@
                 options.body = JSON.stringify(data);
             }
         }
-        var response = await fetch(url, options);
 
-        // Handle 401 - redirect to login
+        var response;
+        try {
+            response = await fetch(url, options);
+        } catch (netErr) {
+            // Network blip — retry idempotent GETs only (never re-submit a mutation).
+            if (isGet && attempt < MAX_RETRY) {
+                await apiDelay(350 * (attempt + 1));
+                return apiCall(method, url, data, attempt + 1);
+            }
+            throw netErr;
+        }
+
+        // Handle 401 - try one token refresh for GETs before redirecting to login.
         if (response.status === 401) {
+            if (isGet && attempt < 1) {
+                currentSession = null; // force getValidSession() to refresh the token
+                await apiDelay(300);
+                return apiCall(method, url, data, attempt + 1);
+            }
             currentSession = null;
             currentPage = null;
             showLoginPage();
             throw new Error("Session expired. Please log in again.");
+        }
+
+        // Transient server errors — retry idempotent GETs with backoff.
+        if ((response.status === 429 || response.status >= 500) && isGet && attempt < MAX_RETRY) {
+            await apiDelay(500 * (attempt + 1));
+            return apiCall(method, url, data, attempt + 1);
         }
 
         var contentType = response.headers.get("content-type") || "";

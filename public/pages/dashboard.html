@@ -17,161 +17,109 @@
     <!-- Operations KPI Row -->
     <section class="grid grid-cols-2 sm:grid-cols-4 gap-3 stagger-in">
         <div class="stat-card">
-            <div class="stat-glow bg-primary"></div>
-            <div class="flex items-center justify-between mb-3">
-                <div class="w-9 h-9 rounded-xl bg-primary/12 flex items-center justify-center">
-                    <span class="material-symbols-outlined text-accent text-lg">apartment</span>
-                </div>
-                <span class="material-symbols-outlined text-primary/20 text-2xl">trending_up</span>
-            </div>
-            <h3 id="kpiClients" class="text-2xl font-headline font-bold text-on-surface">--</h3>
-            <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mt-1 font-semibold">Active Clients</p>
+            <h3 id="kpiClients" class="text-3xl font-headline font-bold text-on-surface tabular-nums">--</h3>
+            <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mt-1.5 font-semibold">Active Clients</p>
         </div>
         <div class="stat-card">
-            <div class="stat-glow bg-accent"></div>
-            <div class="flex items-center justify-between mb-3">
-                <div class="w-9 h-9 rounded-xl bg-accent/12 flex items-center justify-center">
-                    <span class="material-symbols-outlined text-accent text-lg">badge</span>
-                </div>
-                <span class="material-symbols-outlined text-accent/20 text-2xl">group</span>
-            </div>
-            <h3 id="kpiEmployees" class="text-2xl font-headline font-bold text-on-surface">--</h3>
-            <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mt-1 font-semibold">Active Employees</p>
+            <h3 id="kpiEmployees" class="text-3xl font-headline font-bold text-on-surface tabular-nums">--</h3>
+            <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mt-1.5 font-semibold">Active Employees</p>
         </div>
         <div class="stat-card">
-            <div class="stat-glow bg-success"></div>
-            <div class="flex items-center justify-between mb-3">
-                <div class="w-9 h-9 rounded-xl bg-success/12 flex items-center justify-center">
-                    <span class="material-symbols-outlined text-success text-lg">description</span>
-                </div>
-                <span class="material-symbols-outlined text-success/20 text-2xl">verified</span>
-            </div>
-            <h3 id="kpiSOWs" class="text-2xl font-headline font-bold text-on-surface">--</h3>
-            <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mt-1 font-semibold">Active SOWs</p>
+            <h3 id="kpiSOWs" class="text-3xl font-headline font-bold text-on-surface tabular-nums">--</h3>
+            <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mt-1.5 font-semibold">Active SOWs</p>
         </div>
         <div class="stat-card">
-            <div class="stat-glow bg-accent"></div>
-            <div class="flex items-center justify-between mb-3">
-                <div class="w-9 h-9 rounded-xl bg-accent/12 flex items-center justify-center">
-                    <span class="material-symbols-outlined text-accent text-lg">local_shipping</span>
-                </div>
-                <span id="kpiPOAlertsBadge" class="hidden text-[10px] font-bold px-2 py-0.5 rounded-full bg-warning/15 text-warning">!</span>
+            <div class="flex items-start justify-between gap-2">
+                <h3 id="kpiPOs" class="text-3xl font-headline font-bold text-on-surface tabular-nums">--</h3>
+                <span id="kpiPOAlertsBadge" class="hidden text-[10px] font-bold px-2 py-0.5 rounded-full bg-warning/15 text-warning mt-1">!</span>
             </div>
-            <h3 id="kpiPOs" class="text-2xl font-headline font-bold text-on-surface">--</h3>
-            <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mt-1 font-semibold">Active POs</p>
+            <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mt-1.5 font-semibold">Active POs</p>
         </div>
     </section>
 
-    <!-- Financial KPI Row -->
-    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 stagger-in">
-        <div class="stat-card">
-            <div class="stat-glow bg-primary"></div>
-            <div class="flex items-center justify-between mb-3">
-                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/20 to-accent/15 flex items-center justify-center">
-                    <span class="material-symbols-outlined text-secondary text-lg">payments</span>
+    <!-- Revenue (MTD) + Needs attention -->
+    <section class="grid grid-cols-1 lg:grid-cols-5 gap-4 stagger-in">
+        <!-- Combined financial card -->
+        <div class="stat-card lg:col-span-2 flex flex-col">
+            <p class="section-label mb-2">Revenue · MTD</p>
+            <h3 id="kpiRevenueMTD" class="text-2xl sm:text-3xl font-headline font-bold gradient-text break-words">--</h3>
+            <p id="kpiRevenue12M" class="text-[11px] text-on-surface-variant mt-1">Last 12M: --</p>
+            <div class="mt-auto pt-5">
+                <div class="flex items-center justify-between mb-1.5">
+                    <span class="text-[11px] font-semibold text-on-surface-variant">PO Consumed</span>
+                    <span id="kpiPOConsumedPct" class="text-xs font-bold text-on-surface-variant">--%</span>
                 </div>
-                <span class="material-symbols-outlined text-primary/20 text-2xl">account_balance</span>
-            </div>
-            <h3 id="kpiRevenueMTD" class="text-xl font-headline font-bold gradient-text">--</h3>
-            <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mt-1 font-semibold">Revenue (MTD)</p>
-            <p id="kpiRevenue12M" class="text-[10px] text-on-surface-variant mt-1">Last 12M: --</p>
-        </div>
-        <div class="stat-card">
-            <div class="stat-glow bg-success"></div>
-            <div class="flex items-center justify-between mb-3">
-                <div class="w-9 h-9 rounded-xl bg-success/12 flex items-center justify-center">
-                    <span class="material-symbols-outlined text-success text-lg">savings</span>
+                <div class="h-2 rounded-full bg-surface-container-high overflow-hidden">
+                    <div id="kpiPOConsumedBar" class="h-full bg-primary transition-all" style="width:0%"></div>
                 </div>
-            </div>
-            <h3 id="kpiPOCommitted" class="text-xl font-headline font-bold text-on-surface">--</h3>
-            <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mt-1 font-semibold">PO Committed</p>
-            <p class="text-[10px] text-on-surface-variant mt-1">Across active POs</p>
-        </div>
-        <div class="stat-card">
-            <div class="stat-glow bg-warning"></div>
-            <div class="flex items-center justify-between mb-3">
-                <div class="w-9 h-9 rounded-xl bg-warning/12 flex items-center justify-center">
-                    <span class="material-symbols-outlined text-warning text-lg">data_usage</span>
+                <div class="grid grid-cols-3 gap-2 mt-3">
+                    <div class="min-w-0">
+                        <p class="text-[9px] uppercase tracking-[0.12em] text-on-surface-variant font-semibold">Committed</p>
+                        <p id="kpiPOCommitted" class="text-sm font-bold text-on-surface mt-0.5 tabular-nums truncate">--</p>
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-[9px] uppercase tracking-[0.12em] text-on-surface-variant font-semibold">Consumed</p>
+                        <p id="kpiPOConsumed" class="text-sm font-bold text-on-surface mt-0.5 tabular-nums truncate">--</p>
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-[9px] uppercase tracking-[0.12em] text-on-surface-variant font-semibold">Remaining</p>
+                        <p id="kpiPORemaining" class="text-sm font-bold text-on-surface mt-0.5 tabular-nums truncate">--</p>
+                    </div>
                 </div>
-                <span id="kpiPOConsumedPct" class="text-xs font-bold text-on-surface-variant">--%</span>
-            </div>
-            <h3 id="kpiPOConsumed" class="text-xl font-headline font-bold text-on-surface">--</h3>
-            <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mt-1 font-semibold">PO Consumed</p>
-            <div class="mt-2 h-1.5 rounded-full bg-surface-container-high overflow-hidden">
-                <div id="kpiPOConsumedBar" class="h-full bg-gradient-to-r from-warning to-error transition-all" style="width:0%"></div>
-            </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-glow bg-accent"></div>
-            <div class="flex items-center justify-between mb-3">
-                <div class="w-9 h-9 rounded-xl bg-accent/12 flex items-center justify-center">
-                    <span class="material-symbols-outlined text-accent text-lg">request_quote</span>
-                </div>
-            </div>
-            <h3 id="kpiPORemaining" class="text-xl font-headline font-bold text-on-surface">--</h3>
-            <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant mt-1 font-semibold">PO Remaining</p>
-            <p class="text-[10px] text-on-surface-variant mt-1">Budget headroom</p>
-        </div>
-    </section>
-
-    <!-- Alerts Row -->
-    <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <!-- Expiring POs -->
-        <div class="stat-card !p-0 overflow-hidden">
-            <div class="px-5 py-4 border-b border-outline-variant/8 flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <span class="material-symbols-outlined text-warning text-base">schedule</span>
-                    <h4 class="section-label">Expiring POs</h4>
-                </div>
-                <a href="#purchase-orders" class="text-[11px] text-primary font-semibold hover:underline no-underline">All POs</a>
-            </div>
-            <div id="expiringPosList" class="px-5 py-3 space-y-2 max-h-[280px] overflow-y-auto styled-scrollbar">
-                <div class="text-on-surface-variant text-sm text-center py-3">Loading...</div>
             </div>
         </div>
 
-        <!-- Expiring SOWs -->
-        <div class="stat-card !p-0 overflow-hidden">
-            <div class="px-5 py-4 border-b border-outline-variant/8 flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <span class="material-symbols-outlined text-warning text-base">event_busy</span>
-                    <h4 class="section-label">Expiring SOWs</h4>
-                </div>
-                <a href="#sows" class="text-[11px] text-primary font-semibold hover:underline no-underline">All SOWs</a>
+        <!-- Needs attention -->
+        <div class="stat-card !p-0 overflow-hidden lg:col-span-3 flex flex-col">
+            <div class="px-5 py-4 border-b border-outline-variant/8 flex items-center gap-2">
+                <span class="material-symbols-outlined text-warning text-base">notifications_active</span>
+                <h4 class="section-label">Needs attention</h4>
             </div>
-            <div id="expiringSowsList" class="px-5 py-3 space-y-2 max-h-[280px] overflow-y-auto styled-scrollbar">
-                <div class="text-on-surface-variant text-sm text-center py-3">Loading...</div>
-            </div>
-        </div>
-
-        <!-- High Consumption POs -->
-        <div class="stat-card !p-0 overflow-hidden">
-            <div class="px-5 py-4 border-b border-outline-variant/8 flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <span class="material-symbols-outlined text-error text-base">warning</span>
-                    <h4 class="section-label">High-Consumption POs</h4>
-                </div>
-                <a href="#purchase-orders" class="text-[11px] text-primary font-semibold hover:underline no-underline">All POs</a>
-            </div>
-            <div id="highConsumptionPosList" class="px-5 py-3 space-y-2 max-h-[280px] overflow-y-auto styled-scrollbar">
-                <div class="text-on-surface-variant text-sm text-center py-3">Loading...</div>
+            <div class="divide-y divide-outline-variant/8">
+                <a href="#purchase-orders" class="group flex items-center gap-3 px-5 py-3.5 hover:bg-surface-container-low transition-colors no-underline">
+                    <div class="w-9 h-9 rounded-xl bg-warning/12 flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-warning text-lg">schedule</span></div>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm font-semibold text-on-surface">Expiring POs</p>
+                        <p id="naExpiringPosDesc" class="text-[11px] text-on-surface-variant truncate">Purchase orders ending within 30 days</p>
+                    </div>
+                    <span id="naExpiringPosCount" class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant shrink-0">0</span>
+                    <span class="material-symbols-outlined text-on-surface-variant/40 text-lg shrink-0 group-hover:text-on-surface-variant transition-colors">chevron_right</span>
+                </a>
+                <a href="#sows" class="group flex items-center gap-3 px-5 py-3.5 hover:bg-surface-container-low transition-colors no-underline">
+                    <div class="w-9 h-9 rounded-xl bg-warning/12 flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-warning text-lg">event_busy</span></div>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm font-semibold text-on-surface">Expiring SOWs</p>
+                        <p id="naExpiringSowsDesc" class="text-[11px] text-on-surface-variant truncate">Statements of work ending within 30 days</p>
+                    </div>
+                    <span id="naExpiringSowsCount" class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant shrink-0">0</span>
+                    <span class="material-symbols-outlined text-on-surface-variant/40 text-lg shrink-0 group-hover:text-on-surface-variant transition-colors">chevron_right</span>
+                </a>
+                <a href="#purchase-orders" class="group flex items-center gap-3 px-5 py-3.5 hover:bg-surface-container-low transition-colors no-underline">
+                    <div class="w-9 h-9 rounded-xl bg-error/12 flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-error text-lg">trending_up</span></div>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm font-semibold text-on-surface">High-Consumption POs</p>
+                        <p id="naHighConsumptionDesc" class="text-[11px] text-on-surface-variant truncate">POs above 85% of committed value</p>
+                    </div>
+                    <span id="naHighConsumptionCount" class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant shrink-0">0</span>
+                    <span class="material-symbols-outlined text-on-surface-variant/40 text-lg shrink-0 group-hover:text-on-surface-variant transition-colors">chevron_right</span>
+                </a>
             </div>
         </div>
     </section>
 
-    <!-- HR Ops exits to review -->
-    <section id="hrExitsSection" class="stat-card !p-0 overflow-hidden hidden">
+    <!-- HR1 exits to review -->
+    <section id="hrExitsSection" class="stat-card !p-0 overflow-hidden">
         <div class="px-5 py-4 border-b border-outline-variant/8 flex items-center justify-between gap-3">
             <div class="flex items-center gap-2">
                 <span class="material-symbols-outlined text-error text-base">logout</span>
                 <div>
-                    <h4 class="section-label">HR Ops exits to review</h4>
-                    <p class="text-[11px] text-on-surface-variant">Marked exited in HR Ops but still have an active rate card</p>
+                    <h4 class="section-label">HR1 exits to review</h4>
+                    <p class="text-[11px] text-on-surface-variant">Marked exited in HR1 but still have an active rate card</p>
                 </div>
             </div>
             <span id="hrExitsCount" class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-error/15 text-error"></span>
         </div>
-        <div id="hrExitsList" class="px-5 py-3 space-y-1 max-h-[320px] overflow-y-auto styled-scrollbar"></div>
+        <div id="hrExitsList" class="px-5 py-3 space-y-1 max-h-[320px] overflow-y-auto styled-scrollbar"><div class="text-on-surface-variant text-sm py-2">Loading…</div></div>
     </section>
 
     <!-- Value Chain Health -->
@@ -211,7 +159,7 @@
             <div class="flex items-center justify-between mb-4">
                 <div class="flex items-center gap-2">
                     <span class="material-symbols-outlined text-on-surface-variant text-lg">show_chart</span>
-                    <h4 class="section-label">Revenue — Last 12 Months</h4>
+                    <h4 class="section-label">Revenue — Last 6 Months</h4>
                 </div>
                 <span id="revenueTrendTotal" class="text-xs text-on-surface-variant"></span>
             </div>

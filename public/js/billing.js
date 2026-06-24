@@ -219,7 +219,7 @@
           '</div>';
 
       var sowPill = item.sow_number
-        ? '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-accent/10 text-accent text-[11px] font-semibold"><span class="material-symbols-outlined text-[13px]">description</span>SOW ' + escapeHtml(item.sow_number) + '</span>'
+        ? '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-accent/10 text-accent text-[11px] font-semibold">SOW ' + escapeHtml(item.sow_number) + '</span>'
         : '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-warning/10 text-warning text-[11px] font-semibold"><span class="material-symbols-outlined text-[13px]">link_off</span>No SOW</span>';
 
       var initials = getInitials(item.emp_name, item.emp_code);
@@ -678,9 +678,9 @@
       var uniqueQuotes = uniqueValues(rows.map(function (r) { return r.quote_number; }));
       var missingPos = rows.filter(function (r) { return !r.po_number; }).length;
       var chipsHtml = '<div class="flex flex-wrap items-center gap-1.5 text-[11px]">' +
-        '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant"><span class="material-symbols-outlined text-[12px]">local_shipping</span>' + uniquePos.length + ' PO' + (uniquePos.length === 1 ? '' : 's') + (missingPos > 0 ? ' <span class="text-error font-semibold">· ' + missingPos + ' missing</span>' : '') + '</span>' +
-        '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant"><span class="material-symbols-outlined text-[12px]">description</span>' + uniqueSows.length + ' SOW' + (uniqueSows.length === 1 ? '' : 's') + '</span>' +
-        '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant"><span class="material-symbols-outlined text-[12px]">request_quote</span>' + uniqueQuotes.length + ' Quote' + (uniqueQuotes.length === 1 ? '' : 's') + '</span>' +
+        '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant">' + uniquePos.length + ' PO' + (uniquePos.length === 1 ? '' : 's') + (missingPos > 0 ? ' <span class="text-error font-semibold">· ' + missingPos + ' missing</span>' : '') + '</span>' +
+        '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant">' + uniqueSows.length + ' SOW' + (uniqueSows.length === 1 ? '' : 's') + '</span>' +
+        '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant">' + uniqueQuotes.length + ' Quote' + (uniqueQuotes.length === 1 ? '' : 's') + '</span>' +
       '</div>';
       var actionHtml = approved
         ? '<div class="grid grid-cols-1 sm:grid-cols-3 gap-2">' +
@@ -751,17 +751,17 @@
     var html = quotes.map(function (q) {
       var qLabel = q === '__noquote__'
         ? '<span class="text-error font-semibold">No Quote linked</span>'
-        : '<a href="#quotes" class="inline-flex items-center gap-1 text-tertiary font-semibold hover:underline no-underline"><span class="material-symbols-outlined text-[14px]">request_quote</span>Quote ' + escapeHtml(q) + '</a>';
+        : '<a href="#quotes" class="inline-flex items-center gap-1 text-tertiary font-semibold hover:underline no-underline">Quote ' + escapeHtml(q) + '</a>';
       var sowKeys = Object.keys(tree[q]).sort();
       var sowsHtml = sowKeys.map(function (s) {
         var sLabel = s === '__nosow__'
           ? '<span class="text-error font-semibold">No SOW linked</span>'
-          : '<a href="#sows" class="inline-flex items-center gap-1 text-accent font-semibold hover:underline no-underline"><span class="material-symbols-outlined text-[14px]">description</span>SOW ' + escapeHtml(s) + '</a>';
+          : '<a href="#sows" class="inline-flex items-center gap-1 text-accent font-semibold hover:underline no-underline">SOW ' + escapeHtml(s) + '</a>';
         var poKeys = Object.keys(tree[q][s]).sort();
         var posHtml = poKeys.map(function (p) {
           var pLabel = p === '__nopo__'
             ? '<span class="inline-flex items-center gap-1 text-error font-semibold"><span class="material-symbols-outlined text-[14px]">error</span>No PO linked</span>'
-            : '<a href="#purchase-orders" class="inline-flex items-center gap-1 text-primary font-semibold hover:underline no-underline"><span class="material-symbols-outlined text-[14px]">local_shipping</span>PO ' + escapeHtml(p) + '</a>';
+            : '<a href="#purchase-orders" class="inline-flex items-center gap-1 text-primary font-semibold hover:underline no-underline">PO ' + escapeHtml(p) + '</a>';
           var candidates = tree[q][s][p];
           var poTotal = candidates.reduce(function (sum, c) { return sum + (parseFloat(c.invoice_amount) || 0); }, 0);
           var candidatesHtml = candidates.map(function (c) {
@@ -805,15 +805,15 @@
   function linkagePillsHtml(item) {
     var pills = [];
     if (item.po_number) {
-      pills.push('<a href="#purchase-orders" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-primary/10 text-primary text-[11px] font-semibold no-underline hover:bg-primary/20" title="View Purchase Orders"><span class="material-symbols-outlined text-[12px]">local_shipping</span>' + escapeHtml(item.po_number) + '</a>');
+      pills.push('<a href="#purchase-orders" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-primary/10 text-primary text-[11px] font-semibold no-underline hover:bg-primary/20" title="View Purchase Orders">' + escapeHtml(item.po_number) + '</a>');
     } else {
       pills.push('<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-error/10 text-error text-[11px] font-semibold" title="No PO linked"><span class="material-symbols-outlined text-[12px]">error</span>No PO</span>');
     }
     if (item.sow_number) {
-      pills.push('<a href="#sows" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-accent/10 text-accent text-[11px] font-semibold no-underline hover:bg-accent/20" title="View SOWs"><span class="material-symbols-outlined text-[12px]">description</span>' + escapeHtml(item.sow_number) + '</a>');
+      pills.push('<a href="#sows" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-accent/10 text-accent text-[11px] font-semibold no-underline hover:bg-accent/20" title="View SOWs">' + escapeHtml(item.sow_number) + '</a>');
     }
     if (item.quote_number) {
-      pills.push('<a href="#quotes" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-tertiary/10 text-tertiary text-[11px] font-semibold no-underline hover:bg-tertiary/20" title="View Quotes"><span class="material-symbols-outlined text-[12px]">request_quote</span>' + escapeHtml(item.quote_number) + '</a>');
+      pills.push('<a href="#quotes" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-tertiary/10 text-tertiary text-[11px] font-semibold no-underline hover:bg-tertiary/20" title="View Quotes">' + escapeHtml(item.quote_number) + '</a>');
     }
     return '<div class="flex flex-wrap gap-1">' + pills.join('') + '</div>';
   }

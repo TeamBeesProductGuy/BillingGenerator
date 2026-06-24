@@ -60,12 +60,6 @@
         return value;
     }
 
-    function daysLeftBadge(days) {
-        if (days === null || days === undefined) return '';
-        var cls = days <= 3 ? 'badge-error' : days <= 7 ? 'badge-warning' : 'badge-processing';
-        return '<span class="' + cls + '">' + days + 'd left</span>';
-    }
-
     function pctColor(pct) {
         if (pct >= 95) return 'text-error';
         if (pct >= 85) return 'text-warning';
@@ -102,9 +96,9 @@
 
         document.getElementById("kpiRevenueMTD").textContent = formatCurrency(financials.revenueMTD || 0);
         document.getElementById("kpiRevenue12M").textContent = "Last 12M: " + formatCurrency(financials.revenueLast12M || 0);
-        document.getElementById("kpiPOCommitted").textContent = formatCurrency(financials.poCommitted || 0);
-        document.getElementById("kpiPOConsumed").textContent = formatCurrency(financials.poConsumed || 0);
-        document.getElementById("kpiPORemaining").textContent = formatCurrency(financials.poRemaining || 0);
+        document.getElementById("kpiPOCommitted").textContent = formatCompactCurrency(financials.poCommitted || 0);
+        document.getElementById("kpiPOConsumed").textContent = formatCompactCurrency(financials.poConsumed || 0);
+        document.getElementById("kpiPORemaining").textContent = formatCompactCurrency(financials.poRemaining || 0);
 
         var pct = Math.min(100, Math.max(0, Number(financials.poConsumedPct || 0)));
         var pctEl = document.getElementById("kpiPOConsumedPct");
@@ -113,70 +107,42 @@
         document.getElementById("kpiPOConsumedBar").style.width = pct + "%";
     }
 
-    function renderExpiringPos(items) {
-        var el = document.getElementById("expiringPosList");
-        if (!items || items.length === 0) {
-            el.innerHTML = '<div class="flex items-center justify-center gap-2 text-on-surface-variant text-sm py-4">' +
-                '<span class="material-symbols-outlined text-success">check_circle</span>No POs expiring soon</div>';
-            return;
+    // Compact "Needs attention" summary: one row per alert category with a count
+    // badge and a short description (soonest expiry when available). Rows link to
+    // the relevant full list. Replaces the three separate alert cards.
+    function renderNeedsAttention(expiringPos, expiringSows, highConsumption) {
+        function soonest(items) {
+            var min = null;
+            (items || []).forEach(function (x) {
+                var d = Number(x.days_left);
+                if (!isNaN(d)) min = (min === null) ? d : Math.min(min, d);
+            });
+            return min;
         }
-        el.innerHTML = items.map(function (p) {
-            return '<a href="#purchase-orders" onclick="return openEntityFromDashboard(\'po\',' + p.id + ')" class="block p-3 rounded-xl bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors no-underline">' +
-                '<div class="flex items-start justify-between gap-2 mb-1">' +
-                '<div class="min-w-0 flex-1">' +
-                '<p class="text-sm font-semibold text-on-surface truncate">' + escapeHtml(p.po_number) + '</p>' +
-                '<p class="text-[11px] text-on-surface-variant truncate">' + escapeHtml(p.client_name) + '</p>' +
-                '</div>' + daysLeftBadge(p.days_left) + '</div>' +
-                '<div class="flex items-center justify-between text-[11px] text-on-surface-variant mt-1">' +
-                '<span>Ends ' + formatDate(p.end_date) + '</span>' +
-                '<span class="font-semibold">' + formatCompactCurrency(p.remaining_value) + ' left</span>' +
-                '</div></a>';
-        }).join("");
-    }
-
-    function renderExpiringSows(items) {
-        var el = document.getElementById("expiringSowsList");
-        if (!items || items.length === 0) {
-            el.innerHTML = '<div class="flex items-center justify-center gap-2 text-on-surface-variant text-sm py-4">' +
-                '<span class="material-symbols-outlined text-success">check_circle</span>No SOWs expiring soon</div>';
-            return;
+        function paintCount(id, n, tone) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            el.textContent = n;
+            el.className = "text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 " +
+                (n > 0 ? tone : "bg-success/15 text-success");
         }
-        el.innerHTML = items.map(function (s) {
-            return '<a href="#sows" onclick="return openEntityFromDashboard(\'sow\',' + s.id + ')" class="block p-3 rounded-xl bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors no-underline">' +
-                '<div class="flex items-start justify-between gap-2 mb-1">' +
-                '<div class="min-w-0 flex-1">' +
-                '<p class="text-sm font-semibold text-on-surface truncate">' + escapeHtml(s.sow_number) + '</p>' +
-                '<p class="text-[11px] text-on-surface-variant truncate">' + escapeHtml(s.client_name) + '</p>' +
-                '</div>' + daysLeftBadge(s.days_left) + '</div>' +
-                '<div class="flex items-center justify-between text-[11px] text-on-surface-variant mt-1">' +
-                '<span>Ends ' + formatDate(s.effective_end) + '</span>' +
-                '<span class="font-semibold">' + formatCompactCurrency(s.total_value) + ' value</span>' +
-                '</div></a>';
-        }).join("");
-    }
-
-    function renderHighConsumption(items) {
-        var el = document.getElementById("highConsumptionPosList");
-        if (!items || items.length === 0) {
-            el.innerHTML = '<div class="flex items-center justify-center gap-2 text-on-surface-variant text-sm py-4">' +
-                '<span class="material-symbols-outlined text-success">check_circle</span>All POs healthy</div>';
-            return;
+        function setDesc(id, n, base, items) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            if (n === 0) { el.textContent = "All clear"; return; }
+            var s = soonest(items);
+            el.textContent = base + (s !== null ? " · soonest in " + s + (s === 1 ? " day" : " days") : "");
         }
-        el.innerHTML = items.map(function (p) {
-            var pct = Math.min(100, Math.max(0, Number(p.consumption_pct || 0)));
-            var barColor = pct >= 95 ? 'bg-error' : pct >= 85 ? 'bg-warning' : 'bg-tertiary';
-            return '<a href="#purchase-orders" onclick="return openEntityFromDashboard(\'po\',' + p.id + ')" class="block p-3 rounded-xl bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors no-underline">' +
-                '<div class="flex items-start justify-between gap-2 mb-1">' +
-                '<div class="min-w-0 flex-1">' +
-                '<p class="text-sm font-semibold text-on-surface truncate">' + escapeHtml(p.po_number) + '</p>' +
-                '<p class="text-[11px] text-on-surface-variant truncate">' + escapeHtml(p.client_name) + '</p>' +
-                '</div>' +
-                '<span class="font-bold text-sm ' + pctColor(pct) + '">' + pct.toFixed(1) + '%</span>' +
-                '</div>' +
-                '<div class="h-1.5 rounded-full bg-surface-container-highest overflow-hidden mt-2"><div class="h-full ' + barColor + '" style="width:' + pct + '%"></div></div>' +
-                '<p class="text-[11px] text-on-surface-variant mt-1.5">' + formatCompactCurrency(p.consumed_value) + ' of ' + formatCompactCurrency(p.po_value) + '</p>' +
-                '</a>';
-        }).join("");
+        var posN = (expiringPos && expiringPos.length) || 0;
+        var sowN = (expiringSows && expiringSows.length) || 0;
+        var hcN = (highConsumption && highConsumption.length) || 0;
+        paintCount("naExpiringPosCount", posN, "bg-warning/15 text-warning");
+        paintCount("naExpiringSowsCount", sowN, "bg-warning/15 text-warning");
+        paintCount("naHighConsumptionCount", hcN, "bg-error/15 text-error");
+        setDesc("naExpiringPosDesc", posN, "POs ending within 30 days", expiringPos);
+        setDesc("naExpiringSowsDesc", sowN, "SOWs ending within 30 days", expiringSows);
+        var hcDesc = document.getElementById("naHighConsumptionDesc");
+        if (hcDesc) hcDesc.textContent = hcN === 0 ? "All clear" : "POs above 85% of committed value";
     }
 
     function renderTopClients(items) {
@@ -411,14 +377,15 @@
         if (!canvas || !window.Chart) return;
         if (revenueChart) { revenueChart.destroy(); revenueChart = null; }
 
-        var labels = (trend || []).map(function (p) { return formatBillingMonthShort(p.billing_month); });
-        var amounts = (trend || []).map(function (p) { return Number(p.total) || 0; });
+        var windowed = (trend || []).slice(-6);
+        var labels = windowed.map(function (p) { return formatBillingMonthShort(p.billing_month); });
+        var amounts = windowed.map(function (p) { return Number(p.total) || 0; });
 
         var totalEl = document.getElementById("revenueTrendTotal");
         if (totalEl) totalEl.textContent = "Total: " + formatCurrency(amounts.reduce(function (a, b) { return a + b; }, 0));
 
-        var primary = getThemeColor("--color-primary") || "#F4B740";
-        var primaryRgb = getThemeColor("--color-primary-rgb") || "244 183 64";
+        var primary = getThemeColor("--color-primary") || "#F0B41F";
+        var primaryRgb = getThemeColor("--color-primary-rgb") || "240 180 31";
         var fillColor = primaryRgb.indexOf(" ") !== -1 ? "rgba(" + primaryRgb.replace(/\s+/g, ",") + ", 0.25)" : primary;
 
         revenueChart = new Chart(canvas, {
@@ -470,12 +437,26 @@
     async function loadHrExits() {
         var section = document.getElementById("hrExitsSection");
         var list = document.getElementById("hrExitsList");
+        var countEl = document.getElementById("hrExitsCount");
         if (!section || !list) return;
+        section.classList.remove("hidden");
         try {
             var res = await apiCall("GET", "/api/rate-cards/hr-ops/exits");
             var exits = (res.data && res.data.exits) || [];
-            if (!exits.length) { section.classList.add("hidden"); return; }
-            document.getElementById("hrExitsCount").textContent = exits.length + (exits.length === 1 ? " exit" : " exits");
+            if (!exits.length) {
+                if (countEl) {
+                    countEl.textContent = "All clear";
+                    countEl.className = "text-[11px] font-bold px-2 py-0.5 rounded-full bg-success/15 text-success";
+                }
+                list.innerHTML = '<div class="flex items-center gap-2 py-3 text-on-surface-variant text-sm">' +
+                    '<span class="material-symbols-outlined text-success text-base">check_circle</span>' +
+                    'No HR1 exits to review — every exited employee already has billing stopped.</div>';
+                return;
+            }
+            if (countEl) {
+                countEl.textContent = exits.length + (exits.length === 1 ? " exit" : " exits");
+                countEl.className = "text-[11px] font-bold px-2 py-0.5 rounded-full bg-error/15 text-error";
+            }
             list.innerHTML = exits.map(function (x) {
                 var badge = x.already_disabled
                     ? '<span class="text-[10px] px-2 py-0.5 rounded-full bg-success/15 text-success shrink-0">stopped</span>'
@@ -489,9 +470,14 @@
                     '<a href="#rate-cards" class="text-[11px] text-primary font-semibold hover:underline no-underline shrink-0">Open</a>' +
                     '</div>';
             }).join("");
-            section.classList.remove("hidden");
         } catch (e) {
-            section.classList.add("hidden");
+            if (countEl) {
+                countEl.textContent = "—";
+                countEl.className = "text-[11px] font-bold px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant";
+            }
+            list.innerHTML = '<div class="flex items-center gap-2 py-3 text-on-surface-variant text-sm">' +
+                '<span class="material-symbols-outlined text-warning text-base">error</span>' +
+                'Couldn\'t load HR1 exits right now.</div>';
         }
     }
 
@@ -500,9 +486,7 @@
             var res = await apiCall("GET", "/api/dashboard/stats");
             var d = res.data || {};
             renderKPIs(d.counts || {}, d.financials || {});
-            renderExpiringPos(d.expiringPos);
-            renderExpiringSows(d.expiringSows);
-            renderHighConsumption(d.highConsumptionPos);
+            renderNeedsAttention(d.expiringPos, d.expiringSows, d.highConsumptionPos);
             renderValueChain(d.valueChain);
             renderTopClients(d.topClients);
             renderRecentRuns(d.recentRuns);

@@ -89,5 +89,38 @@
   var refreshBtn = document.getElementById("settingsRefreshApprovals");
   if (refreshBtn) refreshBtn.addEventListener("click", loadApprovals);
 
+  // ---- Appearance / theme toggle ----
+  (function initThemeToggle() {
+    var wrap = document.getElementById("themeToggle");
+    if (!wrap) return;
+    var opts = wrap.querySelectorAll(".theme-opt");
+    function currentTheme() {
+      try {
+        var saved = localStorage.getItem("theme");
+        if (saved === "dark" || saved === "light") return saved;
+      } catch (_e) {}
+      return document.documentElement.classList.contains("dark") ? "dark" : "light";
+    }
+    function paint() {
+      var cur = currentTheme();
+      opts.forEach(function (b) {
+        var active = b.getAttribute("data-theme") === cur;
+        b.classList.toggle("bg-background", active);
+        b.classList.toggle("text-on-surface", active);
+        b.classList.toggle("shadow-sm", active);
+        b.classList.toggle("text-on-surface-variant", !active);
+      });
+    }
+    opts.forEach(function (b) {
+      b.addEventListener("click", function () {
+        var theme = b.getAttribute("data-theme");
+        if (typeof window.setTheme === "function") window.setTheme(theme);
+        else document.documentElement.classList.toggle("dark", theme === "dark");
+        paint();
+      });
+    });
+    paint();
+  })();
+
   loadProfile().then(loadApprovals);
 })();

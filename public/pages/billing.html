@@ -39,7 +39,7 @@
           <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-2">Rate Card Excel File</label>
-              <div class="upload-zone cursor-pointer relative !border-black !bg-white shadow-[0_16px_40px_rgba(15,23,42,0.10),0_4px_12px_rgba(15,23,42,0.08)]" id="rateCardZone">
+              <div class="upload-zone cursor-pointer relative !border-on-surface !bg-surface-container-lowest shadow-[0_16px_40px_rgba(15,23,42,0.10),0_4px_12px_rgba(15,23,42,0.08)]" id="rateCardZone">
                 <span class="material-symbols-outlined text-3xl text-on-surface-variant/30 mb-2">cloud_upload</span>
                 <div class="text-sm text-on-surface-variant">Drop Rate Card file here</div>
                 <div class="text-[11px] text-text-muted font-medium mt-1">.xlsx or .xls files only</div>
@@ -49,7 +49,7 @@
             </div>
             <div>
               <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-2">Attendance Excel File</label>
-              <div class="upload-zone cursor-pointer relative !border-black !bg-white shadow-[0_16px_40px_rgba(15,23,42,0.10),0_4px_12px_rgba(15,23,42,0.08)]" id="attendanceZone">
+              <div class="upload-zone cursor-pointer relative !border-on-surface !bg-surface-container-lowest shadow-[0_16px_40px_rgba(15,23,42,0.10),0_4px_12px_rgba(15,23,42,0.08)]" id="attendanceZone">
                 <span class="material-symbols-outlined text-3xl text-on-surface-variant/30 mb-2">cloud_upload</span>
                 <div class="text-sm text-on-surface-variant">Drop Attendance file here</div>
                 <div class="text-[11px] text-text-muted font-medium mt-1">.xlsx or .xls files only</div>
@@ -59,7 +59,7 @@
             </div>
             <div>
               <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-2">Service Month</label>
-              <input type="month" id="billingMonth" required class="!border-2 !border-black !rounded-xl !bg-white shadow-[0_16px_40px_rgba(15,23,42,0.10),0_4px_12px_rgba(15,23,42,0.08)] focus:!border-black focus:!shadow-[0_16px_40px_rgba(15,23,42,0.10),0_4px_12px_rgba(15,23,42,0.08),0_0_0_3px_rgba(0,0,0,0.08)]">
+              <input type="month" id="billingMonth" required class="!border-2 !border-on-surface !rounded-xl !bg-surface-container-lowest shadow-[0_16px_40px_rgba(15,23,42,0.10),0_4px_12px_rgba(15,23,42,0.08)] focus:!border-on-surface focus:!shadow-[0_16px_40px_rgba(15,23,42,0.10),0_4px_12px_rgba(15,23,42,0.08),0_0_0_3px_rgba(0,0,0,0.08)]">
             </div>
             <div class="flex items-end">
               <button type="submit" class="btn-primary w-full flex items-center justify-center gap-2" id="btnGenerate" style="height: 48px;">
@@ -78,7 +78,7 @@
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div class="md:col-span-2">
               <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-2">Clients</label>
-              <div id="dbClientPicker" class="rounded-xl border-2 border-black bg-white shadow-[0_16px_40px_rgba(15,23,42,0.10),0_4px_12px_rgba(15,23,42,0.08)] p-3">
+              <div id="dbClientPicker" class="rounded-xl border-2 border-on-surface bg-surface-container-lowest shadow-[0_16px_40px_rgba(15,23,42,0.10),0_4px_12px_rgba(15,23,42,0.08)] p-3">
                 <label class="flex items-center gap-3 rounded-lg px-2 py-2 cursor-pointer hover:bg-surface-container-high/60">
                   <input type="checkbox" id="dbClientAll" checked class="h-4 w-4 accent-black">
                   <span class="text-sm font-semibold text-on-surface">All Clients</span>
@@ -89,7 +89,7 @@
             </div>
             <div>
               <label class="block text-[11px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-2">Service Month</label>
-              <input type="month" id="dbBillingMonth" required class="!border-2 !border-black !rounded-xl !bg-white shadow-[0_16px_40px_rgba(15,23,42,0.10),0_4px_12px_rgba(15,23,42,0.08)] focus:!border-black focus:!shadow-[0_16px_40px_rgba(15,23,42,0.10),0_4px_12px_rgba(15,23,42,0.08),0_0_0_3px_rgba(0,0,0,0.08)]">
+              <input type="month" id="dbBillingMonth" required class="!border-2 !border-on-surface !rounded-xl !bg-surface-container-lowest shadow-[0_16px_40px_rgba(15,23,42,0.10),0_4px_12px_rgba(15,23,42,0.08)] focus:!border-on-surface focus:!shadow-[0_16px_40px_rgba(15,23,42,0.10),0_4px_12px_rgba(15,23,42,0.08),0_0_0_3px_rgba(0,0,0,0.08)]">
             </div>
             <div class="flex items-end">
               <button type="submit" class="btn-primary w-full flex items-center justify-center gap-2" id="btnGenerateDb" style="height: 48px;">

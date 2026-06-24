@@ -331,7 +331,7 @@
     return '<div class="flex flex-wrap items-center gap-1" title="' + escapeHtml(titleAttr) + '">' + list.map(function (po) {
       var statusClass = po.status === 'Exhausted' || po.status === 'Expired' ? 'bg-warning/10 text-warning' : 'bg-primary/10 text-primary';
       return '<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-semibold ' + statusClass + '">' +
-        '<span class="material-symbols-outlined text-[12px]">local_shipping</span>' + escapeHtml(po.po_number) +
+        '' + escapeHtml(po.po_number) +
         '</span>';
     }).join('') + '</div>';
   }
