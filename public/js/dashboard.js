@@ -467,6 +467,34 @@
     // -----------------------------------------------------------
     //  Load
     // -----------------------------------------------------------
+    async function loadHrExits() {
+        var section = document.getElementById("hrExitsSection");
+        var list = document.getElementById("hrExitsList");
+        if (!section || !list) return;
+        try {
+            var res = await apiCall("GET", "/api/rate-cards/hr-ops/exits");
+            var exits = (res.data && res.data.exits) || [];
+            if (!exits.length) { section.classList.add("hidden"); return; }
+            document.getElementById("hrExitsCount").textContent = exits.length + (exits.length === 1 ? " exit" : " exits");
+            list.innerHTML = exits.map(function (x) {
+                var badge = x.already_disabled
+                    ? '<span class="text-[10px] px-2 py-0.5 rounded-full bg-success/15 text-success shrink-0">stopped</span>'
+                    : '<span class="text-[10px] px-2 py-0.5 rounded-full bg-error/15 text-error shrink-0">still billing</span>';
+                return '<div class="flex items-center gap-3 py-2 border-b border-outline-variant/8 last:border-b-0">' +
+                    '<span class="material-symbols-outlined text-on-surface-variant text-base">person_off</span>' +
+                    '<div class="min-w-0 flex-1">' +
+                    '<p class="text-sm font-semibold text-on-surface truncate">' + escapeHtml(x.emp_name || "") + ' <span class="text-on-surface-variant text-[11px] font-normal">· ' + escapeHtml(x.emp_code || "") + '</span></p>' +
+                    '<p class="text-[11px] text-on-surface-variant truncate">' + escapeHtml(x.client || "") + ' · LWD ' + (x.lwd ? formatDate(x.lwd) : "—") + '</p>' +
+                    '</div>' + badge +
+                    '<a href="#rate-cards" class="text-[11px] text-primary font-semibold hover:underline no-underline shrink-0">Open</a>' +
+                    '</div>';
+            }).join("");
+            section.classList.remove("hidden");
+        } catch (e) {
+            section.classList.add("hidden");
+        }
+    }
+
     async function loadDashboard() {
         try {
             var res = await apiCall("GET", "/api/dashboard/stats");
@@ -478,6 +506,7 @@
             renderValueChain(d.valueChain);
             renderTopClients(d.topClients);
             renderRecentRuns(d.recentRuns);
+            loadHrExits();
             await loadChartJs();
             renderRevenueChart(d.revenueTrend);
             var stamp = document.getElementById("dashboardLastUpdated");

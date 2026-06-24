@@ -310,6 +310,117 @@
   };
   window.closeRCLinkPOModal = function () { closeModal('rcLinkPOModal'); };
 
+  // ---- HR Ops (HR1) autofill picker ----
+  var hrPickEmployees = [];
+  var hrPickFiltered = [];
+  var hrPickClientLabel = '';
+
+  function hrPickShowStep(step) {
+    document.getElementById('hrPickStepClient').classList.toggle('hidden', step !== 'client');
+    document.getElementById('hrPickStepEmployee').classList.toggle('hidden', step !== 'employee');
+  }
+
+  window.openHrPickModal = function () {
+    hrPickShowStep('client');
+    document.getElementById('hrPickClients').innerHTML = '<div class="text-sm text-on-surface-variant py-3">Loading clients…</div>';
+    document.getElementById('hrPickUnlinked').innerHTML = '';
+    openModal('hrPickModal');
+    loadHrClients();
+  };
+  window.closeHrPickModal = function () { closeModal('hrPickModal'); };
+  window.hrPickBackToClients = function () { hrPickShowStep('client'); };
+
+  async function loadHrClients() {
+    try {
+      var res = await apiCall('GET', '/api/rate-cards/hr-ops/clients');
+      var linked = (res.data && res.data.linked) || [];
+      var unlinked = (res.data && res.data.unlinked) || [];
+      var html = linked.map(function (c) {
+        if (c.available) {
+          return '<button type="button" onclick="selectHrClient(\'' + escapeHtml(c.billingAbbreviation) + '\')" ' +
+            'class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-outline-variant/30 hover:bg-surface-container-high text-sm transition-colors">' +
+            '<span class="material-symbols-outlined text-base">apartment</span>' + escapeHtml(c.billingAbbreviation) + '</button>';
+        }
+        return '<span class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-outline-variant/30 text-sm text-on-surface-variant/60" title="Not found in HR Ops">' +
+          escapeHtml(c.billingAbbreviation) + '</span>';
+      }).join('');
+      document.getElementById('hrPickClients').innerHTML = html || '<div class="text-sm text-on-surface-variant py-3">No linked clients configured.</div>';
+      if (unlinked.length) {
+        var names = unlinked.map(function (x) { return escapeHtml(x.hrClient); }).join(', ');
+        document.getElementById('hrPickUnlinked').innerHTML =
+          '<div class="flex items-start gap-2 text-xs text-on-surface-variant bg-surface-container rounded-lg p-3">' +
+          '<span class="material-symbols-outlined text-base">info</span>' +
+          '<span>In HR Ops but not created in BillingGen yet: <strong>' + names + '</strong>. Add the client here first to import its employees.</span></div>';
+      }
+    } catch (e) {
+      document.getElementById('hrPickClients').innerHTML = '<div class="text-sm text-error py-3">' + escapeHtml(e.message || 'Could not load clients') + '</div>';
+    }
+  }
+
+  window.selectHrClient = async function (billingAbbreviation) {
+    hrPickClientLabel = billingAbbreviation;
+    hrPickShowStep('employee');
+    document.getElementById('hrPickEmpClientLabel').textContent = billingAbbreviation;
+    document.getElementById('hrPickSearch').value = '';
+    document.getElementById('hrPickEmployees').innerHTML = '<div class="text-sm text-on-surface-variant py-3 px-3">Loading employees…</div>';
+    try {
+      var res = await apiCall('GET', '/api/rate-cards/hr-ops/employees?client=' + encodeURIComponent(billingAbbreviation));
+      hrPickEmployees = (res.data && res.data.employees) || [];
+      renderHrEmployees();
+    } catch (e) {
+      document.getElementById('hrPickEmployees').innerHTML = '<div class="text-sm text-error py-3 px-3">' + escapeHtml(e.message || 'Could not load employees') + '</div>';
+    }
+  };
+
+  window.renderHrEmployees = function () {
+    var q = (document.getElementById('hrPickSearch').value || '').trim().toLowerCase();
+    hrPickFiltered = hrPickEmployees.filter(function (e) {
+      if (!q) return true;
+      return String(e.emp_code || '').toLowerCase().indexOf(q) >= 0 || String(e.emp_name || '').toLowerCase().indexOf(q) >= 0;
+    });
+    if (!hrPickFiltered.length) {
+      document.getElementById('hrPickEmployees').innerHTML =
+        '<div class="text-sm text-on-surface-variant py-4 px-3">' + (hrPickEmployees.length ? 'No matches.' : 'Everyone here already has a rate card.') + '</div>';
+      return;
+    }
+    document.getElementById('hrPickEmployees').innerHTML = hrPickFiltered.map(function (e, i) {
+      var initials = String(e.emp_name || '?').split(' ').filter(Boolean).map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase();
+      return '<button type="button" onclick="selectHrEmployee(' + i + ')" ' +
+        'class="w-full flex items-center gap-3 px-3 py-2.5 border-b border-outline-variant/15 last:border-b-0 hover:bg-surface-container text-left transition-colors">' +
+        '<span class="shrink-0 w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-xs font-semibold">' + escapeHtml(initials || '?') + '</span>' +
+        '<span class="min-w-0 flex-1">' +
+        '<span class="block text-sm truncate">' + escapeHtml(e.emp_name || '') + ' <span class="text-on-surface-variant text-xs">· ' + escapeHtml(e.emp_code || '') + '</span></span>' +
+        '<span class="block text-xs text-on-surface-variant truncate">DOJ ' + (e.doj ? escapeHtml(formatDate(e.doj)) : '—') + ' · Mgr ' + escapeHtml(e.reporting_manager || '—') + '</span>' +
+        '</span><span class="material-symbols-outlined text-on-surface-variant">arrow_forward</span></button>';
+    }).join('');
+  };
+
+  window.selectHrEmployee = function (idx) {
+    var emp = hrPickFiltered[idx];
+    if (!emp) return;
+    closeHrPickModal();
+    window.rcEdit = null;
+    openRCModal();
+    var clientId = null;
+    Object.keys(rateCardClientMap).forEach(function (id) {
+      var c = rateCardClientMap[id];
+      if (!clientId && c && String(c.abbreviation || '').trim().toLowerCase() === String(hrPickClientLabel).trim().toLowerCase()) clientId = id;
+    });
+    var rcClient = document.getElementById('rcClient');
+    if (clientId && rcClient) { rcClient.value = clientId; rcClient.dispatchEvent(new Event('change')); }
+    var prefix = rcEmpCodePrefix || '';
+    var codeForInput = String(emp.emp_code || '');
+    if (prefix && codeForInput.toUpperCase().indexOf(prefix.toUpperCase()) === 0) {
+      codeForInput = codeForInput.slice(prefix.length);
+    }
+    document.getElementById('rcEmpCode').value = codeForInput;
+    updateEmpCodePrefixUI();
+    document.getElementById('rcEmpName').value = emp.emp_name || '';
+    if (emp.doj) { var d = document.getElementById('rcDoj'); d.value = emp.doj; d.dispatchEvent(new Event('change')); }
+    document.getElementById('rcManager').value = emp.reporting_manager || '';
+    showToast('Loaded ' + (emp.emp_name || 'employee') + ' from HR Ops — add rate, SOW & PO', 'success');
+  };
+
   async function loadClients() {
     try {
       var res = await apiCall('GET', '/api/clients');
