@@ -1262,6 +1262,10 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
     justify-content: center;
 }
 
+.table-cell-invoice {
+    white-space: nowrap;
+}
+
 .status-link-button {
     border: 0;
     cursor: pointer;
