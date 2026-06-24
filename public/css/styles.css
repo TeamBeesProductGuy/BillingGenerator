@@ -100,7 +100,7 @@ body {
 }
 h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-serif; letter-spacing: -0.02em; }
 .material-symbols-outlined { font-variation-settings: 'wght' 300, 'GRAD' 0, 'opsz' 24; }
-.dark .sidebar-logo { filter: brightness(0) invert(1); }
+.dark-logo { mix-blend-mode: screen; } /* drop the dark logo's near-black backdrop so it blends on dark surfaces */
 
 /* --- Glassmorphism --- */
 .glass {
@@ -1196,12 +1196,14 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
     min-height: 4.85rem;
     display: flex;
     align-items: center;
+    justify-content: center;
+    text-align: center;
     line-height: 1.5;
     color: var(--color-text-primary);
 }
 
 .table-cell-stack {
-    align-items: flex-start;
+    align-items: center;
     justify-content: center;
     flex-direction: column;
     gap: 0.28rem;
@@ -1247,6 +1249,8 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
 .table-cell-remarks {
     min-width: 18rem;
     align-items: flex-start;
+    justify-content: flex-start;
+    text-align: left;
     padding-top: 0.35rem;
 }
 
