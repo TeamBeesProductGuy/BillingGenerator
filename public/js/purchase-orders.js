@@ -242,10 +242,17 @@
       var section = document.getElementById('poAlertsSection');
       if (res.data.length === 0) { section.classList.add('hidden'); return; }
       section.classList.remove('hidden');
+      var countEl = document.getElementById('poAlertsCount');
+      if (countEl) countEl.textContent = res.data.length;
+      var abbrByName = {};
+      Object.keys(poClientMap || {}).forEach(function (k) {
+        var c = poClientMap[k];
+        if (c && c.client_name) abbrByName[c.client_name] = getClientDisplayName(c);
+      });
       document.getElementById('poAlertsBody').innerHTML = res.data.map(function (a) {
         return '<tr>' +
           '<td><strong>' + escapeHtml(a.po_number) + '</strong></td>' +
-          '<td>' + escapeHtml(a.client_name) + '</td>' +
+          '<td>' + escapeHtml(abbrByName[a.client_name] || a.client_name) + '</td>' +
           '<td>' + (a.consumption_pct ? a.consumption_pct.toFixed(1) + '%' : '0%') + '</td>' +
           '<td>' + formatDate(a.end_date) + '</td>' +
           '<td>' +
@@ -256,6 +263,17 @@
       }).join('');
     } catch (e) { /* ignore */ }
   }
+
+  window.togglePoAlerts = function () {
+    var content = document.getElementById('poAlertsContent');
+    var chevron = document.getElementById('poAlertsChevron');
+    var toggle = document.getElementById('poAlertsToggle');
+    if (!content) return;
+    var willOpen = content.classList.contains('hidden');
+    content.classList.toggle('hidden');
+    if (chevron) chevron.style.transform = willOpen ? 'rotate(180deg)' : '';
+    if (toggle) toggle.setAttribute('aria-expanded', String(willOpen));
+  };
 
   function updatePOSummary(rows) {
     var items = rows || [];

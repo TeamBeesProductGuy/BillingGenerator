@@ -28,15 +28,21 @@
   <!-- Alerts -->
   <div id="poAlertsSection" class="hidden">
     <div class="stat-card !p-0 overflow-hidden !border-primary/20">
-      <div class="px-6 py-4 border-b border-outline-variant/8 flex items-center gap-2 bg-primary/5">
+      <button type="button" id="poAlertsToggle" onclick="togglePoAlerts()" aria-expanded="false"
+        class="w-full px-6 py-4 flex items-center gap-3 bg-primary/5 hover:bg-primary/10 transition-colors text-left">
         <span class="material-symbols-outlined text-primary">warning</span>
-        <h6 class="section-label !text-primary">PO Alerts</h6>
-      </div>
-      <div class="overflow-x-auto">
-        <table class="stitch-table">
-          <thead><tr><th>PO#</th><th>Client</th><th>Consumed</th><th>End Date</th><th>Alert</th></tr></thead>
-          <tbody id="poAlertsBody"></tbody>
-        </table>
+        <h6 class="section-label !text-primary !mb-0">PO Alerts</h6>
+        <span id="poAlertsCount" class="inline-flex items-center justify-center min-w-[1.5rem] h-5 px-1.5 rounded-full bg-primary/15 text-primary text-xs font-bold">0</span>
+        <span class="text-xs text-on-surface-variant hidden sm:inline">need attention &middot; click to view</span>
+        <span class="material-symbols-outlined text-on-surface-variant ml-auto transition-transform duration-200" id="poAlertsChevron">expand_more</span>
+      </button>
+      <div id="poAlertsContent" class="hidden border-t border-outline-variant/8">
+        <div class="overflow-x-auto">
+          <table class="stitch-table">
+            <thead><tr><th>PO#</th><th>Client</th><th>Consumed</th><th>End Date</th><th>Alert</th></tr></thead>
+            <tbody id="poAlertsBody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
