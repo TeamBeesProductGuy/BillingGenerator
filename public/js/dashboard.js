@@ -73,7 +73,7 @@
         try {
             sessionStorage.setItem("pendingOpenEntity", JSON.stringify({ type: type, id: id }));
         } catch (e) { /* sessionStorage unavailable — fall back to plain navigation */ }
-        location.hash = type === "po" ? "#purchase-orders" : "#sows";
+        location.hash = type === "po" ? "#purchase-orders" : type === "rate-card" ? "#rate-cards" : "#sows";
         return false;
     };
 
@@ -467,7 +467,7 @@
                     '<p class="text-sm font-semibold text-on-surface truncate">' + escapeHtml(x.emp_name || "") + ' <span class="text-on-surface-variant text-[11px] font-normal">· ' + escapeHtml(x.emp_code || "") + '</span></p>' +
                     '<p class="text-[11px] text-on-surface-variant truncate">' + escapeHtml(x.client || "") + ' · LWD ' + (x.lwd ? formatDate(x.lwd) : "—") + '</p>' +
                     '</div>' + badge +
-                    '<a href="#rate-cards" class="text-[11px] text-primary font-semibold hover:underline no-underline shrink-0">Open</a>' +
+                    '<a href="#rate-cards" onclick="return openEntityFromDashboard(\'rate-card\',' + x.rate_card_id + ')" class="text-[11px] text-primary font-semibold hover:underline no-underline shrink-0">Open</a>' +
                     '</div>';
             }).join("");
         } catch (e) {

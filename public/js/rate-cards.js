@@ -1302,8 +1302,21 @@
     }
   }
 
+  // Deep-link from the dashboard "HR1 exits to review" list: open that rate card's
+  // edit modal (where billing is stopped, stop date prefilled from LWD) on arrival.
+  async function consumePendingOpenRateCard() {
+    var raw = sessionStorage.getItem('pendingOpenEntity');
+    if (!raw) return;
+    var ctx;
+    try { ctx = JSON.parse(raw); } catch (e) { return; }
+    if (!ctx || ctx.type !== 'rate-card' || !ctx.id) return;
+    sessionStorage.removeItem('pendingOpenEntity');
+    if (typeof window.editRC === 'function') window.editRC(ctx.id);
+  }
+
   loadClients().then(function () {
     loadRateCards();
+    consumePendingOpenRateCard();
     return consumePendingRateCardContext();
   });
 })();
