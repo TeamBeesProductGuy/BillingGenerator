@@ -360,7 +360,7 @@
     var sections = [
       {
         key: 'permanent',
-        title: 'Permanent Clients',
+        title: 'Permanent (Contract Type)',
         rows: permanentRows,
         renderRows: renderPermanentRows,
         colgroup: '<colgroup>' +
@@ -388,7 +388,7 @@
       },
       {
         key: 'contractual',
-        title: 'Contractual Clients',
+        title: 'Contractual (Contract Type)',
         rows: contractualRows,
         renderRows: renderContractualRows,
         colgroup: '<colgroup>' +
