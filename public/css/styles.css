@@ -417,6 +417,11 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
 #summaryBody td { text-align: center; }
 .reminder-section-table td { text-align: center; }
 .reminder-section-table td.text-right { text-align: right; }
+/* The due-date stack and status cards are flex columns / rows — text-align can't move them, so center their axes too. */
+.reminder-section-table .reminder-cell-stack,
+.reminder-section-table .reminder-status-card { align-items: center; }
+.reminder-section-table .reminder-cell-stack > div,
+.reminder-section-table .reminder-status-row { justify-content: center; }
 #quoteDetailContent .stitch-table td { text-align: center; }
 #quoteDetailContent .stitch-table td:first-child { text-align: left; }
 #quoteDetailContent .stitch-table td.text-right { text-align: right; }
