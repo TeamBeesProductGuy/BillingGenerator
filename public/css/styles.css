@@ -401,6 +401,9 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
 }
 .stitch-table th.sortable { cursor: pointer; user-select: none; }
 .stitch-table th.sortable:hover { color: var(--color-primary); }
+/* Let per-column header alignment win over the blanket center so each header lines up with its data. */
+.stitch-table th.text-right { text-align: right !important; }
+.stitch-table th.text-left { text-align: left !important; }
 
 #clientsTable th,
 #ordersTable th,
