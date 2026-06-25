@@ -416,7 +416,10 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
 /* Sweep: center remaining plain-cell tables (data sat left under centered headers); amounts stay right, long text stays left. */
 #summaryBody td { text-align: center; }
 .reminder-section-table td { text-align: center; }
-.reminder-section-table td.text-right { text-align: right; }
+.reminder-section-table th { white-space: nowrap; }
+/* Bill Amount: center it (header + value) to match the rest of this table, not right-aligned/wrapped. */
+.reminder-section-table th.text-right,
+.reminder-section-table td.text-right { text-align: center !important; }
 /* The due-date stack and status cards are flex columns / rows — text-align can't move them, so center their axes too. */
 .reminder-section-table .reminder-cell-stack,
 .reminder-section-table .reminder-status-card { align-items: center; }
