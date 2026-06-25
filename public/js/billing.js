@@ -1000,7 +1000,8 @@
         downloadUrl: '/api/billing/runs/' + run.id + '/download',
         poCandidatesByEmp: run.poCandidatesByEmp || {}
       });
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      var resultsEl = document.getElementById('billingResults');
+      if (resultsEl) resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (err) {
       showToast(err.message, 'danger');
     }

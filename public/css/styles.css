@@ -406,6 +406,8 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
 .stitch-table th.text-left { text-align: left !important; }
 /* PO alert rows use plain cells (no .table-cell-box) — center them to match the other tables. */
 #poAlertsBody td { text-align: center; }
+/* Service-request errors table also uses plain cells — center the identifier columns, keep the message left. */
+#errorsBody td:nth-child(-n+3) { text-align: center; }
 
 #clientsTable th,
 #ordersTable th,
