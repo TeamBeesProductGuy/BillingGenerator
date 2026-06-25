@@ -240,16 +240,21 @@
     try {
       var res = await apiCall('GET', '/api/purchase-orders/alerts');
       var section = document.getElementById('poAlertsSection');
-      if (res.data.length === 0) { section.classList.add('hidden'); return; }
+      var startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+      var alerts = (res.data || []).filter(function (a) {
+        // Drop already-expired POs — alerts are for upcoming risk, not past expiries.
+        return !a.end_date || new Date(a.end_date) >= startOfToday;
+      });
+      if (alerts.length === 0) { section.classList.add('hidden'); return; }
       section.classList.remove('hidden');
       var countEl = document.getElementById('poAlertsCount');
-      if (countEl) countEl.textContent = res.data.length;
+      if (countEl) countEl.textContent = alerts.length;
       var abbrByName = {};
       Object.keys(poClientMap || {}).forEach(function (k) {
         var c = poClientMap[k];
         if (c && c.client_name) abbrByName[c.client_name] = getClientDisplayName(c);
       });
-      document.getElementById('poAlertsBody').innerHTML = res.data.map(function (a) {
+      document.getElementById('poAlertsBody').innerHTML = alerts.map(function (a) {
         return '<tr>' +
           '<td><strong>' + escapeHtml(a.po_number) + '</strong></td>' +
           '<td>' + escapeHtml(abbrByName[a.client_name] || a.client_name) + '</td>' +
