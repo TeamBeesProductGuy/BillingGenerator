@@ -205,7 +205,7 @@ async function sendPaymentReminderEmail(reminders) {
   const recipients = resolveRecipients();
   const payload = {
     message: {
-      subject: `Invoice for ${reminders[0] && reminders[0].client && reminders[0].client.client_name ? reminders[0].client.client_name : 'Client'}`,
+      subject: `Reminder! Invoice for ${reminders[0] && reminders[0].client && reminders[0].client.client_name ? reminders[0].client.client_name : 'Client'}`,
       body: {
         contentType: 'HTML',
         content: buildReminderEmail(reminders),
