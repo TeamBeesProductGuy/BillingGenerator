@@ -410,6 +410,9 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
 #errorsBody td:nth-child(-n+3) { text-align: center; }
 /* Activity Logs: keep the User email on one line instead of breaking mid-address. */
 #activityLogsBody td:nth-child(2) { white-space: nowrap; }
+/* Service Request History: center the plain cells (Month/Client/Status/Date/Actions); amount stays right. */
+#billingHistoryBody td { text-align: center; }
+#billingHistoryBody td.text-right { text-align: right; }
 
 #clientsTable th,
 #ordersTable th,
