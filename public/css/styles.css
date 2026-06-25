@@ -293,6 +293,7 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
     top: 0;
     z-index: 5;
     text-align: center !important;
+    white-space: nowrap;
     padding: 0.875rem 1.25rem;
     font-size: 10px;
     font-weight: 700;
@@ -401,9 +402,11 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
 }
 .stitch-table th.sortable { cursor: pointer; user-select: none; }
 .stitch-table th.sortable:hover { color: var(--color-primary); }
-/* Let per-column header alignment win over the blanket center so each header lines up with its data. */
-.stitch-table th.text-right { text-align: right !important; }
+/* Amount headers centered to match the centered amount values; remarks header stays left. */
+.stitch-table th.text-right { text-align: center !important; }
 .stitch-table th.text-left { text-align: left !important; }
+/* Center amount values everywhere (covers plain text-right cells that don't use .table-cell-amount). */
+.stitch-table td.text-right { text-align: center; }
 /* PO alert rows use plain cells (no .table-cell-box) — center them to match the other tables. */
 #poAlertsBody td { text-align: center; }
 /* Service-request errors table also uses plain cells — center the identifier columns, keep the message left. */
@@ -412,7 +415,7 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
 #activityLogsBody td:nth-child(2) { white-space: nowrap; }
 /* Service Request History: center the plain cells (Month/Client/Status/Date/Actions); amount stays right. */
 #billingHistoryBody td { text-align: center; }
-#billingHistoryBody td.text-right { text-align: right; }
+#billingHistoryBody td.text-right { text-align: center; }
 /* Sweep: center remaining plain-cell tables (data sat left under centered headers); amounts stay right, long text stays left. */
 #summaryBody td { text-align: center; }
 .reminder-section-table td { text-align: center; }
@@ -427,7 +430,7 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
 .reminder-section-table .reminder-status-row { justify-content: center; }
 #quoteDetailContent .stitch-table td { text-align: center; }
 #quoteDetailContent .stitch-table td:first-child { text-align: left; }
-#quoteDetailContent .stitch-table td.text-right { text-align: right; }
+#quoteDetailContent .stitch-table td.text-right { text-align: center; }
 
 #clientsTable th,
 #ordersTable th,
@@ -1282,7 +1285,7 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
 }
 
 .table-cell-amount {
-    justify-content: flex-end;
+    justify-content: center;
 }
 
 .table-cell-center {
