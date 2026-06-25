@@ -942,7 +942,7 @@
     // they come from a page script that is no longer the active page. Errors from the
     // current page (real bugs) and from app.js still surface as usual.
     function isStaleNavigationNullError(message, source) {
-        if (!/Cannot set propert(?:y|ies) of null/i.test(String(message || ""))) return false;
+        if (!/Cannot (?:set|read) propert(?:y|ies).{0,40}\bnull\b/i.test(String(message || ""))) return false;
         var m = /\/js\/([\w-]+)\.js/.exec(String(source || ""));
         return !!(m && currentPage && m[1] !== currentPage && m[1] !== "app");
     }
