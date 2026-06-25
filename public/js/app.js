@@ -935,4 +935,28 @@
     });
 
     window.addEventListener("hashchange", navigate);
+
+    // When the user navigates away while a page's data is still loading, that in-flight
+    // request resolves against elements which have since been replaced, throwing
+    // "Cannot set properties of null". Those are benign — swallow them, but only when
+    // they come from a page script that is no longer the active page. Errors from the
+    // current page (real bugs) and from app.js still surface as usual.
+    function isStaleNavigationNullError(message, source) {
+        if (!/Cannot set propert(?:y|ies) of null/i.test(String(message || ""))) return false;
+        var m = /\/js\/([\w-]+)\.js/.exec(String(source || ""));
+        return !!(m && currentPage && m[1] !== currentPage && m[1] !== "app");
+    }
+    window.addEventListener("unhandledrejection", function (e) {
+        var reason = (e && e.reason) || {};
+        if (isStaleNavigationNullError(reason.message || reason, reason.stack)) {
+            console.warn("Ignored stale page render after navigation:", reason.message || reason);
+            e.preventDefault();
+        }
+    });
+    window.addEventListener("error", function (e) {
+        if (e && isStaleNavigationNullError(e.message, e.filename)) {
+            console.warn("Ignored stale page render after navigation:", e.message);
+            e.preventDefault();
+        }
+    });
 })();
