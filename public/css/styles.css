@@ -413,6 +413,13 @@ h1, h2, h3, .headline, .font-headline { font-family: 'Plus Jakarta Sans', sans-s
 /* Service Request History: center the plain cells (Month/Client/Status/Date/Actions); amount stays right. */
 #billingHistoryBody td { text-align: center; }
 #billingHistoryBody td.text-right { text-align: right; }
+/* Sweep: center remaining plain-cell tables (data sat left under centered headers); amounts stay right, long text stays left. */
+#summaryBody td { text-align: center; }
+.reminder-section-table td { text-align: center; }
+.reminder-section-table td.text-right { text-align: right; }
+#quoteDetailContent .stitch-table td { text-align: center; }
+#quoteDetailContent .stitch-table td:first-child { text-align: left; }
+#quoteDetailContent .stitch-table td.text-right { text-align: right; }
 
 #clientsTable th,
 #ordersTable th,
