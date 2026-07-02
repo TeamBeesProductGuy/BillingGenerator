@@ -17,7 +17,7 @@ const LEGEND_ROWS = [
 
 const FONT = { name: 'Verdana', family: 2, size: 12, color: { argb: 'FF000000' } };
 const BOLD_FONT = { ...FONT, bold: true };
-const HEADER_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9EAD3' }, bgColor: { argb: 'FF000000' } };
+const HEADER_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF2CC' }, bgColor: { argb: 'FF000000' } };
 const TOTAL_HEADER_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEBEB' }, bgColor: { argb: 'FF000000' } };
 const SHADE_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8AEE8' }, bgColor: { argb: 'FF000000' } };
 const LEAVE_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF0000' }, bgColor: { argb: 'FF000000' } };
